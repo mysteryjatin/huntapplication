@@ -1,0 +1,134 @@
+name: hunt_property
+description: "A new Flutter project."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be ovenableOnBackInvokedCallback="true"' in the application manifest.
+#W/WindowOnBackDispatcher( 6610): OnBackInvokedCallback is not enabled for the application.
+#W/WindowOnBackDispatcher( 6610): Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+#I/ImeTracker( 6610): com.hunt.property.hunt_property:20de3a17: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false
+#D/InsetsController( 6610): show(ime(), fromIme=false)
+#D/InsetsController( 6610): Setting requestedVisibleTypes to -1 (was -9)
+#I/AssistStructure( 6610): Flattened final assist data: 516 bytes, containing 1 windows, 3 views
+#D/InputConnectionAdaptor( 6610): The input method toggled cursor monitoring on
+#I/ImeTracker( 6610): com.hunt.property.hunt_property:20de3a17: onShown
+#I/y.hunt_property( 6610): Background concurrent mark compact GC freed 2466KB AllocSpace bytes, 0(0B) LOS objects, 49% free, 2477KB/4954KB, paused 9.645ms,4.517ms total 46.500ms
+#I/flutter ( 6610): OTP API Response: {message: OTP sent successfully, phone_number: +919897876768, otp: 990332}
+#I/flutter ( 6610): OTP API Response Type: _Map<String, dynamic>
+#I/flutter ( 6610): OTP Response data: {message: OTP sent successfully, phone_number: +919897876768, otp: 990332}
+#I/flutter ( 6610): OTP Response data type: _Map<String, dynamic>
+#I/flutter ( 6610): Extracted OTP: 990332
+#I/flutter ( 6610): Final OTP to display: 990332
+#I/y.hunt_property( 6610): AssetManager2(0x796206814c98) locale list changing from [] to [en-US]
+#W/WindowOnBackDispatcher( 6610): OnBackInvokedCallback is not enabled for the application.
+#W/WindowOnBackDispatcher( 6610): Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+#I/ImeTracker( 6610): com.hunt.property.hunt_property:2f223cad: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT fromUser false
+#D/InsetsController( 6610): hide(ime(), fromIme=false)
+#W/WindowOnBackDispatcher( 6610): sendCancelIfRunning: isInProgress=false callback=android.view.ImeBackAnimationController@86a565e
+#D/InsetsController( 6610): Setting requestedVisibleTypes to -9 (was -1)
+#
+#======== Exception caught by rendering library =====================================================
+#The following assertion was thrown during layout:
+#A RenderFlex overflowed by 100 pixels on the right.
+#
+#The relevant error-causing widget was:
+#  Row Row:file:///I:/office%202/main/huntProperty/hunt_property/lib/screen/otp_screen.dart:173:26rridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+# In Windows, build-name is used as the major, minor, and patch parts
+# of the product and file versions while build-number is used as the build suffix.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.0
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.1.0
+  flutter_svg: ^2.1.2
+  url_launcher: ^6.2.2
+  flutter_bloc: ^8.1.6
+  http: ^1.2.2
+  equatable: ^2.0.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^5.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  # To add assets to your application, add an assets section, like this:
+  assets:
+    - assets/images/
+    - assets/images/school.png
+    - assets/images/Library.png
+    - assets/images/car_parking.png
+    - assets/images/Kids.png
+    - assets/images/restro.png
+    - assets/images/club_house.png
+    - assets/images/gym.png
+    - assets/images/yoga.png
+    - assets/images/not found.png
+    - assets/icons/
+  #   - images/a_dot_ham.jpeg
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package
