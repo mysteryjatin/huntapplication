@@ -1,17 +1,31 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:hunt_property/services/property_service.dart';
+import 'package:hunt_property/models/property_models.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hunt_property/cubit/auth_cubit.dart';
+import 'package:image_picker/image_picker.dart';
 
 class AddPostStep4Screen extends StatefulWidget {
   final VoidCallback? onBackPressed;
+  final PropertyDraft draft;
 
-  const AddPostStep4Screen({super.key, this.onBackPressed});
+  const AddPostStep4Screen({super.key, required this.draft, this.onBackPressed});
 
   @override
   State<AddPostStep4Screen> createState() => _AddPostStep4ScreenState();
 }
 
 class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
+  final PropertyService _propertyService = PropertyService();
+  bool _isSubmitting = false;
+  final ImagePicker _picker = ImagePicker();
+  final List<XFile> _pickedImages = [];
+
   String _selectedCategory = 'Exterior View';
 
   final List<String> _categories = [
@@ -24,11 +38,6 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
     'Master plan',
     'Location',
     'MapOt',
-  ];
-
-  final List<String> _uploadedImages = [
-    'img1', 'img2', 'img3', 'img4',
-    'img5', 'img6', 'img7', 'img8'
   ];
 
   String? _coverImage = "cover";
@@ -45,15 +54,22 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
   ];
 
   // -----------------------------
-  void _uploadImage() {
-    setState(() {
-      _uploadedImages.add("img${_uploadedImages.length + 1}");
-    });
+  Future<void> _uploadImage() async {
+    try {
+      final List<XFile> images = await _picker.pickMultiImage();
+      if (images.isNotEmpty) {
+        setState(() {
+          _pickedImages.addAll(images);
+        });
+      }
+    } catch (_) {
+      // Ignore picker errors for now
+    }
   }
 
   void _removeImage(int index) {
     setState(() {
-      _uploadedImages.removeAt(index);
+      _pickedImages.removeAt(index);
     });
   }
 
@@ -280,10 +296,14 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
   }
 
   Widget _uploadedImagesGrid() {
+    if (_pickedImages.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _uploadedImages.length,
+      itemCount: _pickedImages.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
         crossAxisSpacing: 12,
@@ -296,7 +316,7 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 image: DecorationImage(
-                  image: NetworkImage(demoImages[index % demoImages.length]),
+                  image: FileImage(File(_pickedImages[index].path)),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -346,7 +366,7 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
   }
 
   Widget _coverPreview() {
-    if (_coverImage == null) return const SizedBox();
+    if (_coverImage == null || _pickedImages.isEmpty) return const SizedBox();
 
     return Stack(
       children: [
@@ -354,9 +374,8 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
           height: 200,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            image: const DecorationImage(
-              image: NetworkImage(
-                  "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800"),
+            image: DecorationImage(
+              image: FileImage(File(_pickedImages.first.path)),
               fit: BoxFit.cover,
             ),
           ),
@@ -384,7 +403,7 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
       padding: const EdgeInsets.all(20),
       color: Colors.white,
       child: ElevatedButton(
-        onPressed: () {},
+        onPressed: _isSubmitting ? null : _handleSubmitProperty,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primaryColor,
           foregroundColor: Colors.black,
@@ -396,5 +415,57 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
                 fontSize: 16, fontWeight: FontWeight.w600)),
       ),
     );
+  }
+
+  Future<void> _handleSubmitProperty() async {
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    // Convert picked images to base64 strings so they can be stored in DB
+    final List<String> encodedImages = [];
+    for (final img in _pickedImages) {
+      try {
+        final bytes = await img.readAsBytes();
+        encodedImages.add(base64Encode(bytes));
+      } catch (_) {
+        // skip images that fail to read
+      }
+    }
+    widget.draft.imageUrls = encodedImages;
+
+    // Get logged in user id from AuthCubit, if available
+    String ownerId = '';
+    final authState = context.read<AuthCubit>().state;
+    if (authState is SignupSuccess) {
+      ownerId = authState.user.id;
+    }
+
+    final payload = widget.draft.toApiPayload(ownerId);
+
+    final result = await _propertyService.createProperty(payload);
+
+    if (!mounted) return;
+
+    setState(() {
+      _isSubmitting = false;
+    });
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Property created successfully'),
+        ),
+      );
+      // Close the add post flow after success
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } else {
+      final error = result['error']?.toString() ?? 'Failed to create property';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+        ),
+      );
+    }
   }
 }

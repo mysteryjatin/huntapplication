@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/screen/add_post_step3_screen.dart';
+import 'package:hunt_property/models/property_models.dart';
 
 class AddPostStep2Screen extends StatefulWidget {
   final VoidCallback? onBackPressed;
+  final PropertyDraft draft;
 
-  const AddPostStep2Screen({super.key, this.onBackPressed});
+  const AddPostStep2Screen({super.key, this.onBackPressed, required this.draft});
 
   @override
   State<AddPostStep2Screen> createState() => _AddPostStep2ScreenState();
@@ -86,6 +88,15 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   // ------------------------------ MAIN UI ------------------------------
   @override
   Widget build(BuildContext context) {
+    // Initialise from draft once when screen builds
+    _selectedCity ??= widget.draft.city.isNotEmpty ? widget.draft.city : _selectedCity;
+    if (_localityController.text.isEmpty && widget.draft.locality.isNotEmpty) {
+      _localityController.text = widget.draft.locality;
+    }
+    if (_addressController.text.isEmpty && widget.draft.address.isNotEmpty) {
+      _addressController.text = widget.draft.address;
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xffF5F7FA),
       appBar: _buildTopBar(),
@@ -521,11 +532,32 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
                 fontSize: 20, fontWeight: FontWeight.w600,color: Colors.black)),
         GestureDetector(
           onTap: () {
+            // Push latest values into draft
+            widget.draft
+              ..bedrooms = _bedrooms
+              ..bathrooms = _bathrooms
+              ..balconies = _balconies
+              ..furnishing = _furnishing
+              ..floorNumber = int.tryParse(_floorNumberController.text) ?? 0
+              ..totalFloors = int.tryParse(_totalFloorsController.text) ?? 0
+              ..floorsAllowed = int.tryParse(_floorsAllowedController.text) ?? 0
+              ..openSides = int.tryParse(_openSidesController.text) ?? 0
+              ..facing = _selectedFacing
+              ..storeRoom = _storeRoom
+              ..servantRoom = _servantRoom
+              ..areaSqft = int.tryParse(_superAreaController.text) ?? 0
+              ..address = _addressController.text.trim()
+              ..locality = _localityController.text.trim()
+              ..city = _selectedCity ?? widget.draft.city;
+
             Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (_) =>
-                      AddPostStep3Screen(onBackPressed: () => Navigator.pop(context))),
+                builder: (_) => AddPostStep3Screen(
+                  draft: widget.draft,
+                  onBackPressed: () => Navigator.pop(context),
+                ),
+              ),
             );
           },
           child: Container(

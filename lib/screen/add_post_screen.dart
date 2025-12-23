@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/screen/add_post_step2_screen.dart';
+import 'package:hunt_property/models/property_models.dart';
 
 class AddPostScreen extends StatefulWidget {
   final VoidCallback? onBackPressed;
-  
-  const AddPostScreen({super.key, this.onBackPressed});
+  final PropertyDraft? initialDraft;
+
+  const AddPostScreen({super.key, this.onBackPressed, this.initialDraft});
 
   @override
   State<AddPostScreen> createState() => _AddPostScreenState();
@@ -15,7 +17,9 @@ class AddPostScreen extends StatefulWidget {
 class _AddPostScreenState extends State<AddPostScreen> {
   final TextEditingController _propertyNameController = TextEditingController();
   final TextEditingController _buildingDescriptionController = TextEditingController();
-  
+
+  late PropertyDraft _draft;
+
   String _propertyFor = 'Sell'; // Sell or Rent
   String _buildingType = 'Residential'; // Residential, Commercial, Agriculture
   String? _selectedPropertyType; // Selected property type
@@ -37,6 +41,12 @@ class _AddPostScreenState extends State<AddPostScreen> {
   @override
   void initState() {
     super.initState();
+    _draft = widget.initialDraft ?? PropertyDraft();
+
+    // Pre-fill controllers if coming back to this step
+    _propertyNameController.text = _draft.title;
+    _buildingDescriptionController.text = _draft.description;
+
     _buildingDescriptionController.addListener(() {
       setState(() {});
     });
@@ -44,6 +54,10 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
   @override
   void dispose() {
+    // Save back into draft before disposing
+    _draft.title = _propertyNameController.text.trim();
+    _draft.description = _buildingDescriptionController.text.trim();
+
     _propertyNameController.dispose();
     _buildingDescriptionController.dispose();
     super.dispose();
@@ -136,13 +150,15 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: _buildToggleButton('Sell', _propertyFor == 'Sell', () {
+                        child: _buildToggleButton('Sell', _propertyFor == 'Sell',
+                            () {
                           setState(() => _propertyFor = 'Sell');
                         }),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: _buildToggleButton('Rent', _propertyFor == 'Rent', () {
+                        child: _buildToggleButton('Rent', _propertyFor == 'Rent',
+                            () {
                           setState(() => _propertyFor = 'Rent');
                         }),
                       ),
@@ -244,11 +260,19 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   // Property Location & Features Section
                   InkWell(
                     onTap: () {
-                      // Navigate to step 2
+                      // Update draft with current values before navigating
+                      _draft
+                        ..title = _propertyNameController.text.trim()
+                        ..description = _buildingDescriptionController.text.trim()
+                        ..transactionType = _propertyFor
+                        ..propertyCategory = _buildingType
+                        ..propertySubtype = _selectedPropertyType ?? '';
+
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => AddPostStep2Screen(
+                            draft: _draft,
                             onBackPressed: () {
                               Navigator.pop(context);
                             },

@@ -8,6 +8,8 @@ import 'package:hunt_property/screen/search_screen.dart';
 import 'package:hunt_property/screen/shortlist_screen.dart';
 import 'package:hunt_property/screen/side_menu_screen.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:hunt_property/services/property_service.dart';
+import 'package:hunt_property/models/property_models.dart';
 import 'filter_screen.dart';
 import 'widget/custombottomnavbar.dart';
 
@@ -29,6 +31,9 @@ class _HomeScreenState extends State<HomeScreen>
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final PropertyService _propertyService = PropertyService();
+  List<Property> _properties = [];
+  bool _isLoadingProperties = false;
   final categories = [
     'Buy',
     'Rent',
@@ -114,6 +119,8 @@ class _HomeScreenState extends State<HomeScreen>
     _searchFocusNode.addListener(
           () => setState(() => _isSearchFocused = _searchFocusNode.hasFocus),
     );
+
+    _loadProperties();
   }
 
   @override
@@ -204,16 +211,24 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
 
                   const SizedBox(height: 20),
-                  _sectionTitle("Top Selling Projects in Chennai"),
-                  _HorizontalPropertyList(properties: _topSelling),
-
-                  const SizedBox(height: 20),
-                  _sectionTitle("Recommend Your Location"),
-                  _HorizontalPropertyList(properties: _recommended),
-
-                  const SizedBox(height: 20),
-                  _sectionTitle("Property for Rent"),
-                  _HorizontalPropertyList(properties: _rents),
+                  _sectionTitle("Latest Properties"),
+                  if (_isLoadingProperties)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (_properties.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Text(
+                        'No properties found. Try adding one from "Post Your Property".',
+                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                    )
+                  else
+                    _HorizontalPropertyList.fromProperties(properties: _properties),
 
                   const SizedBox(height: 20),
                   _ServicesGrid(services: _services),
@@ -287,6 +302,18 @@ class _HomeScreenState extends State<HomeScreen>
             FilterScreen(scrollController: scrollController),
       ),
     );
+  }
+
+  Future<void> _loadProperties() async {
+    setState(() {
+      _isLoadingProperties = true;
+    });
+    final props = await _propertyService.getProperties();
+    if (!mounted) return;
+    setState(() {
+      _properties = props;
+      _isLoadingProperties = false;
+    });
   }
 }
 
@@ -557,20 +584,56 @@ class _GetStartedCarousel extends StatelessWidget {
 // HORIZONTAL PROPERTY LIST (reusable widget)
 // ------------------------
 class _HorizontalPropertyList extends StatelessWidget {
-  final List<Map<String, String>> properties;
-  const _HorizontalPropertyList({required this.properties});
+  final List<Map<String, String>>? properties;
+  final List<Property>? apiProperties;
+
+  const _HorizontalPropertyList({
+    this.properties,
+    this.apiProperties,
+  });
+
+  factory _HorizontalPropertyList.fromProperties({
+    required List<Property> properties,
+  }) {
+    return _HorizontalPropertyList(apiProperties: properties);
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (apiProperties != null) {
+      return SizedBox(
+        height: 235,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: apiProperties!.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemBuilder: (context, i) {
+            final p = apiProperties![i];
+            final firstImage = p.images.isNotEmpty ? p.images.first : null;
+            return _PropertyCard(
+              tag: p.transactionType,
+              title: p.title,
+              price: '₹${p.price}',
+              location: '${p.locality}, ${p.city}',
+              imageUrl: firstImage,
+            );
+          },
+        ),
+      );
+    }
+
+    final localList = properties ?? [];
+
     return SizedBox(
       height: 235,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: properties.length,
+        itemCount: localList.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, i) {
-          final p = properties[i];
+          final p = localList[i];
           return _PropertyCard(
             tag: p['tag'] ?? '',
             title: p['title'] ?? '',
@@ -591,12 +654,14 @@ class _PropertyCard extends StatelessWidget {
   final String title;
   final String price;
   final String location;
+  final String? imageUrl;
 
   const _PropertyCard({
     required this.tag,
     required this.title,
     required this.price,
     required this.location,
+    this.imageUrl,
   });
 
   @override
@@ -621,10 +686,15 @@ class _PropertyCard extends StatelessWidget {
                 SizedBox(
                   height: 120,
                   width: double.infinity,
-                  child: Image.asset(
-                    'assets/images/onboarding1.png',
-                    fit: BoxFit.cover,
-                  ),
+                  child: imageUrl != null && imageUrl!.isNotEmpty
+                      ? Image.network(
+                          imageUrl!,
+                          fit: BoxFit.cover,
+                        )
+                      : Image.asset(
+                          'assets/images/onboarding1.png',
+                          fit: BoxFit.cover,
+                        ),
                 ),
                 Positioned(
                   top: 8,

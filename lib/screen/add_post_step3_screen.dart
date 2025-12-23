@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/screen/add_post_step4_screen.dart';
+import 'package:hunt_property/models/property_models.dart';
 
 class AddPostStep3Screen extends StatefulWidget {
+  final PropertyDraft draft;
   final VoidCallback? onBackPressed;
 
-  const AddPostStep3Screen({super.key, this.onBackPressed});
+  const AddPostStep3Screen({super.key, required this.draft, this.onBackPressed});
 
   @override
   State<AddPostStep3Screen> createState() => _AddPostStep3ScreenState();
@@ -38,11 +40,17 @@ class _AddPostStep3ScreenState extends State<AddPostStep3Screen> {
       } else {
         _selectedAmenities.add(amenity);
       }
+      // Keep draft amenities in sync
+      widget.draft.amenities = _selectedAmenities.toList();
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Pre-fill selected amenities from draft when opening this step
+    if (_selectedAmenities.isEmpty && widget.draft.amenities.isNotEmpty) {
+      _selectedAmenities.addAll(widget.draft.amenities);
+    }
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -145,17 +153,20 @@ class _AddPostStep3ScreenState extends State<AddPostStep3Screen> {
                     ),
                   ),
 
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => AddPostStep4Screen(
-                            onBackPressed: () => Navigator.pop(context),
+                      GestureDetector(
+                      onTap: () {
+                        // Ensure latest amenities in draft
+                        widget.draft.amenities = _selectedAmenities.toList();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AddPostStep4Screen(
+                              draft: widget.draft,
+                              onBackPressed: () => Navigator.pop(context),
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
                     child: Container(
                       width: 56,
                       height: 56,
