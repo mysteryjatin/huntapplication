@@ -422,17 +422,14 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
       _isSubmitting = true;
     });
 
-    // Convert picked images to base64 strings so they can be stored in DB
-    final List<String> encodedImages = [];
-    for (final img in _pickedImages) {
-      try {
-        final bytes = await img.readAsBytes();
-        encodedImages.add(base64Encode(bytes));
-      } catch (_) {
-        // skip images that fail to read
-      }
-    }
-    widget.draft.imageUrls = encodedImages;
+    // NOTE:
+    // Backend expects each item in "images" to be an object/dictionary,
+    // not a plain string. Our current UI only has local image files and
+    // we don't yet have an upload endpoint or agreed JSON shape for images.
+    // To avoid 422 validation errors, we temporarily send an empty list for
+    // "images" and only save the property metadata. When the backend image
+    // model / upload API is ready, we can wire picked images accordingly.
+    widget.draft.imageUrls = [];
 
     // Get logged in user id from AuthCubit, if available
     String? ownerId;
