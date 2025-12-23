@@ -13,6 +13,12 @@ class PropertyService {
     try {
       final uri = Uri.parse('$baseUrl/api/properties');
 
+      // Debug: log outgoing payload
+      // This will help see exactly what is being sent to the backend
+      // in the Flutter debug console.
+      // ignore: avoid_print
+      print('📤 CREATE PROPERTY PAYLOAD: $payload');
+
       final response = await http.post(
         uri,
         headers: {
@@ -20,6 +26,11 @@ class PropertyService {
         },
         body: jsonEncode(payload),
       );
+
+      // Debug: log response
+      // ignore: avoid_print
+      print(
+          '📥 CREATE PROPERTY RESPONSE: ${response.statusCode} ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return {
@@ -43,6 +54,8 @@ class PropertyService {
         };
       }
     } catch (e) {
+      // ignore: avoid_print
+      print('❌ CREATE PROPERTY ERROR: $e');
       return {
         'success': false,
         'error': e.toString(),

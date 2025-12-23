@@ -5,7 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/screen/add_post_step3_screen.dart';
 import 'package:hunt_property/models/property_models.dart';
-
 class AddPostStep2Screen extends StatefulWidget {
   final VoidCallback? onBackPressed;
   final PropertyDraft draft;
@@ -22,6 +21,33 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   // ===================== State variables =====================
   String? _selectedState;
   String? _selectedCity;
+
+  // Indian states and some sample cities
+  final List<String> _states = const [
+    'Delhi',
+    'Maharashtra',
+    'Uttar Pradesh',
+    'Karnataka',
+    'Tamil Nadu',
+    'Gujarat',
+    'Rajasthan',
+    'Haryana',
+    'Punjab',
+    'West Bengal',
+  ];
+
+  final Map<String, List<String>> _citiesByState = const {
+    'Delhi': ['New Delhi', 'Dwarka', 'Rohini', 'Saket'],
+    'Maharashtra': ['Mumbai', 'Pune', 'Nagpur', 'Thane'],
+    'Uttar Pradesh': ['Noida', 'Ghaziabad', 'Lucknow', 'Kanpur'],
+    'Karnataka': ['Bengaluru', 'Mysuru', 'Mangaluru'],
+    'Tamil Nadu': ['Chennai', 'Coimbatore', 'Madurai'],
+    'Gujarat': ['Ahmedabad', 'Surat', 'Vadodara'],
+    'Rajasthan': ['Jaipur', 'Udaipur', 'Jodhpur'],
+    'Haryana': ['Gurugram', 'Faridabad', 'Panipat'],
+    'Punjab': ['Ludhiana', 'Amritsar', 'Jalandhar'],
+    'West Bengal': ['Kolkata', 'Howrah', 'Durgapur'],
+  };
 
   final _localityController = TextEditingController();
   final _addressController = TextEditingController();
@@ -160,14 +186,27 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children: [
         _label("State"),
         const SizedBox(height: 8),
-        _dropdown("Please Select", _selectedState,
-            ["California", "Texas", "New York"], (v) => setState(() => _selectedState = v)),
+        _dropdown(
+          "Select State",
+          _selectedState,
+          _states,
+          (v) => setState(() {
+            _selectedState = v;
+            _selectedCity = null;
+          }),
+        ),
         const SizedBox(height: _rowGap),
 
         _label("City"),
         const SizedBox(height: 8),
-        _dropdown("--Select--", _selectedCity,
-            ["Los Angeles", "San Francisco", "San Diego"], (v) => setState(() => _selectedCity = v)),
+        _dropdown(
+          "Select City",
+          _selectedCity,
+          _selectedState != null
+              ? (_citiesByState[_selectedState] ?? [])
+              : <String>[],
+          (v) => setState(() => _selectedCity = v),
+        ),
         const SizedBox(height: _rowGap),
 
         _label("Locality"),
