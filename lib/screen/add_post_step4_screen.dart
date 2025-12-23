@@ -435,13 +435,13 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
     widget.draft.imageUrls = encodedImages;
 
     // Get logged in user id from AuthCubit, if available
-    String ownerId = '';
+    String? ownerId;
     final authState = context.read<AuthCubit>().state;
     if (authState is SignupSuccess) {
       ownerId = authState.user.id;
     }
 
-    final payload = widget.draft.toApiPayload(ownerId);
+    final payload = widget.draft.toApiPayload(ownerId: ownerId);
 
     final result = await _propertyService.createProperty(payload);
 
@@ -457,8 +457,9 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
           content: Text('Property created successfully'),
         ),
       );
-      // Close the add post flow after success
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      // Navigate to Home after successful post
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
     } else {
       final error = result['error']?.toString() ?? 'Failed to create property';
       ScaffoldMessenger.of(context).showSnackBar(

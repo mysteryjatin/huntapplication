@@ -51,8 +51,16 @@ class PropertyDraft {
   })  : amenities = amenities ?? [],
         imageUrls = imageUrls ?? [];
 
-  Map<String, dynamic> toApiPayload(String ownerId) {
-    return {
+  Map<String, dynamic> toApiPayload({String? ownerId}) {
+    // Backend marks owner_id as required, so we must always send something.
+    // Prefer the real user id; otherwise use a temporary placeholder that
+    // backend can later ignore or replace.
+    final String effectiveOwnerId =
+        (ownerId != null && ownerId.isNotEmpty)
+            ? ownerId
+            : '000000000000000000000000'; // TODO: replace with real user id when login returns it
+
+    final Map<String, dynamic> data = {
       "title": title,
       "description": description,
       "transaction_type": transactionType,
@@ -79,8 +87,10 @@ class PropertyDraft {
       },
       "images": imageUrls,
       "amenities": amenities,
-      "owner_id": ownerId,
+      "owner_id": effectiveOwnerId,
     };
+
+    return data;
   }
 }
 
@@ -95,7 +105,7 @@ class Property {
   final int bedrooms;
   final int bathrooms;
   final int balconies;
-  final int areaSqft;
+  final num areaSqft;
   final String furnishing;
   final int floorNumber;
   final int totalFloors;
@@ -144,23 +154,38 @@ class Property {
   factory Property.fromJson(Map<String, dynamic> json) {
     final location = json['location'] as Map<String, dynamic>? ?? {};
 
+    int _toInt(dynamic v) {
+      if (v == null) return 0;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? 0;
+      return 0;
+    }
+
+    num _toNum(dynamic v) {
+      if (v == null) return 0;
+      if (v is num) return v;
+      if (v is String) return num.tryParse(v) ?? 0;
+      return 0;
+    }
+
     return Property(
       id: json['_id']?.toString() ?? '',
       title: json['title']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       transactionType: json['transaction_type']?.toString() ?? '',
-      price: json['price'] ?? 0,
+      price: _toNum(json['price']),
       propertyCategory: json['property_category']?.toString() ?? '',
       propertySubtype: json['property_subtype']?.toString() ?? '',
-      bedrooms: (json['bedrooms'] ?? 0) as int,
-      bathrooms: (json['bathrooms'] ?? 0) as int,
-      balconies: (json['balconies'] ?? 0) as int,
-      areaSqft: (json['area_sqft'] ?? 0) as int,
+      bedrooms: _toInt(json['bedrooms']),
+      bathrooms: _toInt(json['bathrooms']),
+      balconies: _toInt(json['balconies']),
+      areaSqft: _toNum(json['area_sqft']),
       furnishing: json['furnishing']?.toString() ?? '',
-      floorNumber: (json['floor_number'] ?? 0) as int,
-      totalFloors: (json['total_floors'] ?? 0) as int,
-      floorsAllowed: (json['floors_allowed'] ?? 0) as int,
-      openSides: (json['open_sides'] ?? 0) as int,
+      floorNumber: _toInt(json['floor_number']),
+      totalFloors: _toInt(json['total_floors']),
+      floorsAllowed: _toInt(json['floors_allowed']),
+      openSides: _toInt(json['open_sides']),
       facing: json['facing']?.toString() ?? '',
       storeRoom: (json['store_room'] ?? false) as bool,
       servantRoom: (json['servant_room'] ?? false) as bool,

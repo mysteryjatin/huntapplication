@@ -11,7 +11,10 @@ class PropertyService {
   Future<Map<String, dynamic>> createProperty(
       Map<String, dynamic> payload) async {
     try {
-      final uri = Uri.parse('$baseUrl/api/properties');
+      // NOTE: FastAPI is configured with a trailing slash for this route:
+      // POST /api/properties/
+      // Using the exact path avoids a 307 Temporary Redirect.
+      final uri = Uri.parse('$baseUrl/api/properties/');
 
       // Debug: log outgoing payload
       // This will help see exactly what is being sent to the backend
@@ -65,26 +68,48 @@ class PropertyService {
 
   Future<List<Property>> getProperties() async {
     try {
-      final uri = Uri.parse('$baseUrl/api/properties');
-      final response = await http.get(uri);
+      // Matching the backend route with trailing slash: GET /api/properties/
+      final uri = Uri.parse('$baseUrl/api/properties/');
 
-      if (response.statusCode == 200) {
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      // ignore: avoid_print
+      print(
+          '📥 GET PROPERTIES RESPONSE: ${response.statusCode} ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final decoded = jsonDecode(response.body);
+        dynamic list;
         if (decoded is List) {
-          return decoded
-              .whereType<Map<String, dynamic>>()
-              .map((e) => Property.fromJson(e))
-              .toList();
-        } else if (decoded is Map && decoded['items'] is List) {
-          final list = decoded['items'] as List;
+          list = decoded;
+        } else if (decoded is Map) {
+          // Try common envelope keys
+          if (decoded['items'] is List) {
+            list = decoded['items'];
+          } else if (decoded['data'] is List) {
+            list = decoded['data'];
+          } else if (decoded['results'] is List) {
+            list = decoded['results'];
+          }
+        }
+
+        if (list is List) {
           return list
               .whereType<Map<String, dynamic>>()
               .map((e) => Property.fromJson(e))
               .toList();
         }
       }
+
       return [];
-    } catch (_) {
+    } catch (e) {
+      // ignore: avoid_print
+      print('❌ GET PROPERTIES ERROR: $e');
       return [];
     }
   }
