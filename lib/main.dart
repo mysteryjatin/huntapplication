@@ -18,6 +18,7 @@ import 'package:hunt_property/screen/shortlist_screen.dart';
 import 'package:hunt_property/screen/splash_screen.dart';
 import 'package:hunt_property/services/auth_service.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:hunt_property/models/property_models.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,9 +46,12 @@ class MyApp extends StatelessWidget {
           '/home': (_) => const HomeScreen(),
           '/search': (_) => const SearchScreen(),
           '/add-post': (_) => const AddPostScreen(),
-          '/add-post-step2': (_) => const AddPostStep2Screen(),
-          '/add-post-step3': (_) => const AddPostStep3Screen(),
-          '/add-post-step4': (_) => const AddPostStep4Screen(),
+          // For step 2–4 we must provide a PropertyDraft instance.
+          // These named routes are mainly fallbacks; normal flow passes
+          // the draft via Navigator.push with MaterialPageRoute.
+          '/add-post-step2': (_) => AddPostStep2Screen(draft: PropertyDraft()),
+          '/add-post-step3': (_) => AddPostStep3Screen(draft: PropertyDraft()),
+          '/add-post-step4': (_) => AddPostStep4Screen(draft: PropertyDraft()),
           '/shortlist': (_) => const ShortlistScreen(),
           '/profile': (_) => const ProfileScreen(),
           '/rent-properties': (_) => const RentPropertiesScreen(),
