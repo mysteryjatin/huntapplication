@@ -6,11 +6,78 @@ import 'package:hunt_property/screen/notification_preference_screen.dart';
 import 'package:hunt_property/screen/personal_information_screen.dart';
 import 'package:hunt_property/screen/subscription_plans_screen.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:hunt_property/services/profile_service.dart';
+import 'package:hunt_property/services/storage_service.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final VoidCallback? onBackPressed;
 
   const ProfileScreen({super.key, this.onBackPressed});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final ProfileService _profileService = ProfileService();
+  bool _isLoading = true;
+  Map<String, dynamic>? _profileData;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final userId = await StorageService.getUserId();
+      if (userId == null) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'User not logged in';
+        });
+        return;
+      }
+
+      final result = await _profileService.getProfile(userId);
+      if (result['success']) {
+        setState(() {
+          _profileData = result['data'];
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = result['error'] ?? 'Failed to load profile';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _logout() async {
+    // Clear all stored data
+    await StorageService.clearAll();
+    
+    // Navigate to login screen
+    if (mounted) {
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/login',
+        (route) => false,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +222,7 @@ class ProfileScreen extends StatelessWidget {
                                         child: ElevatedButton(
                                           onPressed: () {
                                             Navigator.pop(context);
-                                            // Add logout logic here
+                                            _logout();
                                             ScaffoldMessenger.of(context).showSnackBar(
                                               const SnackBar(content: Text('Logged out successfully!')),
                                             );
@@ -227,99 +294,158 @@ class ProfileScreen extends StatelessWidget {
               const SizedBox(height: 20),
               
               // Profile Info Row
-              Row(
-                children: [
-                  // Profile Picture
-                  Container(
-                    width: 70,
-                    height: 70,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/images/onboarding1.png',
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: Colors.grey.shade300,
-                            child: const Icon(
-                              Icons.person,
-                              size: 40,
-                              color: Colors.grey,
-                            ),
-                          );
-                        },
-                      ),
+              if (_isLoading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
                     ),
                   ),
-                  
-                  const SizedBox(width: 16),
-                  
-                  // Name, Email, Badge
-                  Expanded(
+                )
+              else if (_errorMessage != null)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // User Name
-                        const Text(
-                          'Esther Howard',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black,
+                        Text(
+                          _errorMessage!,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 14,
                           ),
                         ),
-                        
-                        const SizedBox(height: 6),
-                        
-                        // Email with verified badge
-                        Row(
-                          children: [
-                            Text(
-                              'doc@gmail.com',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.black.withOpacity(0.7),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            SvgPicture.asset(
-                              "assets/images/verified.svg",
-                              width: 20,   // optional
-                              height: 20,  // optional
-                            )
-
-                          ],
-                        ),
-                        
-                        const SizedBox(height: 8),
-                        
-                        // Free Member Badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0x331A1A1A), // #1A1A1A33
-                            borderRadius: BorderRadius.circular(8),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: _loadProfile,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white,
                           ),
-                          child: Text(
-                            'Free member',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black.withOpacity(0.7),
-                            ),
-                          ),
+                          child: const Text('Retry'),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
+                )
+              else
+                Row(
+                  children: [
+                    // Profile Picture
+                    Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: ClipOval(
+                        child: _profileData?['profile_picture'] != null
+                            ? Image.network(
+                                _profileData!['profile_picture'],
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return _buildDefaultAvatar();
+                                },
+                              )
+                            : Image.asset(
+                                'assets/images/onboarding1.png',
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return _buildDefaultAvatar();
+                                },
+                              ),
+                      ),
+                    ),
+                    
+                    const SizedBox(width: 16),
+                    
+                    // Name, Email, Badge
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // User Name
+                          Text(
+                            _profileData?['full_name']?.toString() ?? 
+                            _profileData?['name']?.toString() ?? 
+                            'User',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black,
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 6),
+                          
+                          // Email with verified badge
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  _profileData?['email']?.toString() ?? 
+                                  'No email',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.black.withOpacity(0.7),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (_profileData?['email_verified'] == true || 
+                                  _profileData?['is_verified'] == true)
+                                const SizedBox(width: 6),
+                              if (_profileData?['email_verified'] == true || 
+                                  _profileData?['is_verified'] == true)
+                                SvgPicture.asset(
+                                  "assets/images/verified.svg",
+                                  width: 20,
+                                  height: 20,
+                                ),
+                            ],
+                          ),
+                          
+                          const SizedBox(height: 8),
+                          
+                          // Member Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0x331A1A1A), // #1A1A1A33
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              _profileData?['subscription_type']?.toString() ?? 
+                              _profileData?['member_type']?.toString() ?? 
+                              'Free member',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black.withOpacity(0.7),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      color: Colors.grey.shade300,
+      child: const Icon(
+        Icons.person,
+        size: 40,
+        color: Colors.grey,
       ),
     );
   }
