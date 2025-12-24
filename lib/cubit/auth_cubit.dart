@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../models/auth_models.dart';
 import '../services/auth_service.dart';
+import '../services/storage_service.dart';
 
 // States
 abstract class AuthState extends Equatable {
@@ -256,6 +257,48 @@ class AuthCubit extends Cubit<AuthState> {
       }
       
       if (result['success']) {
+        final responseData = result['data'];
+        
+        // Extract user data and token from response
+        String? userId;
+        String? token;
+        
+        if (responseData is Map) {
+          // Try to extract user_id or id
+          userId = responseData['user_id']?.toString() ?? 
+                   responseData['id']?.toString() ?? 
+                   responseData['_id']?.toString();
+          
+          // Try to extract token
+          token = responseData['token']?.toString() ?? 
+                  responseData['access_token']?.toString();
+          
+          // If user data is nested
+          if (userId == null && responseData['user'] is Map) {
+            final userData = responseData['user'];
+            userId = userData['user_id']?.toString() ?? 
+                     userData['id']?.toString() ?? 
+                     userData['_id']?.toString();
+          }
+        }
+        
+        // Save user data to storage (with error handling)
+        try {
+          if (userId != null) {
+            await StorageService.saveUserId(userId);
+            await StorageService.saveUserPhone(phone);
+          }
+          if (token != null) {
+            await StorageService.saveToken(token);
+          }
+          if (userId != null) {
+            await StorageService.setLoggedIn(true);
+          }
+        } catch (e) {
+          print('Error saving user data to storage: $e');
+          // Continue even if storage fails - user can still proceed
+        }
+        
         if (isLogin) {
           // Login successful, navigate to home
           emit(OtpVerified(phoneExists: true));
@@ -377,6 +420,24 @@ class AuthCubit extends Cubit<AuthState> {
       if (result['success']) {
         final userData = result['data'];
         final user = User.fromJson(userData);
+        
+        // Save user data to storage after signup (with error handling)
+        try {
+          if (user.id.isNotEmpty) {
+            await StorageService.saveUserId(user.id);
+            await StorageService.saveUserPhone(phone);
+            await StorageService.setLoggedIn(true);
+            
+            // Try to extract token if available
+            if (userData is Map && userData['token'] != null) {
+              await StorageService.saveToken(userData['token'].toString());
+            }
+          }
+        } catch (e) {
+          print('Error saving user data to storage after signup: $e');
+          // Continue even if storage fails - user can still proceed
+        }
+        
         emit(SignupSuccess(user));
       } else {
         emit(AuthError(result['error'] ?? 'Failed to signup'));

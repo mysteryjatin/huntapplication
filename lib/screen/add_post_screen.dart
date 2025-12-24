@@ -26,17 +26,48 @@ class _AddPostScreenState extends State<AddPostScreen> {
   
   final int _maxDescriptionLength = 500;
   
-  final List<String> _propertyTypes = [
-    'House or Kothi',
-    'Builder Floor',
-    'Villa',
-    'Service Apartment',
-    'Penthouse',
-    'Studio Apartment',
-    'Flats',
-    'Duplex',
-    'Plot/Land',
-  ];
+  // Get dynamic options based on property type
+  List<String> get _propertyOptions {
+    switch (_buildingType) {
+      case 'Residential':
+        return [
+          'House or Kothi',
+          'Builder Floor',
+          'Villa',
+          'Service Apartment',
+          'Penthouse',
+          'Studio Apartment',
+          'Flats',
+          'Duplex',
+          'Plot/Land',
+        ];
+      case 'Commercial':
+        return [
+          'Commercial Land',
+          'Office Space',
+          'Shop',
+          'Showroom',
+          'Warehouse / Godown',
+          'Industrial Land',
+          'Industrial Building',
+          'Industrial Shed',
+          'IT Space',
+          'Hostel / PG',
+          'Food Court',
+          'Restaurants',
+          'Banquet Hall',
+          'Cineplex / Cinema Hall',
+        ];
+      case 'Agriculture':
+        return [
+          'Farm House',
+          'Agriculture Land',
+          'Farm Land',
+        ];
+      default:
+        return [];
+    }
+  }
 
   @override
   void initState() {
@@ -166,39 +197,48 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   ),
                   const SizedBox(height: 20),
                   
-                  // Building Type Section
-                  _buildInputLabel('Builder Type'),
+                  // Property Type Section
+                  _buildInputLabel('Property Type'),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       Expanded(
                         child: _buildToggleButton('Residential', _buildingType == 'Residential', () {
-                          setState(() => _buildingType = 'Residential');
+                          setState(() {
+                            _buildingType = 'Residential';
+                            _selectedPropertyType = null; // Reset selection when type changes
+                          });
                         }),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildToggleButton('Commercial', _buildingType == 'Commercial', () {
-                          setState(() => _buildingType = 'Commercial');
+                          setState(() {
+                            _buildingType = 'Commercial';
+                            _selectedPropertyType = null; // Reset selection when type changes
+                          });
                         }),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildToggleButton('Agricultural', _buildingType == 'Agriculture', () {
-                          setState(() => _buildingType = 'Agriculture');
+                          setState(() {
+                            _buildingType = 'Agriculture';
+                            _selectedPropertyType = null; // Reset selection when type changes
+                          });
                         }),
                       ),
                     ],
                   ),
                   const SizedBox(height: 20),
                   
-                  // Property Type Section
-                  _buildInputLabel('Property Type'),
+                  // Options Section
+                  _buildInputLabel('Options'),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: _propertyTypes.map((type) {
+                    children: _propertyOptions.map((type) {
                       final isSelected = _selectedPropertyType == type;
                       return _buildChip(type, isSelected, () {
                         setState(() => _selectedPropertyType = type);

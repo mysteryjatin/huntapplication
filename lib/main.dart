@@ -17,11 +17,24 @@ import 'package:hunt_property/screen/search_screen.dart';
 import 'package:hunt_property/screen/shortlist_screen.dart';
 import 'package:hunt_property/screen/splash_screen.dart';
 import 'package:hunt_property/services/auth_service.dart';
+import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/models/property_models.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Pre-initialize SharedPreferences to avoid platform channel errors
+  // Add a small delay to ensure platform channels are ready
+  await Future.delayed(const Duration(milliseconds: 100));
+  
+  try {
+    await StorageService.initialize(forceRefresh: true);
+  } catch (e) {
+    print('Warning: Failed to pre-initialize SharedPreferences: $e');
+    // Continue anyway - it will retry when needed
+  }
+  
   runApp(const MyApp());
 }
 

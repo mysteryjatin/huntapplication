@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:hunt_property/services/profile_service.dart';
+import 'package:hunt_property/services/storage_service.dart';
 
 class PersonalInformationScreen extends StatefulWidget {
   const PersonalInformationScreen({super.key});
@@ -9,10 +11,127 @@ class PersonalInformationScreen extends StatefulWidget {
 }
 
 class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
-  final TextEditingController _fullNameController = TextEditingController(text: 'Esther Howard');
-  final TextEditingController _emailController = TextEditingController(text: 'esther@gmail.com');
-  final TextEditingController _mobileController = TextEditingController(text: '+91 99999 55555');
-  final TextEditingController _addressController = TextEditingController(text: 'Ashok Nagar, Chennai, Tamil Nadu');
+  final ProfileService _profileService = ProfileService();
+  final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _mobileController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  
+  bool _isLoading = true;
+  bool _isSaving = false;
+  String? _userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      _userId = await StorageService.getUserId();
+      if (_userId == null) {
+        setState(() {
+          _isLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('User not logged in')),
+          );
+        }
+        return;
+      }
+
+      final result = await _profileService.getProfile(_userId!);
+      if (result['success']) {
+        final data = result['data'];
+        setState(() {
+          _fullNameController.text = data['full_name']?.toString() ?? 
+                                     data['name']?.toString() ?? '';
+          _emailController.text = data['email']?.toString() ?? '';
+          _mobileController.text = data['phone_number']?.toString() ?? 
+                                   data['phone']?.toString() ?? '';
+          _addressController.text = data['address']?.toString() ?? '';
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result['error'] ?? 'Failed to load profile')),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (_userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User not logged in')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final profileData = {
+        'full_name': _fullNameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phone_number': _mobileController.text.trim(),
+        'address': _addressController.text.trim(),
+      };
+
+      final result = await _profileService.updateProfile(_userId!, profileData);
+      
+      setState(() {
+        _isSaving = false;
+      });
+
+      if (result['success']) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Information saved successfully!')),
+          );
+          // Optionally refresh profile data
+          _loadProfile();
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result['error'] ?? 'Failed to save profile')),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isSaving = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -34,7 +153,13 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
           
           // Form Content
           Expanded(
-            child: SingleChildScrollView(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2FED9A)),
+                    ),
+                  )
+                : SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
@@ -127,12 +252,7 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: () {
-                        // Save logic here
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Information saved successfully!')),
-                        );
-                      },
+                      onPressed: _isSaving ? null : _saveProfile,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2FED9A),
                         foregroundColor: Colors.black,
@@ -141,13 +261,22 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        'Save',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                              ),
+                            )
+                          : const Text(
+                              'Save',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                     ),
                   ),
                 ],
