@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/screen/add_post_step3_screen.dart';
 import 'package:hunt_property/models/property_models.dart';
+import 'package:hunt_property/models/property_field_config.dart';
 class AddPostStep2Screen extends StatefulWidget {
   final VoidCallback? onBackPressed;
   final PropertyDraft draft;
@@ -145,6 +146,43 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   static const double _rowGap = 16;
 
   @override
+  void initState() {
+    super.initState();
+    // Initialize values from draft
+    _bedrooms = widget.draft.bedrooms > 0 ? widget.draft.bedrooms : _bedrooms;
+    _bathrooms = widget.draft.bathrooms > 0 ? widget.draft.bathrooms : _bathrooms;
+    _balconies = widget.draft.balconies > 0 ? widget.draft.balconies : _balconies;
+    _furnishing = widget.draft.furnishing.isNotEmpty ? widget.draft.furnishing : _furnishing;
+    _storeRoom = widget.draft.storeRoom;
+    _servantRoom = widget.draft.servantRoom;
+    
+    if (widget.draft.floorNumber > 0) {
+      _floorNumberController.text = widget.draft.floorNumber.toString();
+    }
+    if (widget.draft.totalFloors > 0) {
+      _totalFloorsController.text = widget.draft.totalFloors.toString();
+    }
+    if (widget.draft.floorsAllowed > 0) {
+      _floorsAllowedController.text = widget.draft.floorsAllowed.toString();
+    }
+    if (widget.draft.openSides > 0) {
+      _openSidesController.text = widget.draft.openSides.toString();
+    }
+    if (widget.draft.areaSqft > 0) {
+      _superAreaController.text = widget.draft.areaSqft.toString();
+    }
+    if (widget.draft.facing.isNotEmpty) {
+      _selectedFacing = widget.draft.facing;
+    }
+
+    // Set bedrooms to 0 if property type doesn't require it
+    final config = PropertyFieldConfig.getConfigForSubtype(widget.draft.propertySubtype);
+    if (!config.showBedrooms) {
+      _bedrooms = 0;
+    }
+  }
+
+  @override
   void dispose() {
     _localityController.dispose();
     _addressController.dispose();
@@ -161,6 +199,11 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     _maintenanceChargesController.dispose();
     _brokerageController.dispose();
     super.dispose();
+  }
+
+  // Get field configuration based on property subtype
+  PropertyFieldConfig get _fieldConfig {
+    return PropertyFieldConfig.getConfigForSubtype(widget.draft.propertySubtype);
   }
 
   // ------------------------------ MAIN UI ------------------------------
@@ -285,25 +328,38 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
 
   // ===================== PROPERTY FEATURES =====================
   Widget _propertyFeaturesSection() {
-    return _sectionCard(
-      icon: Icons.home_filled,
-      title: "Property Features",
-      children: [
+    final config = _fieldConfig;
+    final List<Widget> children = [];
+
+    if (config.showBedrooms) {
+      children.addAll([
         _label("Bedrooms"),
         const SizedBox(height: 8),
         _numberSelectorWithCustom(selected: _bedrooms, onSelect: (v) => setState(() => _bedrooms = v)),
         const SizedBox(height: 20),
+      ]);
+    }
 
+    if (config.showBathrooms) {
+      children.addAll([
         _label("Bathrooms"),
         const SizedBox(height: 8),
         _numberSelectorWithCustom(selected: _bathrooms, onSelect: (v) => setState(() => _bathrooms = v)),
         const SizedBox(height: 20),
+      ]);
+    }
 
+    if (config.showBalconies) {
+      children.addAll([
         _label("Balconies"),
         const SizedBox(height: 8),
         _numberSelectorWithCustom(selected: _balconies, onSelect: (v) => setState(() => _balconies = v)),
         const SizedBox(height: 20),
+      ]);
+    }
 
+    if (config.showFurnishing) {
+      children.addAll([
         _label("Furnishing"),
         const SizedBox(height: 8),
         Wrap(
@@ -324,42 +380,64 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
                     () => setState(() => _furnishing = "Semi-furnished")),
           ],
         ),
-
         const SizedBox(height: 20),
+      ]);
+    }
 
+    if (config.showFloorNumber) {
+      children.addAll([
         _label("Floor Number"),
         const SizedBox(height: 8),
         _textField(_floorNumberController, hint: "Eg. 12"),
         const SizedBox(height: 20),
+      ]);
+    }
 
-        Column(
+    if (config.showTotalFloors || config.showFloorsAllowed) {
+      children.add(
+        Row(
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _label("Total Floors"),
-                const SizedBox(height: 8),
-                _textField(_totalFloorsController, hint: "Eg. 20"),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _label("Floors Allowed"),
-                const SizedBox(height: 8),
-                _textField(_floorsAllowedController, hint: "Eg. 15"),
-              ],
-            ),
+            if (config.showTotalFloors)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _label("Total Floors"),
+                    const SizedBox(height: 8),
+                    _textField(_totalFloorsController, hint: "Eg. 20"),
+                  ],
+                ),
+              ),
+            if (config.showTotalFloors && config.showFloorsAllowed)
+              const SizedBox(width: 12),
+            if (config.showFloorsAllowed)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _label("Floors Allowed"),
+                    const SizedBox(height: 8),
+                    _textField(_floorsAllowedController, hint: "Eg. 15"),
+                  ],
+                ),
+              ),
           ],
         ),
-        const SizedBox(height: 20),
+      );
+      children.add(const SizedBox(height: 20));
+    }
 
+    if (config.showOpenSides) {
+      children.addAll([
         _label("Open Sides"),
         const SizedBox(height: 8),
-        _textField(_openSidesController, hint: "Eg. 2"), // ★ As requested
+        _textField(_openSidesController, hint: "Eg. 2"),
         const SizedBox(height: 20),
+      ]);
+    }
 
+    if (config.showFacing) {
+      children.addAll([
         _label("Facing of Property"),
         const SizedBox(height: 8),
         Wrap(
@@ -377,16 +455,35 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
           ],
         ),
         const SizedBox(height: 20),
+      ]);
+    }
 
+    if (config.showStoreRoom) {
+      children.addAll([
         _label("Store Room"),
         const SizedBox(height: 8),
         _yesNo(_storeRoom, (v) => setState(() => _storeRoom = v)),
         const SizedBox(height: 20),
+      ]);
+    }
 
+    if (config.showServantRoom) {
+      children.addAll([
         _label("Servant Room"),
         const SizedBox(height: 8),
         _yesNo(_servantRoom, (v) => setState(() => _servantRoom = v)),
-      ],
+      ]);
+    }
+
+    // Only show section if there are any fields to display
+    if (children.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return _sectionCard(
+      icon: Icons.home_filled,
+      title: "Property Features",
+      children: children,
     );
   }
 
@@ -461,33 +558,54 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
 
   // ===================== AREA SECTION =====================
   Widget _areaSection() {
-    return _sectionCard(
-      icon: Icons.square_foot,
-      title: "Area",
-      children: [
+    final config = _fieldConfig;
+    final List<Widget> children = [];
+
+    if (config.showAreaSuper) {
+      children.addAll([
         _label("Super Area (Sq. Ft)"),
         const SizedBox(height: 8),
         _textField(_superAreaController, hint: "Enter area"),
         const SizedBox(height: _rowGap),
+      ]);
+    }
 
+    if (config.showAreaBuiltUp) {
+      children.addAll([
         _label("Built Up Area (Sq. Ft)"),
         const SizedBox(height: 8),
         _textField(_builtUpAreaController, hint: "Enter area"),
         const SizedBox(height: _rowGap),
+      ]);
+    }
 
+    if (config.showAreaCarpet) {
+      children.addAll([
         _label("Carpet Area (Sq. Ft)"),
         const SizedBox(height: 8),
         _textField(_carpetAreaController, hint: "Enter area"),
-      ],
+      ]);
+    }
+
+    // Only show section if there are any fields to display
+    if (children.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return _sectionCard(
+      icon: Icons.square_foot,
+      title: "Area",
+      children: children,
     );
   }
 
   // ===================== TRANSACTION SECTION =====================
   Widget _transactionSection() {
-    return _sectionCard(
-      icon: Icons.swap_horiz_outlined,
-      title: "Transaction Type",
-      children: [
+    final config = _fieldConfig;
+    final List<Widget> children = [];
+
+    if (config.showTransactionType) {
+      children.addAll([
         _label("Transaction Type"),
         const SizedBox(height: 8),
         Row(
@@ -502,7 +620,11 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
           ],
         ),
         const SizedBox(height: _rowGap),
+      ]);
+    }
 
+    if (config.showPossessionStatus) {
+      children.addAll([
         _label("Possession Status"),
         const SizedBox(height: 8),
         Row(
@@ -519,7 +641,11 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
           ],
         ),
         const SizedBox(height: _rowGap),
+      ]);
+    }
 
+    if (config.showAvailableFrom) {
+      children.addAll([
         _label("Available From"),
         const SizedBox(height: 8),
         Wrap(
@@ -537,7 +663,11 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
           ],
         ),
         const SizedBox(height: _rowGap),
+      ]);
+    }
 
+    if (config.showAgeOfConstruction) {
+      children.addAll([
         _label("Age of Construction"),
         const SizedBox(height: 8),
         Wrap(
@@ -555,17 +685,29 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
           ],
         ),
         const SizedBox(height: _rowGap),
+      ]);
+    }
 
+    if (config.showCarParking) {
+      children.addAll([
         _label("Car Parking"),
         const SizedBox(height: 8),
         _yesNo(_carParking, (v) => setState(() => _carParking = v)),
         const SizedBox(height: _rowGap),
+      ]);
+    }
 
+    if (config.showLift) {
+      children.addAll([
         _label("Lift"),
         const SizedBox(height: 8),
         _yesNo(_lift, (v) => setState(() => _lift = v)),
         const SizedBox(height: _rowGap),
+      ]);
+    }
 
+    if (config.showOwnershipType) {
+      children.addAll([
         _label("Type of Ownership"),
         const SizedBox(height: 8),
         Wrap(
@@ -581,7 +723,18 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
                     () => setState(() => _ownershipType = "Power of Attorney")),
           ],
         ),
-      ],
+      ]);
+    }
+
+    // Only show section if there are any fields to display
+    if (children.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return _sectionCard(
+      icon: Icons.swap_horiz_outlined,
+      title: "Transaction Type",
+      children: children,
     );
   }
 
@@ -623,19 +776,20 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
                 fontSize: 20, fontWeight: FontWeight.w600,color: Colors.black)),
         GestureDetector(
           onTap: () {
+            final config = _fieldConfig;
             // Push latest values into draft
             widget.draft
-              ..bedrooms = _bedrooms
-              ..bathrooms = _bathrooms
-              ..balconies = _balconies
-              ..furnishing = _furnishing
-              ..floorNumber = int.tryParse(_floorNumberController.text) ?? 0
-              ..totalFloors = int.tryParse(_totalFloorsController.text) ?? 0
-              ..floorsAllowed = int.tryParse(_floorsAllowedController.text) ?? 0
-              ..openSides = int.tryParse(_openSidesController.text) ?? 0
-              ..facing = _selectedFacing
-              ..storeRoom = _storeRoom
-              ..servantRoom = _servantRoom
+              ..bedrooms = config.showBedrooms ? _bedrooms : 0
+              ..bathrooms = config.showBathrooms ? _bathrooms : 0
+              ..balconies = config.showBalconies ? _balconies : 0
+              ..furnishing = config.showFurnishing ? _furnishing : ''
+              ..floorNumber = config.showFloorNumber ? (int.tryParse(_floorNumberController.text) ?? 0) : 0
+              ..totalFloors = config.showTotalFloors ? (int.tryParse(_totalFloorsController.text) ?? 0) : 0
+              ..floorsAllowed = config.showFloorsAllowed ? (int.tryParse(_floorsAllowedController.text) ?? 0) : 0
+              ..openSides = config.showOpenSides ? (int.tryParse(_openSidesController.text) ?? 0) : 0
+              ..facing = config.showFacing ? _selectedFacing : ''
+              ..storeRoom = config.showStoreRoom ? _storeRoom : false
+              ..servantRoom = config.showServantRoom ? _servantRoom : false
               ..areaSqft = int.tryParse(_superAreaController.text) ?? 0
               ..address = _addressController.text.trim()
               ..locality = _localityController.text.trim()
