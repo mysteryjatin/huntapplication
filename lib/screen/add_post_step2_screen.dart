@@ -105,6 +105,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   final _localityController = TextEditingController();
   final _addressController = TextEditingController();
   final _landmarkController = TextEditingController();
+  final _buildingNameController = TextEditingController();
 
   int _bedrooms = 4;
   int _bathrooms = 3;
@@ -121,6 +122,19 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
 
   bool _storeRoom = true;
   bool _servantRoom = true;
+  bool _boundaryWallMade = false;
+  String _occupancy = "";
+  bool _attachedBathroom = false;
+  String _electricity = "";
+  bool _anyConstructionDone = false;
+  String _monthlyRent = "";
+  bool _sharedOfficeSpace = false;
+  bool _personalWashroom = false;
+  bool _pantry = false;
+  String _howOldIsPG = "";
+  bool _attachedBalcony = false;
+  String _securityAmount = "";
+  bool _commonArea = false;
 
   final _superAreaController = TextEditingController();
   final _builtUpAreaController = TextEditingController();
@@ -140,6 +154,8 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   final _bookingAmountController = TextEditingController();
   final _maintenanceChargesController = TextEditingController();
   final _brokerageController = TextEditingController(text: "0");
+  final _unitNumberController = TextEditingController();
+  final _electricityController = TextEditingController();
 
   static const double _outerPadding = 16;
   static const double _cardPadding = 18;
@@ -155,6 +171,28 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     _furnishing = widget.draft.furnishing.isNotEmpty ? widget.draft.furnishing : _furnishing;
     _storeRoom = widget.draft.storeRoom;
     _servantRoom = widget.draft.servantRoom;
+    _boundaryWallMade = widget.draft.boundaryWallMade;
+    _occupancy = widget.draft.occupancy.isNotEmpty ? widget.draft.occupancy : _occupancy;
+    _attachedBathroom = widget.draft.attachedBathroom;
+    _anyConstructionDone = widget.draft.anyConstructionDone;
+    if (widget.draft.electricity.isNotEmpty) {
+      _electricityController.text = widget.draft.electricity;
+      _electricity = widget.draft.electricity;
+    }
+    if (widget.draft.monthlyRent.isNotEmpty) {
+      _monthlyRentController.text = widget.draft.monthlyRent;
+      _monthlyRent = widget.draft.monthlyRent;
+    }
+    _sharedOfficeSpace = widget.draft.sharedOfficeSpace;
+    _personalWashroom = widget.draft.personalWashroom;
+    _pantry = widget.draft.pantry;
+    _howOldIsPG = widget.draft.howOldIsPG.isNotEmpty ? widget.draft.howOldIsPG : _howOldIsPG;
+    _attachedBalcony = widget.draft.attachedBalcony;
+    _commonArea = widget.draft.commonArea;
+    if (widget.draft.securityAmount.isNotEmpty) {
+      _securityAmountController.text = widget.draft.securityAmount;
+      _securityAmount = widget.draft.securityAmount;
+    }
     
     if (widget.draft.floorNumber > 0) {
       _floorNumberController.text = widget.draft.floorNumber.toString();
@@ -174,6 +212,12 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     if (widget.draft.facing.isNotEmpty) {
       _selectedFacing = widget.draft.facing;
     }
+    if (widget.draft.buildingName.isNotEmpty) {
+      _buildingNameController.text = widget.draft.buildingName;
+    }
+    if (widget.draft.unitNumber.isNotEmpty) {
+      _unitNumberController.text = widget.draft.unitNumber;
+    }
 
     // Set bedrooms to 0 if property type doesn't require it
     final config = PropertyFieldConfig.getConfigForSubtype(widget.draft.propertySubtype);
@@ -187,6 +231,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     _localityController.dispose();
     _addressController.dispose();
     _landmarkController.dispose();
+    _buildingNameController.dispose();
     _floorNumberController.dispose();
     _totalFloorsController.dispose();
     _floorsAllowedController.dispose();
@@ -198,6 +243,10 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     _bookingAmountController.dispose();
     _maintenanceChargesController.dispose();
     _brokerageController.dispose();
+    _unitNumberController.dispose();
+    _electricityController.dispose();
+    _monthlyRentController.dispose();
+    _securityAmountController.dispose();
     super.dispose();
   }
 
@@ -337,6 +386,15 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     final config = _fieldConfig;
     final List<Widget> children = [];
 
+    if (config.showBuildingName) {
+      children.addAll([
+        _label("Building Name"),
+        const SizedBox(height: 8),
+        _textField(_buildingNameController, hint: "Enter building name"),
+        const SizedBox(height: 20),
+      ]);
+    }
+
     if (config.showBedrooms) {
       children.addAll([
         _label("Bedrooms"),
@@ -433,6 +491,15 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.add(const SizedBox(height: 20));
     }
 
+    if (config.showAnyConstructionDone) {
+      children.addAll([
+        _label("Any Construction Done"),
+        const SizedBox(height: 8),
+        _yesNo(_anyConstructionDone, (v) => setState(() => _anyConstructionDone = v)),
+        const SizedBox(height: 20),
+      ]);
+    }
+
     if (config.showOpenSides) {
       children.addAll([
         _label("Open Sides"),
@@ -464,6 +531,74 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       ]);
     }
 
+    if (config.showAttachedBathroom) {
+      children.addAll([
+        _label("Attached Bathroom"),
+        const SizedBox(height: 8),
+        _yesNo(_attachedBathroom, (v) => setState(() => _attachedBathroom = v)),
+        const SizedBox(height: 20),
+      ]);
+    }
+
+    if (config.showSharedOfficeSpace) {
+      children.addAll([
+        _label("Shared Office Space"),
+        const SizedBox(height: 8),
+        _yesNo(_sharedOfficeSpace, (v) => setState(() => _sharedOfficeSpace = v)),
+        const SizedBox(height: 20),
+      ]);
+    }
+
+    if (config.showPersonalWashroom) {
+      children.addAll([
+        _label("Personal Washroom"),
+        const SizedBox(height: 8),
+        _yesNo(_personalWashroom, (v) => setState(() => _personalWashroom = v)),
+        const SizedBox(height: 20),
+      ]);
+    }
+
+    if (config.showPantry) {
+      children.addAll([
+        _label("Pantry"),
+        const SizedBox(height: 8),
+        _yesNo(_pantry, (v) => setState(() => _pantry = v)),
+        const SizedBox(height: 20),
+      ]);
+    }
+
+    if (config.showHowOldIsPG) {
+      children.addAll([
+        _label("How Old is PG"),
+        const SizedBox(height: 8),
+        _dropdown(
+          "Select age",
+          _howOldIsPG.isEmpty ? null : _howOldIsPG,
+          ['Less than 1 year', '1-2 years', '2-5 years', '5-10 years', 'More than 10 years'],
+          (v) => setState(() => _howOldIsPG = v ?? ''),
+        ),
+        const SizedBox(height: 20),
+      ]);
+    }
+
+    if (config.showAttachedBalcony) {
+      children.addAll([
+        _label("Attached Balcony"),
+        const SizedBox(height: 8),
+        _yesNo(_attachedBalcony, (v) => setState(() => _attachedBalcony = v)),
+        const SizedBox(height: 20),
+      ]);
+    }
+
+    if (config.showCommonArea) {
+      children.addAll([
+        _label("Common Area"),
+        const SizedBox(height: 8),
+        _yesNo(_commonArea, (v) => setState(() => _commonArea = v)),
+        const SizedBox(height: 20),
+      ]);
+    }
+
     if (config.showStoreRoom) {
       children.addAll([
         _label("Store Room"),
@@ -478,6 +613,29 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
         _label("Servant Room"),
         const SizedBox(height: 8),
         _yesNo(_servantRoom, (v) => setState(() => _servantRoom = v)),
+      ]);
+    }
+
+    if (config.showBoundaryWallMade) {
+      children.addAll([
+        const SizedBox(height: 20),
+        _label("Boundary Wall Made"),
+        const SizedBox(height: 8),
+        _yesNo(_boundaryWallMade, (v) => setState(() => _boundaryWallMade = v)),
+      ]);
+    }
+
+    if (config.showOccupancy) {
+      children.addAll([
+        const SizedBox(height: 20),
+        _label("Occupancy"),
+        const SizedBox(height: 8),
+        _dropdown(
+          "Select Occupancy",
+          _occupancy.isEmpty ? null : _occupancy,
+          ['Owner', 'Tenant', 'Vacant', 'Under Construction'],
+          (v) => setState(() => _occupancy = v ?? ''),
+        ),
       ]);
     }
 
@@ -729,6 +887,15 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
                     () => setState(() => _ownershipType = "Power of Attorney")),
           ],
         ),
+        const SizedBox(height: _rowGap),
+      ]);
+    }
+
+    if (config.showUnitNumber) {
+      children.addAll([
+        _label("Unit Number"),
+        const SizedBox(height: 8),
+        _textField(_unitNumberController, hint: "Enter unit number"),
       ]);
     }
 
@@ -746,29 +913,72 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
 
   // ===================== PRICE SECTION =====================
   Widget _priceSection() {
-    return _sectionCard(
-      icon: Icons.currency_rupee_outlined,
-      title: "Price Details",
-      children: [
+    final config = _fieldConfig;
+    final List<Widget> children = [];
+
+    // Only show Expected Price if Monthly Rent is not shown
+    if (!config.showMonthlyRent) {
+      children.addAll([
         _label("Expected Price"),
         const SizedBox(height: 8),
         _textField(_expectedPriceController, hint: "Enter expected price"),
         const SizedBox(height: _rowGap),
+      ]);
+    }
 
-        _label("Booking Amount"),
+    children.addAll([
+      _label("Booking Amount"),
+      const SizedBox(height: 8),
+      _textField(_bookingAmountController, hint: "Enter booking amount"),
+      const SizedBox(height: _rowGap),
+    ]);
+
+    if (config.showMonthlyRent) {
+      children.addAll([
+        _label("Monthly Rent"),
         const SizedBox(height: 8),
-        _textField(_bookingAmountController, hint: "Enter booking amount"),
+        _textField(_monthlyRentController, hint: "Enter monthly rent"),
         const SizedBox(height: _rowGap),
+      ]);
+    }
 
+    if (config.showSecurityAmount) {
+      children.addAll([
+        _label("Security Amount"),
+        const SizedBox(height: 8),
+        _textField(_securityAmountController, hint: "Enter security amount"),
+        const SizedBox(height: _rowGap),
+      ]);
+    }
+
+    if (config.showMaintenanceCharges) {
+      children.addAll([
         _label("Maintenance Charges"),
         const SizedBox(height: 8),
         _textField(_maintenanceChargesController, hint: "Enter maintenance charges"),
         const SizedBox(height: _rowGap),
+      ]);
+    }
 
-        _label("Brokerage"),
+    children.addAll([
+      _label("Brokerage"),
+      const SizedBox(height: 8),
+      _textField(_brokerageController, hint: "Enter brokerage"),
+    ]);
+
+    if (config.showElectricity) {
+      children.addAll([
+        const SizedBox(height: _rowGap),
+        _label("Electricity"),
         const SizedBox(height: 8),
-        _textField(_brokerageController, hint: "Enter brokerage"),
-      ],
+        _textField(_electricityController, hint: "Enter electricity details"),
+      ]);
+    }
+
+    return _sectionCard(
+      icon: Icons.currency_rupee_outlined,
+      title: "Price Details",
+      children: children,
     );
   }
 
@@ -796,6 +1006,21 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
               ..facing = config.showFacing ? _selectedFacing : ''
               ..storeRoom = config.showStoreRoom ? _storeRoom : false
               ..servantRoom = config.showServantRoom ? _servantRoom : false
+              ..buildingName = config.showBuildingName ? _buildingNameController.text.trim() : ''
+              ..unitNumber = config.showUnitNumber ? _unitNumberController.text.trim() : ''
+              ..boundaryWallMade = config.showBoundaryWallMade ? _boundaryWallMade : false
+              ..occupancy = config.showOccupancy ? _occupancy : ''
+              ..attachedBathroom = config.showAttachedBathroom ? _attachedBathroom : false
+              ..electricity = config.showElectricity ? _electricityController.text.trim() : ''
+              ..anyConstructionDone = config.showAnyConstructionDone ? _anyConstructionDone : false
+              ..monthlyRent = config.showMonthlyRent ? _monthlyRentController.text.trim() : ''
+              ..sharedOfficeSpace = config.showSharedOfficeSpace ? _sharedOfficeSpace : false
+              ..personalWashroom = config.showPersonalWashroom ? _personalWashroom : false
+              ..pantry = config.showPantry ? _pantry : false
+              ..howOldIsPG = config.showHowOldIsPG ? _howOldIsPG : ''
+              ..attachedBalcony = config.showAttachedBalcony ? _attachedBalcony : false
+              ..securityAmount = config.showSecurityAmount ? _securityAmountController.text.trim() : ''
+              ..commonArea = config.showCommonArea ? _commonArea : false
               ..areaSqft = int.tryParse(_superAreaController.text) ?? 0
               ..address = _addressController.text.trim()
               ..locality = _localityController.text.trim()

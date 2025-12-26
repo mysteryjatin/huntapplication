@@ -21,6 +21,21 @@ class PropertyDraft {
   String address;
   String locality;
   String city;
+  String buildingName;
+  String unitNumber;
+  bool boundaryWallMade;
+  String occupancy;
+  bool attachedBathroom;
+  String electricity;
+  bool anyConstructionDone;
+  String monthlyRent;
+  bool sharedOfficeSpace;
+  bool personalWashroom;
+  bool pantry;
+  String howOldIsPG;
+  bool attachedBalcony;
+  String securityAmount;
+  bool commonArea;
 
   List<String> amenities;
   List<String> imageUrls;
@@ -46,6 +61,21 @@ class PropertyDraft {
     this.address = '',
     this.locality = '',
     this.city = '',
+    this.buildingName = '',
+    this.unitNumber = '',
+    this.boundaryWallMade = false,
+    this.occupancy = '',
+    this.attachedBathroom = false,
+    this.electricity = '',
+    this.anyConstructionDone = false,
+    this.monthlyRent = '',
+    this.sharedOfficeSpace = false,
+    this.personalWashroom = false,
+    this.pantry = false,
+    this.howOldIsPG = '',
+    this.attachedBalcony = false,
+    this.securityAmount = '',
+    this.commonArea = false,
     List<String>? amenities,
     List<String>? imageUrls,
   })  : amenities = amenities ?? [],
@@ -85,6 +115,21 @@ class PropertyDraft {
         "city": city,
         "geo": {},
       },
+      "building_name": buildingName,
+      "unit_number": unitNumber,
+      "boundary_wall_made": boundaryWallMade,
+      "occupancy": occupancy,
+      "attached_bathroom": attachedBathroom,
+      "electricity": electricity,
+      "any_construction_done": anyConstructionDone,
+      "monthly_rent": monthlyRent,
+      "shared_office_space": sharedOfficeSpace,
+      "personal_washroom": personalWashroom,
+      "pantry": pantry,
+      "how_old_is_pg": howOldIsPG,
+      "attached_balcony": attachedBalcony,
+      "security_amount": securityAmount,
+      "common_area": commonArea,
       "images": imageUrls,
       "amenities": amenities,
       "owner_id": effectiveOwnerId,
@@ -117,6 +162,21 @@ class Property {
   final String address;
   final String locality;
   final String city;
+  final String buildingName;
+  final String unitNumber;
+  final bool boundaryWallMade;
+  final String occupancy;
+  final bool attachedBathroom;
+  final String electricity;
+  final bool anyConstructionDone;
+  final String monthlyRent;
+  final bool sharedOfficeSpace;
+  final bool personalWashroom;
+  final bool pantry;
+  final String howOldIsPG;
+  final bool attachedBalcony;
+  final String securityAmount;
+  final bool commonArea;
   final List<String> amenities;
   final List<String> images;
   final String ownerId;
@@ -145,6 +205,21 @@ class Property {
     required this.address,
     required this.locality,
     required this.city,
+    required this.buildingName,
+    required this.unitNumber,
+    required this.boundaryWallMade,
+    required this.occupancy,
+    required this.attachedBathroom,
+    required this.electricity,
+    required this.anyConstructionDone,
+    required this.monthlyRent,
+    required this.sharedOfficeSpace,
+    required this.personalWashroom,
+    required this.pantry,
+    required this.howOldIsPG,
+    required this.attachedBalcony,
+    required this.securityAmount,
+    required this.commonArea,
     required this.amenities,
     required this.images,
     required this.ownerId,
@@ -192,6 +267,21 @@ class Property {
       address: location['address']?.toString() ?? '',
       locality: location['locality']?.toString() ?? '',
       city: location['city']?.toString() ?? '',
+      buildingName: json['building_name']?.toString() ?? '',
+      unitNumber: json['unit_number']?.toString() ?? '',
+      boundaryWallMade: (json['boundary_wall_made'] ?? false) as bool,
+      occupancy: json['occupancy']?.toString() ?? '',
+      attachedBathroom: (json['attached_bathroom'] ?? false) as bool,
+      electricity: json['electricity']?.toString() ?? '',
+      anyConstructionDone: (json['any_construction_done'] ?? false) as bool,
+      monthlyRent: json['monthly_rent']?.toString() ?? '',
+      sharedOfficeSpace: (json['shared_office_space'] ?? false) as bool,
+      personalWashroom: (json['personal_washroom'] ?? false) as bool,
+      pantry: (json['pantry'] ?? false) as bool,
+      howOldIsPG: json['how_old_is_pg']?.toString() ?? '',
+      attachedBalcony: (json['attached_balcony'] ?? false) as bool,
+      securityAmount: json['security_amount']?.toString() ?? '',
+      commonArea: (json['common_area'] ?? false) as bool,
       amenities: (json['amenities'] as List<dynamic>? ?? [])
           .map((e) => e.toString())
           .toList(),
