@@ -209,6 +209,13 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   // ------------------------------ MAIN UI ------------------------------
   @override
   Widget build(BuildContext context) {
+    // Debug: Print property subtype to verify it's being passed correctly
+    // ignore: avoid_print
+    if (widget.draft.propertySubtype.isNotEmpty) {
+      print('📋 Property Subtype: ${widget.draft.propertySubtype}');
+      print('📋 Field Config - Bedrooms: ${_fieldConfig.showBedrooms}, Bathrooms: ${_fieldConfig.showBathrooms}');
+    }
+
     // Initialise from draft once when screen builds
     _selectedCity ??= widget.draft.city.isNotEmpty ? widget.draft.city : _selectedCity;
     if (_localityController.text.isEmpty && widget.draft.locality.isNotEmpty) {
