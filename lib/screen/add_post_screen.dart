@@ -300,13 +300,28 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   // Property Location & Features Section
                   InkWell(
                     onTap: () {
+                      // Validate that a property type is selected
+                      if (_selectedPropertyType == null || _selectedPropertyType!.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Please select a property type',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                        return;
+                      }
+
                       // Update draft with current values before navigating
                       _draft
                         ..title = _propertyNameController.text.trim()
                         ..description = _buildingDescriptionController.text.trim()
                         ..transactionType = _propertyFor
                         ..propertyCategory = _buildingType
-                        ..propertySubtype = _selectedPropertyType ?? '';
+                        ..propertySubtype = _selectedPropertyType!;
 
                       Navigator.push(
                         context,
