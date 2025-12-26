@@ -51,7 +51,10 @@ class PropertyFieldConfig {
       return const PropertyFieldConfig();
     }
 
-    switch (propertySubtype) {
+    // Normalize the property subtype (trim and handle variations)
+    final normalized = propertySubtype.trim();
+
+    switch (normalized) {
       case 'House or Kothi':
         return const PropertyFieldConfig(
           showBedrooms: true,
@@ -705,6 +708,10 @@ class PropertyFieldConfig {
         );
 
       default:
+        // Log unmatched property subtype for debugging
+        // ignore: avoid_print
+        print('⚠️ WARNING: Unmatched property subtype: "$normalized"');
+        print('⚠️ This will show all fields. Please check the property subtype name matches exactly.');
         // Default config - show all fields for unknown types
         return const PropertyFieldConfig();
     }

@@ -323,6 +323,12 @@ class _AddPostScreenState extends State<AddPostScreen> {
                         ..propertyCategory = _buildingType
                         ..propertySubtype = _selectedPropertyType!;
 
+                      // Debug: Print what's being saved
+                      // ignore: avoid_print
+                      print('✅ Step 1 - Saving Property Subtype: "${_selectedPropertyType}"');
+                      // ignore: avoid_print
+                      print('✅ Step 1 - Property Category: "$_buildingType"');
+
                       Navigator.push(
                         context,
                         MaterialPageRoute(
