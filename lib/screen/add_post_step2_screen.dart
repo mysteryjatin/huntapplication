@@ -156,6 +156,8 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   final _brokerageController = TextEditingController(text: "0");
   final _unitNumberController = TextEditingController();
   final _electricityController = TextEditingController();
+  final _monthlyRentController = TextEditingController();
+  final _securityAmountController = TextEditingController();
 
   static const double _outerPadding = 16;
   static const double _cardPadding = 18;
