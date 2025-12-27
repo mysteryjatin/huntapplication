@@ -23,10 +23,12 @@ import 'package:hunt_property/screen/sidemenu_screen/privacy_policy_screen.dart'
 import 'package:hunt_property/screen/sidemenu_screen/cancellation_policy_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/shopping_policy_screen.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:hunt_property/services/profile_service.dart';
+import 'package:hunt_property/services/storage_service.dart';
 
 import 'sidemenu_screen/order_history_screen.dart';
 
-class SideMenuScreen extends StatelessWidget {
+class SideMenuScreen extends StatefulWidget {
   final Function(int)? onMenuItemSelected;
   final VoidCallback? onClose;
 
@@ -35,6 +37,73 @@ class SideMenuScreen extends StatelessWidget {
     this.onMenuItemSelected,
     this.onClose,
   });
+
+  @override
+  State<SideMenuScreen> createState() => _SideMenuScreenState();
+}
+
+class _SideMenuScreenState extends State<SideMenuScreen> {
+  final ProfileService _profileService = ProfileService();
+  bool _isLoading = true;
+  Map<String, dynamic>? _profileData;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Check both login status and user ID
+      final isLoggedIn = await StorageService.isLoggedIn();
+      final userId = await StorageService.getUserId();
+      
+      if (!isLoggedIn || userId == null || userId.isEmpty || userId == '000000000000000000000000') {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'User not logged in';
+        });
+        return;
+      }
+
+      final result = await _profileService.getProfile(userId);
+      if (result['success']) {
+        final profileData = result['data'];
+        
+        // Save user type to storage if available
+        if (profileData is Map) {
+          final userType = profileData['user_type']?.toString() ?? 
+                          profileData['userType']?.toString();
+          if (userType != null && userType.isNotEmpty) {
+            await StorageService.saveUserType(userType);
+            print('✅ Side Menu - User type saved: $userType');
+          }
+        }
+        
+        setState(() {
+          _profileData = profileData;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = result['error'] ?? 'Failed to load profile';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +115,7 @@ class SideMenuScreen extends StatelessWidget {
         child: Column(
           children: [
             // Profile Section
-            _buildProfileSection(context),
+            _buildProfileSection(context, _isLoading, _profileData, _errorMessage),
 
             // Menu Items
             Expanded(
@@ -447,7 +516,12 @@ class SideMenuScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileSection(BuildContext context) {
+  Widget _buildProfileSection(
+    BuildContext context,
+    bool isLoading,
+    Map<String, dynamic>? profileData,
+    String? errorMessage,
+  ) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       decoration: BoxDecoration(
@@ -462,10 +536,11 @@ class SideMenuScreen extends StatelessWidget {
           // Back button
           GestureDetector(
             onTap: () {
-              // Navigator.pop(context);
-              // if (onClose != null) {
-              //   onClose!();
-              // }
+              if (widget.onClose != null) {
+                widget.onClose!();
+              } else {
+                Navigator.pop(context);
+              }
             },
             child: Container(
               decoration: BoxDecoration(
@@ -490,100 +565,158 @@ class SideMenuScreen extends StatelessWidget {
           const SizedBox(height: 20),
 
           // Profile info row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Profile picture
-              Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.grey[300]!, width: 2),
-                ),
-                child: ClipOval(
-                  child: Image.asset(
-                    'assets/images/onboarding1.png',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.grey[300],
-                        child: const Icon(
-                          Icons.person,
-                          size: 35,
-                          color: Colors.grey,
-                        ),
-                      );
-                    },
-                  ),
+          if (isLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20.0),
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
                 ),
               ),
-
-              const SizedBox(width: 16),
-
-              // Name, email, badge
-              Expanded(
+            )
+          else if (errorMessage != null)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // User Name
-                    const Text(
-                      'Esther Howard',
+                    Text(
+                      errorMessage,
                       style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                        height: 1.2,
+                        color: Colors.grey[700],
+                        fontSize: 14,
                       ),
                     ),
-
-                    const SizedBox(height: 8),
-
-                    // Email with verified badge
-                    Row(
-                      children: [
-                        Text(
-                          'abc@gmail.com',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[700],
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        SvgPicture.asset(
-                          "assets/images/verified.svg",
-                          width: 20, // optional
-                          height: 20, // optional
-                        )
-                      ],
-                    ),
-
                     const SizedBox(height: 12),
-
-                    // Free Member button
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(8),
+                    ElevatedButton(
+                      onPressed: _loadProfile,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
                       ),
-                      child: const Text(
-                        'Free member',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
+                      child: const Text('Retry'),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            )
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Profile picture
+                Container(
+                  width: 70,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.grey[300]!, width: 2),
+                  ),
+                  child: ClipOval(
+                    child: profileData?['profile_picture'] != null
+                        ? Image.network(
+                            profileData!['profile_picture'],
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildDefaultAvatar();
+                            },
+                          )
+                        : Image.asset(
+                            'assets/images/onboarding1.png',
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildDefaultAvatar();
+                            },
+                          ),
+                  ),
+                ),
+
+                const SizedBox(width: 16),
+
+                // Name, email, badge
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // User Name
+                      Text(
+                        profileData?['full_name']?.toString() ??
+                            profileData?['name']?.toString() ??
+                            'User',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                          height: 1.2,
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // Email with verified badge
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              profileData?['email']?.toString() ?? 'No email',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[700],
+                                height: 1.2,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (profileData?['email_verified'] == true ||
+                              profileData?['is_verified'] == true) ...[
+                            const SizedBox(width: 6),
+                            SvgPicture.asset(
+                              "assets/images/verified.svg",
+                              width: 20,
+                              height: 20,
+                            ),
+                          ],
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Member badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          profileData?['subscription_type']?.toString() ??
+                              profileData?['member_type']?.toString() ??
+                              'Free member',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      color: Colors.grey[300],
+      child: const Icon(
+        Icons.person,
+        size: 35,
+        color: Colors.grey,
       ),
     );
   }

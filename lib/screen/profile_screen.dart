@@ -37,28 +37,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
+      // Check both login status and user ID
+      final isLoggedIn = await StorageService.isLoggedIn();
       final userId = await StorageService.getUserId();
-      if (userId == null) {
+      final token = await StorageService.getToken();
+      
+      // Debug: Print all auth info to verify
+      print('🔍 Profile Screen - Is Logged In: $isLoggedIn');
+      print('🔍 Profile Screen - User ID: $userId');
+      print('🔍 Profile Screen - Token exists: ${token != null && token.isNotEmpty}');
+      
+      if (!isLoggedIn || userId == null || userId.isEmpty || userId == '000000000000000000000000') {
         setState(() {
           _isLoading = false;
           _errorMessage = 'User not logged in';
         });
+        print('⚠️ Profile Screen - User not logged in. isLoggedIn: $isLoggedIn, userId: $userId');
         return;
       }
 
       final result = await _profileService.getProfile(userId);
       if (result['success']) {
+        final profileData = result['data'];
+        
+        // Save user type to storage if available
+        if (profileData is Map) {
+          final userType = profileData['user_type']?.toString() ?? 
+                          profileData['userType']?.toString();
+          if (userType != null && userType.isNotEmpty) {
+            await StorageService.saveUserType(userType);
+            print('✅ Profile Screen - User type saved: $userType');
+          }
+        }
+        
         setState(() {
-          _profileData = result['data'];
+          _profileData = profileData;
           _isLoading = false;
         });
+        print('✅ Profile Screen - Profile loaded successfully');
       } else {
         setState(() {
           _errorMessage = result['error'] ?? 'Failed to load profile';
           _isLoading = false;
         });
+        print('❌ Profile Screen - Failed to load profile: ${result['error']}');
       }
     } catch (e) {
+      print('❌ Profile Screen Error: $e');
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;

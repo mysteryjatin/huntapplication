@@ -7,6 +7,7 @@ class StorageService {
   static const String _keyToken = 'auth_token';
   static const String _keyUserPhone = 'user_phone';
   static const String _keyIsLoggedIn = 'is_logged_in';
+  static const String _keyUserType = 'user_type';
 
   // Cache for SharedPreferences instance
   static SharedPreferences? _prefsInstance;
@@ -229,6 +230,43 @@ class StorageService {
     }
   }
 
+  // Save user type
+  static Future<void> saveUserType(String userType) async {
+    try {
+      await _getPreferences();
+      await _setValue(_keyUserType, userType);
+    } catch (e) {
+      print('Error saving user type: $e');
+      // Fallback to memory
+      _memoryStorage[_keyUserType] = userType;
+      _useMemoryStorage = true;
+    }
+  }
+
+  // Get user type
+  static Future<String?> getUserType() async {
+    try {
+      await _getPreferences();
+      final value = _getValue(_keyUserType);
+      return value is String ? value : null;
+    } catch (e) {
+      print('Error getting user type: $e');
+      return _memoryStorage[_keyUserType] as String?;
+    }
+  }
+
+  // Check if user is agent
+  static Future<bool> isAgent() async {
+    final userType = await getUserType();
+    return userType?.toLowerCase() == 'agent';
+  }
+
+  // Check if user is regular user
+  static Future<bool> isUser() async {
+    final userType = await getUserType();
+    return userType?.toLowerCase() == 'user' || userType == null;
+  }
+
   // Clear all stored data (logout)
   static Future<void> clearAll() async {
     try {
@@ -237,6 +275,7 @@ class StorageService {
       await _removeValue(_keyToken);
       await _removeValue(_keyUserPhone);
       await _removeValue(_keyIsLoggedIn);
+      await _removeValue(_keyUserType);
     } catch (e) {
       print('Error clearing storage: $e');
     }
