@@ -94,7 +94,7 @@ class PropertyFieldConfig {
     switch (normalized) {
       case 'House or Kothi':
         if (isRent) {
-          // Configuration for Rent - based on rentpropert/rentpropert/2.jpg (Multi-Story Apartments)
+          // Configuration for Rent - based on rentpropert/rentpropert/1.jpg
           return const PropertyFieldConfig(
             showBedrooms: true, // Bedrooms shown in image
             showBathrooms: true, // Bathrooms shown in image
@@ -107,17 +107,17 @@ class PropertyFieldConfig {
             showFacing: true, // Facing shown in image
             showStoreRoom: true, // Store Room shown in image
             showServantRoom: true, // Servant Room shown in image
-            showAreaSuper: true, // Super Area shown in image
+            showAreaSuper: false, // Not shown in image (only Built Up Area shown)
             showAreaBuiltUp: true, // Built Up Area shown in image
-            showAreaCarpet: true, // Carpet Area shown in image
-            showTransactionType: true, // Transaction Type shown in image
-            showPossessionStatus: true, // Possession Status shown in image
+            showAreaCarpet: false, // Not shown in image
+            showTransactionType: false, // Not shown in image
+            showPossessionStatus: false, // Not shown in image
             showAvailableFrom: true, // Available From shown in image
             showAgeOfConstruction: true, // Age of Construction shown in image
             showCarParking: true, // Car Parking shown in image
             showLift: true, // Lift shown in image
             showOwnershipType: true, // Type Of Ownership shown in image
-            showBuildingName: true, // Building Name shown in image
+            showBuildingName: false, // Not shown in image
             showUnitNumber: false,
             showBoundaryWallMade: false,
             showOccupancy: false,
@@ -133,7 +133,7 @@ class PropertyFieldConfig {
             showAttachedBalcony: false,
             showSecurityAmount: true, // Security Amount shown in Price Details
             showCommonArea: false,
-            showTenantsYouPrefer: true, // Tenants You Prefer shown in image (Professional/Student/Both)
+            showTenantsYouPrefer: false, // Not shown in image
             showLaundry: false,
           );
         } else {

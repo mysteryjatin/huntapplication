@@ -49,6 +49,14 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
       final result = await _profileService.getProfile(_userId!);
       if (result['success']) {
         final data = result['data'];
+        
+        // Save user type to storage if available
+        final userType = data['user_type']?.toString() ?? 
+                        data['userType']?.toString();
+        if (userType != null && userType.isNotEmpty) {
+          await StorageService.saveUserType(userType);
+        }
+        
         setState(() {
           _fullNameController.text = data['full_name']?.toString() ?? 
                                      data['name']?.toString() ?? '';
