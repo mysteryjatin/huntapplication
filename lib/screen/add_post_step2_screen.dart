@@ -135,6 +135,8 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   bool _attachedBalcony = false;
   String _securityAmount = "";
   bool _commonArea = false;
+  String _tenantsYouPrefer = "";
+  String _laundry = "";
 
   final _superAreaController = TextEditingController();
   final _builtUpAreaController = TextEditingController();
@@ -158,6 +160,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   final _electricityController = TextEditingController();
   final _monthlyRentController = TextEditingController();
   final _securityAmountController = TextEditingController();
+  final _laundryController = TextEditingController();
 
   static const double _outerPadding = 16;
   static const double _cardPadding = 18;
@@ -195,6 +198,11 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       _securityAmountController.text = widget.draft.securityAmount;
       _securityAmount = widget.draft.securityAmount;
     }
+    _tenantsYouPrefer = widget.draft.tenantsYouPrefer.isNotEmpty ? widget.draft.tenantsYouPrefer : _tenantsYouPrefer;
+    if (widget.draft.laundry.isNotEmpty) {
+      _laundryController.text = widget.draft.laundry;
+      _laundry = widget.draft.laundry;
+    }
     
     if (widget.draft.floorNumber > 0) {
       _floorNumberController.text = widget.draft.floorNumber.toString();
@@ -222,7 +230,10 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     }
 
     // Set bedrooms to 0 if property type doesn't require it
-    final config = PropertyFieldConfig.getConfigForSubtype(widget.draft.propertySubtype);
+    final config = PropertyFieldConfig.getConfigForSubtype(
+      widget.draft.propertySubtype,
+      transactionType: widget.draft.transactionType,
+    );
     if (!config.showBedrooms) {
       _bedrooms = 0;
     }
@@ -249,12 +260,16 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     _electricityController.dispose();
     _monthlyRentController.dispose();
     _securityAmountController.dispose();
+    _laundryController.dispose();
     super.dispose();
   }
 
   // Get field configuration based on property subtype
   PropertyFieldConfig get _fieldConfig {
-    return PropertyFieldConfig.getConfigForSubtype(widget.draft.propertySubtype);
+    return PropertyFieldConfig.getConfigForSubtype(
+      widget.draft.propertySubtype,
+      transactionType: widget.draft.transactionType,
+    );
   }
 
   // ------------------------------ MAIN UI ------------------------------
@@ -641,6 +656,20 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       ]);
     }
 
+    if (config.showTenantsYouPrefer) {
+      children.addAll([
+        const SizedBox(height: 20),
+        _label("Tenants You Prefer"),
+        const SizedBox(height: 8),
+        _dropdown(
+          "Select Tenants You Prefer",
+          _tenantsYouPrefer.isEmpty ? null : _tenantsYouPrefer,
+          ['Professional', 'Student', 'Both'],
+          (v) => setState(() => _tenantsYouPrefer = v ?? ''),
+        ),
+      ]);
+    }
+
     // Only show section if there are any fields to display
     if (children.isEmpty) {
       return const SizedBox.shrink();
@@ -928,12 +957,15 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       ]);
     }
 
-    children.addAll([
-      _label("Booking Amount"),
-      const SizedBox(height: 8),
-      _textField(_bookingAmountController, hint: "Enter booking amount"),
-      const SizedBox(height: _rowGap),
-    ]);
+    // Only show Booking Amount if Monthly Rent is not shown (for Sell, not Rent)
+    if (!config.showMonthlyRent) {
+      children.addAll([
+        _label("Booking Amount"),
+        const SizedBox(height: 8),
+        _textField(_bookingAmountController, hint: "Enter booking amount"),
+        const SizedBox(height: _rowGap),
+      ]);
+    }
 
     if (config.showMonthlyRent) {
       children.addAll([
@@ -967,6 +999,19 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       const SizedBox(height: 8),
       _textField(_brokerageController, hint: "Enter brokerage"),
     ]);
+
+    if (config.showLaundry) {
+      children.addAll([
+        const SizedBox(height: _rowGap),
+        _label("Laundry"),
+        const SizedBox(height: 8),
+        _textField(
+          _laundryController,
+          hint: "Enter laundry details",
+          onChanged: (v) => setState(() => _laundry = v),
+        ),
+      ]);
+    }
 
     if (config.showElectricity) {
       children.addAll([
@@ -1023,6 +1068,8 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
               ..attachedBalcony = config.showAttachedBalcony ? _attachedBalcony : false
               ..securityAmount = config.showSecurityAmount ? _securityAmountController.text.trim() : ''
               ..commonArea = config.showCommonArea ? _commonArea : false
+              ..tenantsYouPrefer = config.showTenantsYouPrefer ? _tenantsYouPrefer : ''
+              ..laundry = config.showLaundry ? _laundryController.text.trim() : ''
               ..areaSqft = int.tryParse(_superAreaController.text) ?? 0
               ..address = _addressController.text.trim()
               ..locality = _localityController.text.trim()

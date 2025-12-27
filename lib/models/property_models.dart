@@ -36,6 +36,8 @@ class PropertyDraft {
   bool attachedBalcony;
   String securityAmount;
   bool commonArea;
+  String tenantsYouPrefer;
+  String laundry;
 
   List<String> amenities;
   List<String> imageUrls;
@@ -76,6 +78,8 @@ class PropertyDraft {
     this.attachedBalcony = false,
     this.securityAmount = '',
     this.commonArea = false,
+    this.tenantsYouPrefer = '',
+    this.laundry = '',
     List<String>? amenities,
     List<String>? imageUrls,
   })  : amenities = amenities ?? [],
@@ -130,6 +134,8 @@ class PropertyDraft {
       "attached_balcony": attachedBalcony,
       "security_amount": securityAmount,
       "common_area": commonArea,
+      "tenants_you_prefer": tenantsYouPrefer,
+      "laundry": laundry,
       "images": imageUrls,
       "amenities": amenities,
       "owner_id": effectiveOwnerId,
@@ -177,6 +183,8 @@ class Property {
   final bool attachedBalcony;
   final String securityAmount;
   final bool commonArea;
+  final String tenantsYouPrefer;
+  final String laundry;
   final List<String> amenities;
   final List<String> images;
   final String ownerId;
@@ -220,6 +228,8 @@ class Property {
     required this.attachedBalcony,
     required this.securityAmount,
     required this.commonArea,
+    required this.tenantsYouPrefer,
+    required this.laundry,
     required this.amenities,
     required this.images,
     required this.ownerId,
@@ -282,6 +292,8 @@ class Property {
       attachedBalcony: (json['attached_balcony'] ?? false) as bool,
       securityAmount: json['security_amount']?.toString() ?? '',
       commonArea: (json['common_area'] ?? false) as bool,
+      tenantsYouPrefer: json['tenants_you_prefer']?.toString() ?? '',
+      laundry: json['laundry']?.toString() ?? '',
       amenities: (json['amenities'] as List<dynamic>? ?? [])
           .map((e) => e.toString())
           .toList(),
