@@ -149,7 +149,7 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
                     ),
                     _buildMenuItem(
                       context: context,
-                      svgPath: 'assets/icons/search.svg',
+                      svgPath: 'assets/icons/postyourrequirement.svg',
                       title: 'Post Your Requirement',
                       onTap: () {
                         Navigator.push(
@@ -240,7 +240,12 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
                       svgPath: 'assets/icons/vastu.svg',
                       title: 'Vastu Calculator',
                       onTap: () {
-                        //Navigator.pop(context);
+                        // Navigator.push(
+                        //   context,
+                        //   MaterialPageRoute(
+                        //     builder: (context) => const VastuCalculatorScreen(),
+                        //   ),
+                        // );
                       },
                     ),
                     _buildMenuItem(

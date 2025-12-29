@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/cubit/auth_cubit.dart';
+import 'package:hunt_property/services/storage_service.dart';
 
 class CreateAccountScreen extends StatefulWidget {
   const CreateAccountScreen({super.key});
@@ -45,10 +46,15 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     final theme = Theme.of(context);
 
     return BlocListener<AuthCubit, AuthState>(
-      listener: (context, state) {
+      listener: (context, state) async {
+        print('📬 Register Screen - State changed: ${state.runtimeType}');
         if (state is SignupSuccess) {
+          print('✅ SignupSuccess state received in register screen');
+          // Navigate directly to home (spin popup will show when user clicks Add first time)
           Navigator.of(context).pushNamedAndRemoveUntil(
-              '/home', (route) => false);
+            '/home',
+            (route) => false,
+          );
         } else if (state is AuthError) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
