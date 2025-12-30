@@ -96,10 +96,10 @@ class _HomeScreenState extends State<HomeScreen>
     {'asset': 'assets/icons/home_serives.svg', 'label': 'Home Loan'},
     {'asset': 'assets/icons/property_worth.svg', 'label': 'Property Worth\nCalculator'},
     {'asset': 'assets/icons/vastu.svg', 'label': 'Vastu\nCalculator'},
-    {'asset': 'assets/icons/sell_rent.svg', 'label': 'Sell / Rent Ad\nPackages'},
-    {'asset': 'assets/icons/channel_partner.svg', 'label': 'Channel\nPartner'},
-    {'asset': 'assets/icons/legal.svg', 'label': 'Legal\nAdvisory'},
-    {'asset': 'assets/icons/nri.svg', 'label': 'NRI\nCenter'},
+    {'asset': 'assets/icons/sellorrentproperty.svg', 'label': 'Sell / Rent Ad\nPackages'},
+    {'asset': 'assets/icons/channelpartner.svg', 'label': 'Channel\nPartner'},
+    {'asset': 'assets/icons/legaladvisory.svg', 'label': 'Legal\nAdvisory'},
+    {'asset': 'assets/icons/nricenter.svg', 'label': 'NRI\nCenter'},
     {'asset': 'assets/icons/rera.svg', 'label': 'RERA\nService'},
   ];
 

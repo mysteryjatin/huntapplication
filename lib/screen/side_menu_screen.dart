@@ -11,18 +11,15 @@ import 'package:hunt_property/screen/sidemenu_screen/financial_calculators_scree
 import 'package:hunt_property/screen/sidemenu_screen/legal_advisory_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/nri_center_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/post_requirement_screen.dart';
-import 'package:hunt_property/screen/search_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/property_cost_calculator.dart';
 import 'package:hunt_property/screen/sidemenu_screen/proptery_news_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/rera_service_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/search_agent_screen.dart';
-import 'package:hunt_property/screen/subscription_plans_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/subscriptioncardplan.dart';
 import 'package:hunt_property/screen/sidemenu_screen/terms_conditions_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/privacy_policy_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/cancellation_policy_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/shopping_policy_screen.dart';
-import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/profile_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 
@@ -132,7 +129,7 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
                     ),
                     _buildMenuItem(
                       context: context,
-                      svgPath: 'assets/icons/search.svg',
+                      svgPath: 'assets/icons/sellorrentproperty.svg',
                       title: 'Sell or Rent Property',
                       onTap: () {
                         Navigator.push(
@@ -162,7 +159,7 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
                     ),
                     _buildMenuItem(
                       context: context,
-                      svgPath: 'assets/icons/search.svg',
+                      svgPath: 'assets/icons/mylistings.svg',
                       title: 'My Listings',
                       onTap: () {
                         Navigator.pop(context);
@@ -176,7 +173,7 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
                     ),
                     _buildMenuItem(
                       context: context,
-                      svgPath: 'assets/icons/search.svg',
+                      svgPath: 'assets/icons/mysubscriptions.svg',
                       title: 'My Subscriptions',
                       onTap: () {
                         Navigator.pop(context);
@@ -192,7 +189,7 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
 
                     _buildMenuItem(
                       context: context,
-                      svgPath: 'assets/icons/search.svg',
+                      svgPath: 'assets/icons/orderhistory.svg',
                       title: 'Order History',
                       onTap: () {
                         Navigator.push(
@@ -317,7 +314,7 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
                     ),
                     _buildMenuItem(
                       context: context,
-                      svgPath: 'assets/icons/search.svg',
+                      svgPath: 'assets/icons/legaladvisory.svg',
                       title: 'Legal Advisory',
                       onTap: () {
                         Navigator.push(
@@ -330,7 +327,7 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
                     ),
                     _buildMenuItem(
                       context: context,
-                      svgPath: 'assets/icons/search.svg',
+                      svgPath: 'assets/icons/channelpartner.svg',
                       title: 'Channel Partner / Investors Space',
                       onTap: () {
                         Navigator.push(
@@ -369,7 +366,7 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
                     ),
                     _buildMenuItem(
                       context: context,
-                      svgPath: 'assets/icons/search.svg',
+                      svgPath: 'assets/icons/nricenter.svg',
                       title: 'NRI Center',
                       onTap: () {
                         Navigator.push(
@@ -382,7 +379,7 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
                     ),
                     _buildMenuItem(
                       context: context,
-                      svgPath: 'assets/icons/search.svg',
+                      svgPath: 'assets/icons/customercare.svg',
                       title: 'Customer Care',
                       onTap: () {
                         Navigator.push(
@@ -427,27 +424,27 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
                           ),
                           const SizedBox(width: 12),
                           _buildSocialIcon(
-                            svgPath: 'assets/icons/facebook.svg',
+                            svgPath: 'assets/icons/youtube.svg',
                             onTap: () {},
                           ),
                           const SizedBox(width: 12),
                           _buildSocialIcon(
-                            svgPath: 'assets/icons/facebook.svg',
+                            svgPath: 'assets/icons/linklnd.svg',
                             onTap: () {},
                           ),
                           const SizedBox(width: 12),
                           _buildSocialIcon(
-                            svgPath: 'assets/icons/facebook.svg',
+                            svgPath: 'assets/icons/instagram.svg',
                             onTap: () {},
                           ),
                           const SizedBox(width: 12),
                           _buildSocialIcon(
-                            svgPath: 'assets/icons/facebook.svg',
+                            svgPath: 'assets/icons/whatsapp.svg',
                             onTap: () {},
                           ),
                           const SizedBox(width: 12),
                           _buildSocialIcon(
-                            svgPath: 'assets/icons/facebook.svg',
+                            svgPath: 'assets/icons/twitter.svg',
                             onTap: () {},
                           ),
                         ],
