@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hunt_property/screen/filter_screen.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:hunt_property/services/property_service.dart';
+import 'package:hunt_property/models/property_models.dart';
+import 'package:intl/intl.dart';
 
 class SearchScreen extends StatefulWidget {
   final VoidCallback? onBackPressed;
@@ -20,31 +23,10 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _isSearchFocused = false;
   Timer? _searchTimer;
 
-  List<Map<String, dynamic>> _searchResults = [];
-
-  /// Demo list for Delhi
-  final List<Map<String, dynamic>> _delhiProperties = [
-    {
-      "title": "Flat In best offer for Navratra",
-      "location": "Uttam Nagar",
-      "size": "360 Sq Ft",
-      "type": "Freehold",
-      "date": "23 October 2019",
-      "price": "₹ 19 Lacs",
-      "isNew": true,
-      "image": "assets/images/onboarding1.png",
-    },
-    {
-      "title": "Flat In best offer for Navratra",
-      "location": "Uttam Nagar",
-      "size": "360 Sq Ft",
-      "type": "Freehold",
-      "date": "23 October 2019",
-      "price": "₹ 19 Lacs",
-      "isNew": false,
-      "image": "assets/images/onboarding2.png",
-    }
-  ];
+  final PropertyService _propertyService = PropertyService();
+  List<Property> _allProperties = [];
+  List<Property> _searchResults = [];
+  bool _isLoadingProperties = false;
 
   @override
   void initState() {
@@ -54,6 +36,32 @@ class _SearchScreenState extends State<SearchScreen> {
         _isSearchFocused = _searchFocusNode.hasFocus;
       });
     });
+    _loadProperties();
+  }
+
+  Future<void> _loadProperties() async {
+    setState(() {
+      _isLoadingProperties = true;
+    });
+
+    try {
+      final properties = await _propertyService.getProperties();
+      setState(() {
+        _allProperties = properties;
+        _isLoadingProperties = false;
+      });
+      print('✅ Loaded ${properties.length} properties from database');
+    } catch (e) {
+      setState(() {
+        _isLoadingProperties = false;
+      });
+      print('❌ Error loading properties: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading properties: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -80,10 +88,46 @@ class _SearchScreenState extends State<SearchScreen> {
     _searchTimer = Timer(const Duration(milliseconds: 500), () {
       final q = query.toLowerCase().trim();
 
+      // Filter properties based on search query and selected type
+      final filtered = _allProperties.where((property) {
+        // Match transaction type (BUY = Sell/Buy, RENT = Rent)
+        final transactionTypeLower = property.transactionType.toLowerCase();
+        final transactionMatch = _selectedType == "BUY"
+            ? (transactionTypeLower.contains("sell") || 
+               transactionTypeLower.contains("buy"))
+            : transactionTypeLower.contains("rent");
+
+        if (!transactionMatch) return false;
+
+        // Search in multiple fields - even if title is empty, search other fields
+        final searchableText = [
+          property.title,
+          property.locality,
+          property.city,
+          property.address,
+          property.buildingName,
+          property.propertySubtype,
+          property.propertyCategory,
+          property.description,
+        ]
+            .where((text) => text.isNotEmpty)
+            .join(" ")
+            .toLowerCase();
+
+        // If no searchable text at all, still show the property if query matches transaction type
+        if (searchableText.isEmpty) {
+          return true; // Show properties even with empty fields
+        }
+
+        return searchableText.contains(q);
+      }).toList();
+
       setState(() {
         _isSearching = false;
-        _searchResults = q.contains("delhi") ? _delhiProperties : [];
+        _searchResults = filtered;
       });
+      
+      print('🔍 Search results: ${filtered.length} properties found for "$q"');
     });
   }
 
@@ -202,7 +246,13 @@ class _SearchScreenState extends State<SearchScreen> {
           // BUY BUTTON
           Expanded(
             child: GestureDetector(
-              onTap: () => setState(() => _selectedType = "BUY"),
+              onTap: () {
+                setState(() => _selectedType = "BUY");
+                // Re-perform search when type changes
+                if (_searchController.text.isNotEmpty) {
+                  _performSearch(_searchController.text);
+                }
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 height: 46,
@@ -233,7 +283,13 @@ class _SearchScreenState extends State<SearchScreen> {
           // RENT BUTTON
           Expanded(
             child: GestureDetector(
-              onTap: () => setState(() => _selectedType = "RENT"),
+              onTap: () {
+                setState(() => _selectedType = "RENT");
+                // Re-perform search when type changes
+                if (_searchController.text.isNotEmpty) {
+                  _performSearch(_searchController.text);
+                }
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 height: 46,
@@ -268,6 +324,12 @@ class _SearchScreenState extends State<SearchScreen> {
   // CONTENT AREA
   // ---------------------------------------------
   Widget _buildContentArea() {
+    if (_isLoadingProperties) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF2FED9A)),
+      );
+    }
+
     if (_isSearching) {
       return const Center(
         child: CircularProgressIndicator(color: Color(0xFF2FED9A)),
@@ -289,8 +351,8 @@ class _SearchScreenState extends State<SearchScreen> {
       padding: const EdgeInsets.all(16),
       itemCount: _searchResults.length,
       itemBuilder: (context, index) {
-        final p = _searchResults[index];
-        return _propertyItem(p);
+        final property = _searchResults[index];
+        return _propertyItem(property);
       },
     );
   }
@@ -298,7 +360,146 @@ class _SearchScreenState extends State<SearchScreen> {
   // ---------------------------------------------
   // SINGLE PROPERTY CARD
   // ---------------------------------------------
-  Widget _propertyItem(Map<String, dynamic> p) {
+  Widget _propertyItem(Property property) {
+    // Determine if it's a rent property
+    final isRentProperty = property.transactionType.toLowerCase().contains("rent");
+    
+    // Format price - prioritize monthlyRent for rent properties, otherwise use price
+    String priceText = '';
+    if (isRentProperty) {
+      // For rent properties, check monthlyRent first
+      if (property.monthlyRent.isNotEmpty) {
+        final rentValue = num.tryParse(property.monthlyRent);
+        if (rentValue != null && rentValue > 0) {
+          if (rentValue >= 100000) {
+            priceText = '₹ ${(rentValue / 100000).toStringAsFixed(2)} Lacs/month';
+          } else {
+            priceText = '₹ ${NumberFormat('#,###').format(rentValue)}/month';
+          }
+        } else {
+          priceText = '₹ ${property.monthlyRent}/month';
+        }
+      } else if (property.price > 0) {
+        if (property.price >= 100000) {
+          priceText = '₹ ${(property.price / 100000).toStringAsFixed(2)} Lacs/month';
+        } else {
+          priceText = '₹ ${NumberFormat('#,###').format(property.price)}/month';
+        }
+      }
+    } else {
+      // For buy/sell properties, use price
+      if (property.price > 0) {
+        if (property.price >= 10000000) {
+          priceText = '₹ ${(property.price / 10000000).toStringAsFixed(2)} Cr';
+        } else if (property.price >= 100000) {
+          priceText = '₹ ${(property.price / 100000).toStringAsFixed(2)} Lacs';
+        } else {
+          priceText = '₹ ${NumberFormat('#,###').format(property.price)}';
+        }
+      }
+    }
+
+    // Format BHK information
+    String bhkText = '';
+    if (property.bedrooms > 0) {
+      bhkText = '${property.bedrooms}BHK';
+    }
+
+    // Format location with BHK if available - use fallback if empty
+    String locationText = '';
+    if (bhkText.isNotEmpty) {
+      locationText = bhkText;
+    }
+    
+    if (property.locality.isNotEmpty) {
+      if (locationText.isNotEmpty) {
+        locationText += ' • ${property.locality}';
+      } else {
+        locationText = property.locality;
+      }
+      if (property.city.isNotEmpty) {
+        locationText += ', ${property.city}';
+      }
+    } else if (property.city.isNotEmpty) {
+      if (locationText.isNotEmpty) {
+        locationText += ' • ${property.city}';
+      } else {
+        locationText = property.city;
+      }
+    } else if (property.address.isNotEmpty) {
+      if (locationText.isNotEmpty) {
+        locationText += ' • ${property.address}';
+      } else {
+        locationText = property.address;
+      }
+    }
+    
+    // Fallback if all location fields are empty
+    if (locationText.isEmpty) {
+      locationText = 'Location not specified';
+    }
+
+    // Format size and type with additional details
+    String sizeTypeText = '';
+    if (property.areaSqft > 0) {
+      sizeTypeText = '${property.areaSqft.toStringAsFixed(0)} Sq Ft';
+    }
+    
+    // Add property subtype
+    if (property.propertySubtype.isNotEmpty) {
+      if (sizeTypeText.isNotEmpty) {
+        sizeTypeText += ' • ${property.propertySubtype}';
+      } else {
+        sizeTypeText = property.propertySubtype;
+      }
+    }
+    
+    // Add furnishing if available
+    if (property.furnishing.isNotEmpty && property.furnishing.toLowerCase() != 'none') {
+      if (sizeTypeText.isNotEmpty) {
+        sizeTypeText += ' • ${property.furnishing}';
+      } else {
+        sizeTypeText = property.furnishing;
+      }
+    }
+    
+    // Add bathrooms if available
+    if (property.bathrooms > 0) {
+      final bathroomText = '${property.bathrooms} ${property.bathrooms == 1 ? 'Bath' : 'Baths'}';
+      if (sizeTypeText.isNotEmpty) {
+        sizeTypeText += ' • $bathroomText';
+      } else {
+        sizeTypeText = bathroomText;
+      }
+    }
+    
+    // Fallback if all size/type fields are empty
+    if (sizeTypeText.isEmpty) {
+      sizeTypeText = property.propertyCategory.isNotEmpty 
+          ? property.propertyCategory 
+          : 'Property details';
+    }
+
+    // Format date
+    String dateText = '';
+    if (property.postedAt != null) {
+      dateText = DateFormat('dd MMMM yyyy').format(property.postedAt!);
+    }
+
+    // Get first image or use placeholder
+    String imageUrl = property.images.isNotEmpty
+        ? property.images.first
+        : 'assets/images/onboarding1.png';
+
+    // Generate title - use fallback if empty
+    String displayTitle = property.title.isNotEmpty 
+        ? property.title 
+        : '${property.propertySubtype.isNotEmpty ? property.propertySubtype : property.propertyCategory} ${property.bedrooms > 0 ? "${property.bedrooms}BHK" : ""}'.trim();
+    
+    if (displayTitle.isEmpty) {
+      displayTitle = 'Property Listing';
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -311,12 +512,27 @@ class _SearchScreenState extends State<SearchScreen> {
           // IMAGE
           ClipRRect(
             borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
-            child: Image.asset(
-              p["image"],
-              width: 120,
-              height: 120,
-              fit: BoxFit.cover,
-            ),
+            child: imageUrl.startsWith('http')
+                ? Image.network(
+                    imageUrl,
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Image.asset(
+                        'assets/images/onboarding1.png',
+                        width: 120,
+                        height: 120,
+                        fit: BoxFit.cover,
+                      );
+                    },
+                  )
+                : Image.asset(
+                    imageUrl,
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.cover,
+                  ),
           ),
           const SizedBox(width: 10),
 
@@ -327,27 +543,47 @@ class _SearchScreenState extends State<SearchScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(p["title"],
+                  Text(
+                    displayTitle,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 14),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (locationText.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      locationText,
                       style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 14)),
-                  const SizedBox(height: 4),
-                  Text(p["location"],
+                          fontSize: 12, color: AppColors.textLight),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (sizeTypeText.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      sizeTypeText,
                       style: const TextStyle(
-                          fontSize: 12, color: AppColors.textLight)),
-                  const SizedBox(height: 4),
-                  Text("${p["size"]} ${p["type"]}",
+                          fontSize: 12, color: AppColors.textLight),
+                    ),
+                  ],
+                  if (dateText.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      dateText,
                       style: const TextStyle(
-                          fontSize: 12, color: AppColors.textLight)),
-                  const SizedBox(height: 4),
-                  Text(p["date"],
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textLight)),
+                          fontSize: 12, color: AppColors.textLight),
+                    ),
+                  ],
                   const SizedBox(height: 8),
-                  Text(p["price"],
-                      style: const TextStyle(
-                          fontSize: 16,
-                          color: Color(0xFF13E68A),
-                          fontWeight: FontWeight.bold)),
+                  Text(
+                    priceText.isNotEmpty ? priceText : 'Price on request',
+                    style: const TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF13E68A),
+                        fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
             ),
