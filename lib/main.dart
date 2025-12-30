@@ -10,12 +10,16 @@ import 'package:hunt_property/screen/home_screen.dart';
 import 'package:hunt_property/screen/login_screen.dart';
 import 'package:hunt_property/screen/onboarding_screen.dart';
 import 'package:hunt_property/screen/otp_screen.dart';
+import 'package:hunt_property/screen/plan_activation_screen.dart';
 import 'package:hunt_property/screen/profile_screen.dart';
 import 'package:hunt_property/screen/register_screen.dart';
 import 'package:hunt_property/screen/rent_properties_screen.dart';
 import 'package:hunt_property/screen/search_screen.dart';
 import 'package:hunt_property/screen/shortlist_screen.dart';
+import 'package:hunt_property/screen/spin_popup_screen.dart';
+import 'package:hunt_property/screen/spin_result_screen.dart';
 import 'package:hunt_property/screen/splash_screen.dart';
+import 'package:hunt_property/screen/subscription_plans_screen.dart';
 import 'package:hunt_property/services/auth_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/theme/app_theme.dart';
@@ -56,6 +60,9 @@ class MyApp extends StatelessWidget {
           '/login': (_) => const LoginScreen(),
           '/otp': (_) => const OtpVerificationScreen(),
           '/register': (_) => const CreateAccountScreen(),
+          '/spin-popup': (_) => const SpinPopupScreen(),
+          '/spin-result': (_) => const SpinResultScreen(),
+          '/plan-activation': (_) => const PlanActivationScreen(),
           '/home': (_) => const HomeScreen(),
           '/search': (_) => const SearchScreen(),
           '/add-post': (_) => const AddPostScreen(),
@@ -69,6 +76,7 @@ class MyApp extends StatelessWidget {
           '/profile': (_) => const ProfileScreen(),
           '/rent-properties': (_) => const RentPropertiesScreen(),
           '/buy-properties': (_) => const BuyPropertiesScreen(),
+          '/subscription-plans': (_) => const SubscriptionPlansScreen(),
         },
       ),
     );

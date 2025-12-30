@@ -100,6 +100,7 @@ class _SearchScreenState extends State<SearchScreen> {
         if (!transactionMatch) return false;
 
         // Search in multiple fields - even if title is empty, search other fields
+
         final searchableText = [
           property.title,
           property.locality,
@@ -118,7 +119,6 @@ class _SearchScreenState extends State<SearchScreen> {
         if (searchableText.isEmpty) {
           return true; // Show properties even with empty fields
         }
-
         return searchableText.contains(q);
       }).toList();
 
@@ -380,6 +380,7 @@ class _SearchScreenState extends State<SearchScreen> {
           priceText = '₹ ${property.monthlyRent}/month';
         }
       } else if (property.price > 0) {
+        // Fallback to price if monthlyRent is empty
         if (property.price >= 100000) {
           priceText = '₹ ${(property.price / 100000).toStringAsFixed(2)} Lacs/month';
         } else {
@@ -404,7 +405,6 @@ class _SearchScreenState extends State<SearchScreen> {
     if (property.bedrooms > 0) {
       bhkText = '${property.bedrooms}BHK';
     }
-
     // Format location with BHK if available - use fallback if empty
     String locationText = '';
     if (bhkText.isNotEmpty) {
@@ -490,7 +490,6 @@ class _SearchScreenState extends State<SearchScreen> {
     String imageUrl = property.images.isNotEmpty
         ? property.images.first
         : 'assets/images/onboarding1.png';
-
     // Generate title - use fallback if empty
     String displayTitle = property.title.isNotEmpty 
         ? property.title 
@@ -545,6 +544,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 children: [
                   Text(
                     displayTitle,
+                    property.title.isNotEmpty ? property.title : 'Property',
                     style: const TextStyle(
                         fontWeight: FontWeight.w600, fontSize: 14),
                     maxLines: 2,

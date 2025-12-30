@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:hunt_property/services/storage_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -33,10 +34,46 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    _controller.forward().whenComplete(() {
-      if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed('/onboarding');
-    });
+    _checkLoginStatus();
+  }
+
+  Future<void> _checkLoginStatus() async {
+    // Wait for animation to complete
+    await _controller.forward();
+    
+    if (!mounted) return;
+
+    try {
+      // Check if user is logged in and has a valid token
+      final isLoggedIn = await StorageService.isLoggedIn();
+      final token = await StorageService.getToken();
+      final userId = await StorageService.getUserId();
+
+      print('🔍 Splash Screen - Checking login status...');
+      print('   Is Logged In: $isLoggedIn');
+      print('   Token exists: ${token != null && token.isNotEmpty}');
+      print('   User ID: $userId');
+
+      // If user is logged in and has a valid token and user ID, navigate to home
+      if (isLoggedIn && 
+          token != null && 
+          token.isNotEmpty && 
+          userId != null && 
+          userId.isNotEmpty &&
+          userId != '000000000000000000000000') {
+        print('✅ User is logged in, navigating to home');
+        Navigator.of(context).pushReplacementNamed('/home');
+      } else {
+        print('⚠️ User not logged in, navigating to onboarding');
+        Navigator.of(context).pushReplacementNamed('/onboarding');
+      }
+    } catch (e) {
+      print('❌ Error checking login status: $e');
+      // On error, go to onboarding (safe default)
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/onboarding');
+      }
+    }
   }
 
   @override
