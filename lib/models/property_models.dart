@@ -236,6 +236,23 @@ class Property {
     required this.postedAt,
   });
 
+  /// Parses Property from API JSON response
+  /// 
+  /// API Schema fields (from /api/properties/):
+  /// - Core: title, description, transaction_type, price, property_category, property_subtype
+  /// - Details: bedrooms, bathrooms, balconies, area_sqft, furnishing
+  /// - Floor: floor_number, total_floors, floors_allowed, open_sides, facing
+  /// - Features: store_room, servant_room
+  /// - Location: location { address, locality, city, geo }
+  /// - Media: images[], amenities[]
+  /// - Meta: _id, owner_id, posted_at
+  /// 
+  /// Additional fields (may not be in API response, default to empty/false):
+  /// - building_name, unit_number, boundary_wall_made, occupancy
+  /// - attached_bathroom, electricity, any_construction_done
+  /// - monthly_rent, shared_office_space, personal_washroom, pantry
+  /// - how_old_is_pg, attached_balcony, security_amount, common_area
+  /// - tenants_you_prefer, laundry
   factory Property.fromJson(Map<String, dynamic> json) {
     final location = json['location'] as Map<String, dynamic>? ?? {};
 
@@ -255,6 +272,7 @@ class Property {
     }
 
     return Property(
+      // Core API fields
       id: json['_id']?.toString() ?? '',
       title: json['title']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
@@ -262,21 +280,31 @@ class Property {
       price: _toNum(json['price']),
       propertyCategory: json['property_category']?.toString() ?? '',
       propertySubtype: json['property_subtype']?.toString() ?? '',
+      
+      // Property details
       bedrooms: _toInt(json['bedrooms']),
       bathrooms: _toInt(json['bathrooms']),
       balconies: _toInt(json['balconies']),
       areaSqft: _toNum(json['area_sqft']),
       furnishing: json['furnishing']?.toString() ?? '',
+      
+      // Floor information
       floorNumber: _toInt(json['floor_number']),
       totalFloors: _toInt(json['total_floors']),
       floorsAllowed: _toInt(json['floors_allowed']),
       openSides: _toInt(json['open_sides']),
       facing: json['facing']?.toString() ?? '',
+      
+      // Features
       storeRoom: (json['store_room'] ?? false) as bool,
       servantRoom: (json['servant_room'] ?? false) as bool,
+      
+      // Location (from nested location object)
       address: location['address']?.toString() ?? '',
       locality: location['locality']?.toString() ?? '',
       city: location['city']?.toString() ?? '',
+      
+      // Additional fields (may not be in API response)
       buildingName: json['building_name']?.toString() ?? '',
       unitNumber: json['unit_number']?.toString() ?? '',
       boundaryWallMade: (json['boundary_wall_made'] ?? false) as bool,
@@ -294,12 +322,16 @@ class Property {
       commonArea: (json['common_area'] ?? false) as bool,
       tenantsYouPrefer: json['tenants_you_prefer']?.toString() ?? '',
       laundry: json['laundry']?.toString() ?? '',
+      
+      // Arrays
       amenities: (json['amenities'] as List<dynamic>? ?? [])
           .map((e) => e.toString())
           .toList(),
       images: (json['images'] as List<dynamic>? ?? [])
           .map((e) => e.toString())
           .toList(),
+      
+      // Meta
       ownerId: json['owner_id']?.toString() ?? '',
       postedAt: json['posted_at'] != null
           ? DateTime.tryParse(json['posted_at'].toString())

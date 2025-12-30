@@ -50,10 +50,12 @@ class _SearchScreenState extends State<SearchScreen> {
         _allProperties = properties;
         _isLoadingProperties = false;
       });
+      print('✅ Loaded ${properties.length} properties from database');
     } catch (e) {
       setState(() {
         _isLoadingProperties = false;
       });
+      print('❌ Error loading properties: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading properties: $e')),
@@ -97,7 +99,8 @@ class _SearchScreenState extends State<SearchScreen> {
 
         if (!transactionMatch) return false;
 
-        // Search in title, locality, city, address, building name
+        // Search in multiple fields - even if title is empty, search other fields
+
         final searchableText = [
           property.title,
           property.locality,
@@ -106,11 +109,16 @@ class _SearchScreenState extends State<SearchScreen> {
           property.buildingName,
           property.propertySubtype,
           property.propertyCategory,
+          property.description,
         ]
             .where((text) => text.isNotEmpty)
             .join(" ")
             .toLowerCase();
 
+        // If no searchable text at all, still show the property if query matches transaction type
+        if (searchableText.isEmpty) {
+          return true; // Show properties even with empty fields
+        }
         return searchableText.contains(q);
       }).toList();
 
@@ -118,6 +126,8 @@ class _SearchScreenState extends State<SearchScreen> {
         _isSearching = false;
         _searchResults = filtered;
       });
+      
+      print('🔍 Search results: ${filtered.length} properties found for "$q"');
     });
   }
 
@@ -359,7 +369,6 @@ class _SearchScreenState extends State<SearchScreen> {
     if (isRentProperty) {
       // For rent properties, check monthlyRent first
       if (property.monthlyRent.isNotEmpty) {
-        // Try to parse monthlyRent as number for formatting
         final rentValue = num.tryParse(property.monthlyRent);
         if (rentValue != null && rentValue > 0) {
           if (rentValue >= 100000) {
@@ -396,8 +405,7 @@ class _SearchScreenState extends State<SearchScreen> {
     if (property.bedrooms > 0) {
       bhkText = '${property.bedrooms}BHK';
     }
-
-    // Format location with BHK if available
+    // Format location with BHK if available - use fallback if empty
     String locationText = '';
     if (bhkText.isNotEmpty) {
       locationText = bhkText;
@@ -424,6 +432,11 @@ class _SearchScreenState extends State<SearchScreen> {
       } else {
         locationText = property.address;
       }
+    }
+    
+    // Fallback if all location fields are empty
+    if (locationText.isEmpty) {
+      locationText = 'Location not specified';
     }
 
     // Format size and type with additional details
@@ -459,6 +472,13 @@ class _SearchScreenState extends State<SearchScreen> {
         sizeTypeText = bathroomText;
       }
     }
+    
+    // Fallback if all size/type fields are empty
+    if (sizeTypeText.isEmpty) {
+      sizeTypeText = property.propertyCategory.isNotEmpty 
+          ? property.propertyCategory 
+          : 'Property details';
+    }
 
     // Format date
     String dateText = '';
@@ -470,6 +490,14 @@ class _SearchScreenState extends State<SearchScreen> {
     String imageUrl = property.images.isNotEmpty
         ? property.images.first
         : 'assets/images/onboarding1.png';
+    // Generate title - use fallback if empty
+    String displayTitle = property.title.isNotEmpty 
+        ? property.title 
+        : '${property.propertySubtype.isNotEmpty ? property.propertySubtype : property.propertyCategory} ${property.bedrooms > 0 ? "${property.bedrooms}BHK" : ""}'.trim();
+    
+    if (displayTitle.isEmpty) {
+      displayTitle = 'Property Listing';
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -515,6 +543,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
+                    displayTitle,
                     property.title.isNotEmpty ? property.title : 'Property',
                     style: const TextStyle(
                         fontWeight: FontWeight.w600, fontSize: 14),
