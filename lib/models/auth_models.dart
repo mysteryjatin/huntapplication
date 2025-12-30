@@ -60,11 +60,11 @@ class User {
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      name: json['name'] ?? '',
+      name: json['name'] ?? json['full_name'] ?? '',
       email: json['email'] ?? '',
-      phone: json['phone'] ?? '',
+      phone: json['phone'] ?? json['phone_number'] ?? '',
       userType: json['user_type'] ?? '',
-      id: json['_id'] ?? '',
+      id: json['_id'] ?? json['user_id'] ?? '',
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),

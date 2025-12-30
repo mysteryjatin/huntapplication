@@ -107,7 +107,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
-          onPressed: widget.onBackPressed ?? () {},
+          onPressed: widget.onBackPressed ?? () {
+            Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+          },
         ),
         title: Column(
           children: [
@@ -132,7 +134,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.close, color: Colors.black, size: 24),
-            onPressed: widget.onBackPressed ?? () {},
+            onPressed: widget.onBackPressed ?? () {
+              Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+            },
           ),
         ],
       ),
