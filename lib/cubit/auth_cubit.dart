@@ -446,5 +446,42 @@ class AuthCubit extends Cubit<AuthState> {
       emit(AuthError(e.toString()));
     }
   }
+
+  /// Check if user has an existing session and restore it
+  /// This should be called on app startup to maintain login state
+  Future<void> checkSession() async {
+    try {
+      final isLoggedIn = await StorageService.isLoggedIn();
+      final userId = await StorageService.getUserId();
+      final token = await StorageService.getToken();
+      
+      // Check if we have valid session data
+      if (isLoggedIn && userId != null && userId.isNotEmpty && userId != '000000000000000000000000') {
+        // User has a valid session, emit authenticated state
+        print('✅ Session found - User ID: $userId');
+        emit(OtpVerified(phoneExists: true));
+      } else {
+        // No valid session found
+        print('ℹ️ No valid session found');
+        emit(AuthInitial());
+      }
+    } catch (e) {
+      print('❌ Error checking session: $e');
+      emit(AuthInitial());
+    }
+  }
+
+  /// Logout user and clear session
+  Future<void> logout() async {
+    try {
+      await StorageService.clearAll();
+      emit(AuthInitial());
+      print('✅ User logged out successfully');
+    } catch (e) {
+      print('❌ Error during logout: $e');
+      // Still emit initial state even if clearing storage fails
+      emit(AuthInitial());
+    }
+  }
 }
 

@@ -92,8 +92,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _logout() async {
-    // Clear all stored data
+    // Clear all stored data to end the session
     await StorageService.clearAll();
+    print('✅ User logged out - Session cleared');
     
     // Navigate to login screen
     if (mounted) {

@@ -114,11 +114,13 @@ class _SearchScreenState extends State<SearchScreen> {
             .join(" ")
             .toLowerCase();
 
-        // If no searchable text at all, still show the property if query matches transaction type
+        // If no searchable text at all, don't show the property when searching
+        // Only show properties with empty fields if there's no search query
         if (searchableText.isEmpty) {
-          return true; // Show properties even with empty fields
+          return false; // Don't show properties with completely empty searchable fields
         }
 
+        // Only return properties that match the search query
         return searchableText.contains(q);
       }).toList();
 
