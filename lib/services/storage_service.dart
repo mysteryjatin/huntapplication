@@ -8,6 +8,7 @@ class StorageService {
   static const String _keyUserPhone = 'user_phone';
   static const String _keyIsLoggedIn = 'is_logged_in';
   static const String _keyUserType = 'user_type';
+  static const String _keySpinPopupShown = 'spin_popup_shown';
 
   // Cache for SharedPreferences instance
   static SharedPreferences? _prefsInstance;
@@ -271,11 +272,17 @@ class StorageService {
   static Future<void> clearAll() async {
     try {
       await _getPreferences();
+      // Clear user-specific spin popup flag if user ID exists
+      final userId = await getUserId();
+      if (userId != null && userId.isNotEmpty) {
+        await _removeValue('${_keySpinPopupShown}_$userId');
+      }
       await _removeValue(_keyUserId);
       await _removeValue(_keyToken);
       await _removeValue(_keyUserPhone);
       await _removeValue(_keyIsLoggedIn);
       await _removeValue(_keyUserType);
+      await _removeValue(_keySpinPopupShown); // Also clear global flag
     } catch (e) {
       print('Error clearing storage: $e');
     }
@@ -289,6 +296,95 @@ class StorageService {
     _prefsInstance = null;
     _memoryStorage.clear();
     _useMemoryStorage = false;
+  }
+
+  // Clear all spin popup flags (useful for testing)
+  // This will clear both user-specific and global flags
+  static Future<void> clearSpinPopupFlags() async {
+    try {
+      await _getPreferences();
+      final prefs = _prefsInstance;
+      if (prefs != null) {
+        // Get all keys and remove spin popup related keys
+        final keys = prefs.getKeys();
+        for (final key in keys) {
+          if (key.startsWith(_keySpinPopupShown)) {
+            await _removeValue(key);
+          }
+        }
+      }
+      // Also clear from memory storage
+      final memoryKeys = _memoryStorage.keys.toList();
+      for (final key in memoryKeys) {
+        if (key.startsWith(_keySpinPopupShown)) {
+          _memoryStorage.remove(key);
+        }
+      }
+      print('✅ Cleared all spin popup flags');
+    } catch (e) {
+      print('Error clearing spin popup flags: $e');
+    }
+  }
+
+  // Save spin popup shown status for specific user
+  static Future<void> setSpinPopupShown(bool shown) async {
+    try {
+      await _getPreferences();
+      final userId = await getUserId();
+      if (userId != null && userId.isNotEmpty) {
+        // Store flag with user ID so it's user-specific
+        final key = '${_keySpinPopupShown}_$userId';
+        await _setValue(key, shown);
+      } else {
+        // Fallback to global flag if user ID not available
+        await _setValue(_keySpinPopupShown, shown);
+      }
+    } catch (e) {
+      print('Error saving spin popup shown status: $e');
+      final userId = await getUserId();
+      if (userId != null && userId.isNotEmpty) {
+        final key = '${_keySpinPopupShown}_$userId';
+        _memoryStorage[key] = shown;
+      } else {
+        _memoryStorage[_keySpinPopupShown] = shown;
+      }
+      _useMemoryStorage = true;
+    }
+  }
+
+  // Check if spin popup has been shown for current user
+  static Future<bool> hasSpinPopupShown() async {
+    try {
+      await _getPreferences();
+      final userId = await getUserId();
+      if (userId != null && userId.isNotEmpty) {
+        // Check user-specific flag only (ignore global flag for logged-in users)
+        final key = '${_keySpinPopupShown}_$userId';
+        final value = _getValue(key);
+        final result = value is bool ? value : false;
+        print('🔍 Checking spin popup flag: userId=$userId, key=$key, value=$value, result=$result');
+        return result;
+      } else {
+        // Only check global flag if user ID not available (should not happen after signup)
+        final value = _getValue(_keySpinPopupShown);
+        final result = value is bool ? value : false;
+        print('⚠️ Checking global spin popup flag (no user ID): result=$result');
+        return result;
+      }
+    } catch (e) {
+      print('Error checking spin popup shown status: $e');
+      final userId = await getUserId();
+      if (userId != null && userId.isNotEmpty) {
+        final key = '${_keySpinPopupShown}_$userId';
+        final result = _memoryStorage[key] as bool? ?? false;
+        print('🔍 Checking spin popup flag (memory): userId=$userId, key=$key, result=$result');
+        return result;
+      } else {
+        final result = _memoryStorage[_keySpinPopupShown] as bool? ?? false;
+        print('⚠️ Checking global spin popup flag (memory, no user ID): result=$result');
+        return result;
+      }
+    }
   }
 }
 

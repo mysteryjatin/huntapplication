@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:hunt_property/services/auth_service.dart';
+import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/models/property_models.dart';
 
 class PropertyService {
@@ -113,6 +114,36 @@ class PropertyService {
       // ignore: avoid_print
       print('❌ GET PROPERTIES ERROR: $e');
       return [];
+    }
+  }
+
+  // Get properties count for current user
+  Future<int> getUserPropertiesCount() async {
+    try {
+      final userId = await StorageService.getUserId();
+      print('🔍 getUserPropertiesCount - User ID: $userId');
+      if (userId == null || userId.isEmpty) {
+        print('⚠️ getUserPropertiesCount - No user ID, returning 0');
+        return 0;
+      }
+
+      final allProperties = await getProperties();
+      print('📊 getUserPropertiesCount - Total properties: ${allProperties.length}');
+      
+      // Filter properties by owner_id
+      final userProperties = allProperties.where((property) {
+        final matches = property.ownerId == userId;
+        if (matches) {
+          print('✅ Found matching property: ${property.id}, owner_id: ${property.ownerId}');
+        }
+        return matches;
+      }).toList();
+      
+      print('🎯 getUserPropertiesCount - User properties count: ${userProperties.length}');
+      return userProperties.length;
+    } catch (e) {
+      print('❌ GET USER PROPERTIES COUNT ERROR: $e');
+      return 0;
     }
   }
 }

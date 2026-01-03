@@ -408,6 +408,7 @@ class AuthCubit extends Cubit<AuthState> {
     required String userType,
     required bool termsAccepted,
   }) async {
+    print('🚀 Signup called: name=$name, email=$email, phone=$phone, userType=$userType');
     emit(AuthLoading());
     try {
       final result = await _authService.signup(
@@ -417,9 +418,26 @@ class AuthCubit extends Cubit<AuthState> {
         userType: userType,
         termsAccepted: termsAccepted,
       );
+      print('📡 Signup API result: ${result['success']}');
       if (result['success']) {
+        print('✅ Signup API call successful');
         final userData = result['data'];
-        final user = User.fromJson(userData);
+        print('📦 User data from API: $userData');
+        print('👤 User type from request: $userType');
+        
+        // Map response fields to User model (backend returns different field names)
+        final mappedUserData = {
+          '_id': userData['user_id'] ?? userData['_id'] ?? '',
+          'name': userData['full_name'] ?? userData['name'] ?? '',
+          'email': userData['email'] ?? '',
+          'phone': userData['phone_number'] ?? userData['phone'] ?? phone,
+          'user_type': userType, // Use the userType from request since backend might not return it
+          'created_at': userData['created_at'] ?? DateTime.now().toIso8601String(),
+        };
+        
+        print('🔄 Mapped user data: $mappedUserData');
+        final user = User.fromJson(mappedUserData);
+        print('👤 User object created: id=${user.id}, name=${user.name}, userType=${user.userType}');
         
         // Save user data to storage after signup (with error handling)
         try {
@@ -427,17 +445,22 @@ class AuthCubit extends Cubit<AuthState> {
             await StorageService.saveUserId(user.id);
             await StorageService.saveUserPhone(phone);
             await StorageService.setLoggedIn(true);
+            await StorageService.saveUserType(userType); // Save user type
+            print('💾 User data saved to storage');
             
             // Try to extract token if available
             if (userData is Map && userData['token'] != null) {
               await StorageService.saveToken(userData['token'].toString());
             }
+          } else {
+            print('⚠️ User ID is empty, skipping storage save');
           }
         } catch (e) {
-          print('Error saving user data to storage after signup: $e');
+          print('❌ Error saving user data to storage after signup: $e');
           // Continue even if storage fails - user can still proceed
         }
         
+        print('🎉 Emitting SignupSuccess state');
         emit(SignupSuccess(user));
       } else {
         emit(AuthError(result['error'] ?? 'Failed to signup'));

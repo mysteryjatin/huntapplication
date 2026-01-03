@@ -9,8 +9,10 @@ import 'package:hunt_property/screen/profile_screen.dart';
 import 'package:hunt_property/screen/search_screen.dart';
 import 'package:hunt_property/screen/shortlist_screen.dart';
 import 'package:hunt_property/screen/side_menu_screen.dart';
+import 'package:hunt_property/screen/spin_popup_screen.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/property_service.dart';
+import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/models/property_models.dart';
 import 'filter_screen.dart';
 import 'widget/custombottomnavbar.dart';
@@ -133,13 +135,52 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  // Handle Add button click with spin popup check
+  Future<void> _handleAddButtonClick() async {
+    print('🔘 Add button clicked from bottom navigation');
+    
+    // Check if user has added any properties
+    final userPropertiesCount = await _propertyService.getUserPropertiesCount();
+    print('📊 User properties count: $userPropertiesCount');
+    
+    // Show spin popup ONLY if user has 0 properties (no flag check needed)
+    if (userPropertiesCount == 0) {
+      print('✅ User has 0 properties, showing spin popup');
+      if (mounted) {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) => Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: const SpinPopupScreen(),
+          ),
+        );
+        print('✅ Spin popup bottom sheet shown');
+        return; // Don't navigate to add post, let spin popup handle it
+      }
+    } else {
+      print('⚠️ User has $userPropertiesCount properties, going directly to add post');
+    }
+    
+    // If user has properties, go directly to add post
+    if (mounted) {
+      print('➡️ Navigating to add post screen');
+      setState(() => selectedIndex = 2);
+    }
+  }
+
   // MAIN SCREEN SWITCHER
   Widget _buildMainScreen() {
     switch (selectedIndex) {
       case 1:
         return SearchScreen(onBackPressed: () => setState(() => selectedIndex = 0));
       case 2:
-        return AddPostScreen(onBackPressed: () => setState(() => selectedIndex = 0));
+        return AddPostScreen(
+          onBackPressed: () => setState(() => selectedIndex = 0),
+        );
       case 3:
         return const ShortlistScreen();
       case 4:
@@ -158,7 +199,14 @@ class _HomeScreenState extends State<HomeScreen>
       body: _buildMainScreen(),
       bottomNavigationBar: CustomBottomNavBar(
         selectedIndex: selectedIndex,
-        onItemSelected: (i) => setState(() => selectedIndex = i),
+        onItemSelected: (i) async {
+          // If Add button (index 2) is clicked, check for spin popup first
+          if (i == 2) {
+            await _handleAddButtonClick();
+          } else {
+            setState(() => selectedIndex = i);
+          }
+        },
       ),
     );
   }
@@ -254,7 +302,12 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
 
                   const SizedBox(height: 25),
-                  _SellingRentingCard(onPost: () {}),
+                  _SellingRentingCard(
+                    onPost: () async {
+                      // Use the same logic as bottom nav Add button
+                      await _handleAddButtonClick();
+                    },
+                  ),
 
                   const SizedBox(height: 40),
                 ],
