@@ -89,8 +89,10 @@ class PropertyService {
         if (decoded is List) {
           list = decoded;
         } else if (decoded is Map) {
-          // Try common envelope keys
-          if (decoded['items'] is List) {
+          // Try common envelope keys - backend returns PropertyListResponse with 'properties' field
+          if (decoded['properties'] is List) {
+            list = decoded['properties'];
+          } else if (decoded['items'] is List) {
             list = decoded['items'];
           } else if (decoded['data'] is List) {
             list = decoded['data'];
