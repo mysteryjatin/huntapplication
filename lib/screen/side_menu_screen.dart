@@ -20,6 +20,7 @@ import 'package:hunt_property/screen/sidemenu_screen/terms_conditions_screen.dar
 import 'package:hunt_property/screen/sidemenu_screen/privacy_policy_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/cancellation_policy_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/shopping_policy_screen.dart';
+import 'package:hunt_property/screen/sidemenu_screen/vastu/vastuaiexpert_screen.dart';
 import 'package:hunt_property/services/profile_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 
@@ -237,12 +238,12 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
                       svgPath: 'assets/icons/vastu.svg',
                       title: 'Vastu Calculator',
                       onTap: () {
-                        // Navigator.push(
-                        //   context,
-                        //   MaterialPageRoute(
-                        //     builder: (context) => const VastuCalculatorScreen(),
-                        //   ),
-                        // );
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const VastuAiExpertScreen(),
+                          ),
+                        );
                       },
                     ),
                     _buildMenuItem(
