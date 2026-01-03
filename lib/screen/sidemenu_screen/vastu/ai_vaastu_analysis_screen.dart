@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hunt_property/theme/app_theme.dart';
 
 class AiVaastuAnalysisScreen extends StatelessWidget {
   const AiVaastuAnalysisScreen({super.key});
@@ -8,11 +9,20 @@ class AiVaastuAnalysisScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF4FAFE),
 
-      // APP BAR
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.black),
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            size: 18,
+            color: Colors.black,
+          ),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+
         centerTitle: true,
         title: const Text(
           "Ai Vaastu Analysis",
@@ -22,15 +32,13 @@ class AiVaastuAnalysisScreen extends StatelessWidget {
 
       body: Column(
         children: [
-
-          /// CHAT AREA
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(14),
               child: Column(
                 children: [
 
-                  _chatCard(
+                  _chatBubble(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: const [
@@ -44,76 +52,76 @@ class AiVaastuAnalysisScreen extends StatelessWidget {
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                         ),
                         SizedBox(height: 6),
-                        Text("• Phase 1: Direction Setup", style: TextStyle(fontSize: 12)),
-                        Text("• Phase 2: Room Mapping", style: TextStyle(fontSize: 12)),
-                        Text("• Phase 3: Vaastu Analysis", style: TextStyle(fontSize: 12)),
+                        Text("• Phase 1: Direction Setup",
+                            style: TextStyle(fontSize: 12)),
+                        Text("• Phase 2: Room Mapping",
+                            style: TextStyle(fontSize: 12)),
+                        Text("• Phase 3: Vaastu Analysis",
+                            style: TextStyle(fontSize: 12)),
                       ],
                     ),
                   ),
 
-                  _chatCard(
+                  _chatBubble(
                     border: true,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: const [
                         Text(
                           "Phase 1: Direction Setup ⏱",
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600),
                         ),
                         SizedBox(height: 6),
-                        Text(
-                          "Great! I can see your floor plan.",
-                          style: TextStyle(fontSize: 12),
-                        ),
+                        Text("Great! I can see your floor plan.",
+                            style: TextStyle(fontSize: 12)),
                         SizedBox(height: 6),
                         Text(
                           "Before we analyze, please tell me which direction is NORTH in your image.",
-                          style: TextStyle(fontSize: 12, color: Color(0xFF2EDAA3)),
+                          style: TextStyle(
+                              fontSize: 12, color: AppColors.primaryColor),
                         ),
                         SizedBox(height: 4),
-                        Text(
-                          "👉 Select the North direction below:",
-                          style: TextStyle(fontSize: 12),
-                        ),
+                        Text("👉 Select the North direction below:",
+                            style: TextStyle(fontSize: 12)),
                       ],
                     ),
                   ),
 
-                  _directionImageCard(),
+                  // ✅ FIXED: now also a chat bubble
+                  _chatBubble(
+                    border: true,
+                    child: _northSelectionCard(),
+                  ),
 
-                  _directionGrid(),
-
-                  _chatCard(
+                  _chatBubble(
                     border: true,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: const [
                         Text(
                           "Analyzing with North at Top of image ⏱",
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600),
                         ),
                         SizedBox(height: 6),
                         Text(
                           "Processing: Detecting rooms and analyzing structure.",
-                          style: TextStyle(fontSize: 12, color: Color(0xFF2EDAA3)),
+                          style: TextStyle(
+                              fontSize: 12, color: AppColors.primaryColor),
                         ),
                         SizedBox(height: 4),
-                        Text(
-                          "Time: This will take about 10 seconds",
-                          style: TextStyle(fontSize: 12),
-                        ),
+                        Text("Time: This will take about 10 seconds",
+                            style: TextStyle(fontSize: 12)),
                         SizedBox(height: 4),
-                        Text(
-                          "Next: We'll show you the detected rooms",
-                          style: TextStyle(fontSize: 12),
-                        ),
+                        Text("Next: We'll show you the detected rooms",
+                            style: TextStyle(fontSize: 12)),
                       ],
                     ),
                   ),
 
-                  _selectDirectionGrid(),
-
                   _summaryCard(),
+                  const SizedBox(height: 12),
                 ],
               ),
             ),
@@ -124,187 +132,235 @@ class AiVaastuAnalysisScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
             decoration: const BoxDecoration(
               color: Colors.white,
-              boxShadow: [
-                BoxShadow(color: Colors.black12, blurRadius: 6),
-              ],
+              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6)],
             ),
             child: Row(
               children: [
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFF2EDAA3)),
+                      border:
+                      Border.all(color: AppColors.primaryColor),
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: const Text(
                       "Ask anything about Vaastu...",
-                      style: TextStyle(fontSize: 13, color: Colors.black54),
+                      style:
+                      TextStyle(fontSize: 13, color: Colors.black54),
                     ),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2EDAA3),
+                    color: AppColors.primaryColor,
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: const Text(
                     "Send",
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                    style: TextStyle(fontWeight: FontWeight.w600,color: Colors.black),
                   ),
                 ),
               ],
             ),
           ),
-
         ],
       ),
     );
   }
 
-  // ---------------- WIDGETS ----------------
+  // ================= COMMON =================
 
-  static Widget _chatCard({required Widget child, bool border = false}) {
+  static Widget _aiAvatar() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: border
-            ? Border.all(color: const Color(0xFF2EDAA3))
-            : null,
+      margin: const EdgeInsets.only(right: 8, top: 4),
+      height: 28,
+      width: 28,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0xFFF1F1F1),
       ),
-      child: child,
+      child: const Icon(Icons.psychology,
+          size: 18, color: Colors.brown),
     );
   }
 
-  static Widget _directionImageCard() {
-    return _chatCard(
-      border: true,
-      child: Column(
+  static Widget _chatBubble({required Widget child, bool border = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Text(
-            "Where is North in your image?",
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          SizedBox(height: 4),
-          Text(
-            "Select the side of the image that faces North",
-            style: TextStyle(fontSize: 12),
-          ),
-          SizedBox(height: 10),
-          Placeholder(fallbackHeight: 100),
-        ],
-      ),
-    );
-  }
-
-  static Widget _directionGrid() {
-    return _chatCard(
-      border: true,
-      child: Column(
         children: [
-          Row(
-            children: const [
-              _DirBtn("Top"),
-              _DirBtn("Right"),
-            ],
-          ),
-          Row(
-            children: const [
-              _DirBtn("Bottom"),
-              _DirBtn("Left"),
-            ],
+          _aiAvatar(),
+          Flexible(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 340),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: border
+                      ? Border.all(color: AppColors.primaryColor)
+                      : null,
+                ),
+                child: child,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  static Widget _selectDirectionGrid() {
-    return _chatCard(
-      border: true,
-      child: Column(
-        children: const [
-          Text("Select Direction",
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          SizedBox(height: 10),
-          _DirectionRow("North", "Northeast"),
-          _DirectionRow("South", "Southwest"),
-          _DirectionRow("East", "Southeast"),
-          _DirectionRow("West", "Northwest"),
-        ],
-      ),
+  // ================= NORTH CARD =================
+
+  Widget _northSelectionCard() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                "assets/images/floor_plan.png",
+                height: 54,
+                width: 54,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Where is North in your image?",
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    "Select the side of the image that faces North",
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.black54),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: const [
+            _NorthBtn("Top", "North is at the top",
+                Icons.arrow_upward),
+            SizedBox(width: 10),
+            _NorthBtn("Right", "North is at the right",
+                Icons.arrow_forward),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: const [
+            _NorthBtn("Bottom", "North is at the bottom",
+                Icons.arrow_downward),
+            SizedBox(width: 10),
+            _NorthBtn("Left", "North is at the left",
+                Icons.arrow_back),
+          ],
+        ),
+      ],
     );
   }
 
   static Widget _summaryCard() {
-    return _chatCard(
+    return _chatBubble(
       border: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
           Text(
             "Your Vaastu Summary Report ✅",
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            style:
+            TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
           SizedBox(height: 6),
           Text(
             "Summary\nThe layout has a well-placed bedroom in the South-West, which is ideal. However, the kitchen and toilet placements need attention.",
             style: TextStyle(fontSize: 12),
           ),
-          SizedBox(height: 6),
+          SizedBox(height: 8),
           Text("Vaastu Score: 75/100",
-              style: TextStyle(fontSize: 12, color: Color(0xFF2EDAA3))),
+              style: TextStyle(
+                  fontSize: 12, color: AppColors.primaryColor)),
           SizedBox(height: 6),
           Text("Critical Issues Identified: 1",
               style: TextStyle(fontSize: 12, color: Colors.red)),
           Text("Positive Aspects: 0",
-              style: TextStyle(fontSize: 12, color: Color(0xFF2EDAA3))),
+              style: TextStyle(
+                  fontSize: 12, color: AppColors.primaryColor)),
         ],
       ),
     );
   }
 }
 
-// ---------------- SMALL WIDGETS ----------------
+// ================= BUTTON =================
 
-class _DirBtn extends StatelessWidget {
-  final String text;
-  const _DirBtn(this.text);
+class _NorthBtn extends StatelessWidget {
+  final String title, subtitle;
+  final IconData icon;
+  const _NorthBtn(this.title, this.subtitle, this.icon);
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        margin: const EdgeInsets.all(6),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFF2EDAA3)),
-          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE0E0E0)),
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Center(child: Text(text)),
+        child: Row(
+          children: [
+            Container(
+              height: 28,
+              width: 28,
+              decoration: BoxDecoration(
+                color: AppColors.primaryColor,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(icon,
+                  size: 16, color: Colors.white),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.black54)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
-
-class _DirectionRow extends StatelessWidget {
-  final String a, b;
-  const _DirectionRow(this.a, this.b);
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _DirBtn(a),
-        _DirBtn(b),
-      ],
-    );
-  }
-}
-
