@@ -118,10 +118,10 @@ class _SpinPopupScreenState extends State<SpinPopupScreen>
     final segmentAngle = 2 * math.pi / _segments.length;
     const targetIndex = 0; // Always land on Platinum Unlimited Access
     final random = math.Random();
-    
+
     // More energetic spin: 6-8 full rotations
     final extraSpins = 6 + random.nextInt(3);
-    
+
     // Calculate target rotation to align segment 0 center with arrow
     // Arrow is fixed at top center (pointing down at -90 degrees)
     // In WheelPainter: segment 0 starts at -90 degrees (top)
@@ -129,16 +129,16 @@ class _SpinPopupScreenState extends State<SpinPopupScreen>
     // To align segment 0 center with arrow at -90 degrees:
     // We need to rotate by -segmentAngle/2 (counter-clockwise)
     // Since rotation is additive, target = -segmentAngle/2 normalized to 0-2π
-    
+
     final currentRotation = _rotationAngle % (2 * math.pi);
     final targetRotation = (2 * math.pi - segmentAngle / 2) % (2 * math.pi);
-    
+
     // Calculate rotation needed from current position
     var rotationNeeded = targetRotation - currentRotation;
     if (rotationNeeded < 0) {
       rotationNeeded += 2 * math.pi;
     }
-    
+
     // Add extra spins and the rotation needed to land on target
     _rotationAngle += (extraSpins * 2 * math.pi) + rotationNeeded;
 
@@ -148,12 +148,12 @@ class _SpinPopupScreenState extends State<SpinPopupScreen>
       _bounceController.forward(from: 0).then((_) {
         _bounceController.reverse();
       });
-      
+
       setState(() {
         _isSpinning = false;
         _showCelebration = true;
       });
-      
+
       // Start celebration
       _celebrationController.forward(from: 0).then((_) async {
         // Mark spin popup as shown
@@ -198,126 +198,126 @@ class _SpinPopupScreenState extends State<SpinPopupScreen>
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-                // ===== HEADER =====
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 22, 20, 14),
-                  child: Column(
-                    children: [
-                      Text(
-                        'Spin to Unlock Your Reward',
-                        style: TextStyle(
+              // ===== HEADER =====
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 22, 20, 14),
+                child: Column(
+                  children: [
+                    Text(
+                      'Spin to Unlock Your Reward',
+                      style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
                           color: Colors.black
-                        ),
-                        textAlign: TextAlign.center,
                       ),
-                      SizedBox(height: 6),
-                      Text(
-                        'Exclusive reward for new users',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Exclusive reward for new users',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+              ),
 
-                // ===== WHEEL =====
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Fixed Arrow at top center (outside rotation)
-                      Positioned(
-                        top: -6,
-                        child: _buildFixedArrow(),
-                      ),
-                      // Spinning Wheel with bounce effect
+              // ===== WHEEL =====
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Fixed Arrow at top center (outside rotation)
+                    Positioned(
+                      top: -6,
+                      child: _buildFixedArrow(),
+                    ),
+                    // Spinning Wheel with bounce effect
+                    AnimatedBuilder(
+                      animation: Listenable.merge([_animation, _bounceAnimation]),
+                      builder: (_, __) {
+                        return Transform.scale(
+                          scale: _bounceAnimation.value,
+                          child: Transform.rotate(
+                            angle: _rotationAngle * _animation.value,
+                            child: _buildWheel(),
+                          ),
+                        );
+                      },
+                    ),
+                    // Spin particles effect
+                    if (_isSpinning)
                       AnimatedBuilder(
-                        animation: Listenable.merge([_animation, _bounceAnimation]),
-                        builder: (_, __) {
-                          return Transform.scale(
-                            scale: _bounceAnimation.value,
-                            child: Transform.rotate(
-                              angle: _rotationAngle * _animation.value,
-                              child: _buildWheel(),
-                            ),
-                          );
+                        animation: _animation,
+                        builder: (context, _) {
+                          return _buildSpinParticles();
                         },
                       ),
-                      // Spin particles effect
-                      if (_isSpinning)
-                        AnimatedBuilder(
-                          animation: _animation,
-                          builder: (context, _) {
-                            return _buildSpinParticles();
-                          },
-                        ),
-                      // Celebration overlay
-                      if (_showCelebration)
-                        AnimatedBuilder(
-                          animation: _celebrationAnimation,
-                          builder: (context, _) {
-                            return _buildCelebration();
-                          },
-                        ),
-                    ],
-                  ),
+                    // Celebration overlay
+                    if (_showCelebration)
+                      AnimatedBuilder(
+                        animation: _celebrationAnimation,
+                        builder: (context, _) {
+                          return _buildCelebration();
+                        },
+                      ),
+                  ],
                 ),
+              ),
 
-                // ===== BUTTON =====
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeInOut,
-                      child: ElevatedButton(
-                        onPressed: _isSpinning ? null : _spinWheel,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _isSpinning 
-                              ? Colors.grey[400]
-                              : const Color(0xFF2FED9A),
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          elevation: _isSpinning ? 0 : 4,
+              // ===== BUTTON =====
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    child: ElevatedButton(
+                      onPressed: _isSpinning ? null : _spinWheel,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isSpinning
+                            ? Colors.grey[400]
+                            : const Color(0xFF2FED9A),
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (_isSpinning) ...[
-                              SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.black,
-                                  ),
+                        elevation: _isSpinning ? 0 : 4,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (_isSpinning) ...[
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.black,
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                            ],
-                            Text(
-                              _isSpinning ? 'Spinning...' : ' Spin Now',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
                             ),
+                            const SizedBox(width: 12),
                           ],
-                        ),
+                          Text(
+                            _isSpinning ? 'Spinning...' : ' Spin Now',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
+              ),
 
               const Padding(
                 padding: EdgeInsets.only(bottom: 14),
@@ -352,7 +352,7 @@ class _SpinPopupScreenState extends State<SpinPopupScreen>
           ),
           // Main black arrow - fixed at top center
           CustomPaint(
-            size: const Size(24, 14),
+            size: const Size(34, 18),
             painter: PointerPainter(color: Colors.black),
           ),
           // Arrow glow effect when spinning
@@ -395,15 +395,15 @@ class _SpinPopupScreenState extends State<SpinPopupScreen>
                   height: wheelSize + 20,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFFA000).withOpacity(
-                          0.3 + (0.2 * math.sin(_animation.value * 8)),
-                        ),
-                        blurRadius: 30,
-                        spreadRadius: 5,
-                      ),
-                    ],
+                    // boxShadow: [
+                    //   BoxShadow(
+                    //     color: const Color(0xFFFFA000).withOpacity(
+                    //       0.3 + (0.2 * math.sin(_animation.value * 8)),
+                    //     ),
+                    //     blurRadius: 30,
+                    //     spreadRadius: 5,
+                    //   ),
+                    // ],
                   ),
                 );
               },
@@ -416,13 +416,13 @@ class _SpinPopupScreenState extends State<SpinPopupScreen>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.18),
-                  blurRadius: 22,
-                  offset: const Offset(0, 10),
-                ),
-              ],
+              // boxShadow: [
+              //   BoxShadow(
+              //     color: Colors.black.withOpacity(0.18),
+              //     blurRadius: 22,
+              //     offset: const Offset(0, 10),
+              //   ),
+              // ],
             ),
             child: CustomPaint(
               painter: WheelPainter(_segments, _colors),
@@ -611,7 +611,7 @@ class PointerPainter extends CustomPainter {
       ..close();
 
     canvas.drawPath(path, paint);
-    
+
     // Add border for better visibility
     final borderPaint = Paint()
       ..color = Colors.white
@@ -643,10 +643,10 @@ class SpinParticlesPainter extends CustomPainter {
       final particle = particles[i];
       final angle = (animationValue * 2 * math.pi * 8) + (i * 0.5);
       final distance = 120 + (i % 3) * 20;
-      
+
       final x = center.dx + math.cos(angle) * distance;
       final y = center.dy + math.sin(angle) * distance;
-      
+
       final opacity = (1.0 - (animationValue * 0.5)).clamp(0.3, 1.0);
       final paint = Paint()
         ..color = const Color(0xFFFFA000).withOpacity(opacity)
