@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hunt_property/cubit/auth_cubit.dart';
 import 'package:hunt_property/screen/add_post_screen.dart';
 import 'package:hunt_property/screen/add_post_step2_screen.dart';
@@ -27,6 +28,24 @@ import 'package:hunt_property/models/property_models.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Load environment variables from .env file
+  try {
+    await dotenv.load(fileName: ".env");
+    // Verify API key is loaded (for debugging - remove in production if needed)
+    final apiKey = dotenv.env['OPENAI_API_KEY'];
+    if (apiKey != null && apiKey.isNotEmpty) {
+      print('✅ Environment variables loaded successfully');
+      print('✅ OPENAI_API_KEY found in .env (length: ${apiKey.length})');
+    } else {
+      print('⚠️ WARNING: OPENAI_API_KEY not found in .env file');
+      print('⚠️ Please create .env file with OPENAI_API_KEY=your_key_here');
+    }
+  } catch (e) {
+    print('❌ ERROR: Failed to load .env file: $e');
+    print('❌ Please make sure .env file exists in the root directory');
+    print('❌ You can copy .env.example to .env and add your API key');
+  }
   
   // Pre-initialize SharedPreferences to avoid platform channel errors
   // Add a small delay to ensure platform channels are ready
