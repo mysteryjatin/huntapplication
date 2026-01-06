@@ -302,8 +302,12 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
         shape: BoxShape.circle,
         color: Color(0xFFF1F1F1),
       ),
-      child: const Icon(Icons.psychology,
-          size: 18, color: Colors.brown),
+      child:  Image.asset(
+        'assets/images/ganesha_vaastu_ai.png',
+        width: 18,
+        height: 18,
+      )
+
     );
   }
 
