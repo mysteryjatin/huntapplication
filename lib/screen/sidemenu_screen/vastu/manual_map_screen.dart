@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:hunt_property/screen/sidemenu_screen/vastu/vaastu_result_screen.dart';
 
 class ManualMapScreen extends StatefulWidget {
   const ManualMapScreen({super.key});
@@ -22,6 +23,17 @@ class _ManualMapScreenState extends State<ManualMapScreen> {
     "North-West",
   ];
 
+  final List<RoomData> rooms = const [
+    RoomData("🚪", "Main Entrance"),
+    RoomData("🍳", "Kitchen"),
+    RoomData("🛏️", "Master Bedroom"),
+    RoomData("🛋️", "Living Room"),
+    RoomData("🚿", "Toilet / Bathroom"),
+    RoomData("🪔", "Puja Room"),
+    RoomData("🧸", "Children's Room"),
+    RoomData("🌇", "Balcony"),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -39,7 +51,11 @@ class _ManualMapScreenState extends State<ManualMapScreen> {
         centerTitle: true,
         title: const Text(
           "Upload Floor Plan",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600,color: Colors.black),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+          ),
         ),
       ),
 
@@ -48,34 +64,26 @@ class _ManualMapScreenState extends State<ManualMapScreen> {
         children: [
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
 
-                  const SizedBox(height: 16),
-
                   const Text(
                     "Overall Vaastu Score",
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                        color: Colors.black
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black,
                     ),
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
 
-                  _sectionCard("🏠", "Main Entrance"),
-                  _sectionCard("🍳", "Kitchen"),
-                  _sectionCard("🛏️", "Master Bedroom"),
-                  _sectionCard("🛋️", "Living Room"),
-                  _sectionCard("🚿", "Toilet / Bathroom"),
-                  _sectionCard("🪔", "Puja Room"),
-                  _sectionCard("🧸", "Children's Room"),
-                  _sectionCard("🌇", "Balcony"),
+                  // All room cards
+                  ...rooms.map((room) => _sectionCard(room.emoji, room.name)),
 
-                  const SizedBox(height: 90),
+                  const SizedBox(height: 100),
                 ],
               ),
             ),
@@ -83,32 +91,46 @@ class _ManualMapScreenState extends State<ManualMapScreen> {
 
           // ================= BOTTOM BUTTON =================
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
-                BoxShadow(color: Colors.black12, blurRadius: 10),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, -2),
+                ),
               ],
             ),
-            child: SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+            child: SafeArea(
+              child: SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                    shadowColor: AppColors.primaryColor.withOpacity(0.3),
                   ),
-                ),
-                onPressed: () {
-                  // calculate score
-                },
-                child: const Text(
-                  "Calculate Compliance Score",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
+                  onPressed: () {
+                    // Check if all rooms have selections
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const VaastuResultScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text(
+                    "Calculate Compliance Score",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                    ),
                   ),
                 ),
               ),
@@ -122,12 +144,15 @@ class _ManualMapScreenState extends State<ManualMapScreen> {
   // ================= SECTION CARD =================
   Widget _sectionCard(String emoji, String title) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF4FAFE),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFD6E7F2)),
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFE5F0F8),
+          width: 1.5,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,49 +160,61 @@ class _ManualMapScreenState extends State<ManualMapScreen> {
 
           Row(
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 16)),
-              const SizedBox(width: 6),
+              Text(
+                emoji,
+                style: const TextStyle(fontSize: 20),
+              ),
+              const SizedBox(width: 10),
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
-                    color: Colors.black
+                  color: Colors.black,
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
 
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 10,
+            runSpacing: 10,
             children: directions.map((dir) {
               final isSelected = selections[title] == dir ||
                   (selections[title] == null && dir == "North");
 
-              return ChoiceChip(
-                label: Text(dir),
-                selected: isSelected,
-                onSelected: (_) {
+              return InkWell(
+                onTap: () {
                   setState(() {
                     selections[title] = dir;
                   });
                 },
-                selectedColor: AppColors.primaryColor,
-                backgroundColor: Colors.white,
-                labelStyle: TextStyle(
-                  fontSize: 12,
-                  color: isSelected ? Colors.black : Colors.black54,
-                  fontWeight:
-                  isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
-                shape: StadiumBorder(
-                  side: BorderSide(
-                    color: isSelected
-                        ? AppColors.primaryColor
-                        : const Color(0xFFCBD5DD),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.primaryColor : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.primaryColor
+                          : const Color(0xFFD6E7F2),
+                      width: isSelected ? 2 : 1.5,
+                    ),
+                  ),
+                  child: Text(
+                    dir,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isSelected ? Colors.black : Colors.black87,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.w500,
+                    ),
                   ),
                 ),
               );
@@ -187,4 +224,11 @@ class _ManualMapScreenState extends State<ManualMapScreen> {
       ),
     );
   }
+}
+
+class RoomData {
+  final String emoji;
+  final String name;
+
+  const RoomData(this.emoji, this.name);
 }

@@ -29,7 +29,7 @@ class VastuAiExpertScreen extends StatelessWidget {
         title: const Text(
           "Vastu AI Expert",
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 18,
             fontWeight: FontWeight.w600,
             color: Colors.black,
           ),
@@ -38,32 +38,32 @@ class VastuAiExpertScreen extends StatelessWidget {
 
       // ================= BODY =================
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 4),
 
             // ================= TOP CARD =================
             _checkHomeHarmonyCard(context),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
 
             // ================= HOW IT WORKS =================
             const Text(
               "How it works",
               style: TextStyle(
-                fontSize: 15,
+                fontSize: 18,
                 fontWeight: FontWeight.w600,
-                  color: Colors.black
+                color: Colors.black,
               ),
             ),
 
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
 
             _StepTile(
-              icon: Icons.upload_file_outlined,
+              icon: Icons.description_outlined,
               text: "Upload your property floor plan or drawing",
               onTap: () {
                 Navigator.push(
@@ -93,7 +93,7 @@ class VastuAiExpertScreen extends StatelessWidget {
               },
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -103,33 +103,49 @@ class VastuAiExpertScreen extends StatelessWidget {
   // ================= TOP CARD =================
   Widget _checkHomeHarmonyCard(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3FAFF),
-        borderRadius: BorderRadius.circular(22),
+        color: const Color(0xFFEFF9FF),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 22,
-            offset: const Offset(0, 12),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Stack(
         children: [
 
-          // INNER MINT RING
+          // DECORATIVE CIRCLE RINGS
           Positioned(
-            right: 6,
-            top: 18,
+            right: -20,
+            top: 10,
             child: Container(
-              height: 110,
-              width: 110,
+              height: 140,
+              width: 140,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: const Color(0xFFBFF3E1),
-                  width: 10,
+                  color: const Color(0xFFBEF4E3).withOpacity(0.3),
+                  width: 20,
+                ),
+              ),
+            ),
+          ),
+
+          Positioned(
+            right: 10,
+            top: 30,
+            child: Container(
+              height: 100,
+              width: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFF9EE8D1).withOpacity(0.5),
+                  width: 15,
                 ),
               ),
             ),
@@ -141,8 +157,7 @@ class VastuAiExpertScreen extends StatelessWidget {
 
               // AI POWERED CHIP
               Container(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
                   color: AppColors.primaryColor,
                   borderRadius: BorderRadius.circular(20),
@@ -150,35 +165,37 @@ class VastuAiExpertScreen extends StatelessWidget {
                 child: const Text(
                   "AI POWERED",
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
                     color: Colors.black,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
 
               const Text(
                 "Check Home Harmony",
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 24,
                   fontWeight: FontWeight.w700,
-                    color: Colors.black
+                  color: Colors.black,
                 ),
               ),
 
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
 
               const Text(
-                "Get expert Vaastu compliance score and remedies without expensive consultation.",
+                "Get expert Vaastu compliance score and\nremedies without expensive consultation.",
                 style: TextStyle(
                   fontSize: 13,
                   color: Colors.black54,
+                  height: 1.4,
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
               Row(
                 children: [
@@ -194,7 +211,7 @@ class VastuAiExpertScreen extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   _ActionBox(
                     icon: Icons.map_outlined,
                     label: "Manual Map",
@@ -232,40 +249,51 @@ class _StepTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent, // 👈 important
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        splashColor: Colors.transparent,     // 👈 remove ripple
-        highlightColor: Colors.transparent,  // 👈 remove highlight
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
         hoverColor: Colors.transparent,
         child: Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(14),
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFFF4FAFE),
-            borderRadius: BorderRadius.circular(14),
+            color: const Color(0xFFF8FBFE),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFFE5F5EE),
+              width: 1,
+            ),
           ),
           child: Row(
             children: [
               Container(
-                height: 36,
-                width: 36,
+                height: 44,
+                width: 44,
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFD6F4E6)),
+                  color: const Color(0xFFE8FFF6),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFFBDF2DE),
+                    width: 1.5,
+                  ),
                 ),
                 child: Icon(
                   icon,
-                  size: 20,
+                  size: 22,
                   color: const Color(0xFF34F3A3),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Text(
                   text,
-                  style: const TextStyle(fontSize: 13),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    height: 1.3,
+                  ),
                 ),
               ),
             ],
@@ -293,24 +321,39 @@ class _ActionBox extends StatelessWidget {
     return Expanded(
       child: Material(
         color: Colors.transparent,
-        //borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          //borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           onTap: onTap,
-          splashColor: Colors.transparent,     // 👈 remove ripple
-          highlightColor: Colors.transparent,  // 👈 remove highlight
-          hoverColor: Colors.transparent,
+          splashColor: const Color(0xFF34F3A3).withOpacity(0.1),
+          highlightColor: const Color(0xFF34F3A3).withOpacity(0.05),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14),
+            padding: const EdgeInsets.symmetric(vertical: 16),
             decoration: BoxDecoration(
-              color: const Color(0xFFE8EEF3),
-              borderRadius: BorderRadius.circular(14),
+              color: const Color(0xFFE8F4EE),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: const Color(0xFFBDF2DE),
+                width: 1,
+              ),
             ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, color: const Color(0xFF34F3A3)),
-                const SizedBox(height: 6),
-                Text(label, style: const TextStyle(fontSize: 13,color: Colors.black)),
+                Icon(
+                  icon,
+                  color: const Color(0xFF34F3A3),
+                  size: 28,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                  ),
+                ),
               ],
             ),
           ),

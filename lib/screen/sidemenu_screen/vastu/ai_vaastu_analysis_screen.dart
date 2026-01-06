@@ -33,7 +33,7 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
     super.initState();
     // Add initial welcome message
     _messages.add(ChatMessage(
-      text: "I'm your personal AI Vaastu consultant. I'll guide you step-by-step to analyze your home.\n\nHow This Works (5–7 minutes total)\n• Phase 1: Direction Setup\n• Phase 2: Room Mapping\n• Phase 3: Vaastu Analysis\n\nYou can ask me anything about Vastu Shastra, and I'll provide expert advice!",
+      text: "I'm your personal AI Vaastu consultant. I'll guide you step-by-step to analyze your home.\n\nHow This Works (5–7 minutes total)\n• Phase 1: Direction Setup\n• Phase 2: Room Mapping  \n• Phase 3: Vaastu Analysis",
       isUser: false,
       timestamp: DateTime.now(),
     ));
@@ -103,7 +103,7 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4FAFE),
+      backgroundColor: const Color(0xFFF8FBFE),
 
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -122,7 +122,11 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
         centerTitle: true,
         title: const Text(
           "Ai Vaastu Analysis",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+          ),
         ),
       ),
 
@@ -171,55 +175,97 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
 
           /// INPUT BAR
           Container(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-            decoration: const BoxDecoration(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            decoration: BoxDecoration(
               color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6)],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: InputDecoration(
-                      hintText: "Ask anything about Vaastu...",
-                      hintStyle: const TextStyle(fontSize: 13, color: Colors.black54),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: const BorderSide(color: AppColors.primaryColor),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: const BorderSide(color: AppColors.primaryColor),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: const BorderSide(color: AppColors.primaryColor, width: 2),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                    style: const TextStyle(fontSize: 13),
-                    maxLines: null,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                GestureDetector(
-                  onTap: _isLoading ? null : _sendMessage,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: _isLoading ? Colors.grey : AppColors.primaryColor,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: const Text(
-                      "Send",
-                      style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black),
-                    ),
-                  ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, -2),
                 ),
               ],
+            ),
+            child: SafeArea(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      decoration: InputDecoration(
+                        hintText: "Ask anything about Vaastu...",
+                        hintStyle: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.black45,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(26),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE0E0E0),
+                            width: 1.5,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(26),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE0E0E0),
+                            width: 1.5,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(26),
+                          borderSide: const BorderSide(
+                            color: AppColors.primaryColor,
+                            width: 2,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FBFE),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
+                        ),
+                      ),
+                      style: const TextStyle(fontSize: 14, color: Colors.black),
+                      maxLines: null,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendMessage(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: _isLoading ? null : _sendMessage,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _isLoading
+                            ? Colors.grey.shade400
+                            : AppColors.primaryColor,
+                        borderRadius: BorderRadius.circular(26),
+                        boxShadow: [
+                          if (!_isLoading)
+                            BoxShadow(
+                              color: AppColors.primaryColor.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                        ],
+                      ),
+                      child: const Text(
+                        "Send",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -234,17 +280,19 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: lines.map((line) {
         if (line.trim().isEmpty) {
-          return const SizedBox(height: 4);
+          return const SizedBox(height: 6);
         }
         final isBold = line.startsWith('•') || 
-                      line.contains(':') && (line.contains('Score') || line.contains('Issues') || line.contains('Aspects'));
+                      line.contains(':') && (line.contains('Score') || line.contains('Issues') || line.contains('Aspects') || line.contains('Phase') || line.contains('How'));
         return Padding(
-          padding: const EdgeInsets.only(bottom: 2),
+          padding: const EdgeInsets.only(bottom: 3),
           child: Text(
             line,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+              color: Colors.black87,
+              height: 1.5,
             ),
           ),
         );
@@ -254,37 +302,39 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
 
   Widget _userMessageBubble(String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 14, left: 40),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Flexible(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 340),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryColor,
-                  borderRadius: BorderRadius.circular(18),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.primaryColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(18),
+                  topRight: Radius.circular(18),
+                  bottomLeft: Radius.circular(18),
+                  bottomRight: Radius.circular(4),
                 ),
-                child: Text(
-                  text,
-                  style: const TextStyle(fontSize: 13, color: Colors.black),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryColor.withOpacity(0.2),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black,
+                  height: 1.4,
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            margin: const EdgeInsets.only(top: 4),
-            height: 28,
-            width: 28,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Color(0xFFE0E0E0),
-            ),
-            child: const Icon(Icons.person, size: 18, color: Colors.black54),
           ),
         ],
       ),
@@ -295,43 +345,54 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
 
   static Widget _aiAvatar() {
     return Container(
-      margin: const EdgeInsets.only(right: 8, top: 4),
-      height: 28,
-      width: 28,
+      margin: const EdgeInsets.only(right: 10, top: 2),
+      height: 32,
+      width: 32,
       decoration: const BoxDecoration(
         shape: BoxShape.circle,
         color: Color(0xFFF1F1F1),
       ),
-      child:  Image.asset(
-        'assets/images/ganesha_vaastu_ai.png',
-        width: 18,
-        height: 18,
-      )
-
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Image.asset(
+          'assets/images/ganesha_vaastu_ai.png',
+          width: 20,
+          height: 20,
+        ),
+      ),
     );
   }
 
   static Widget _chatBubble({required Widget child, bool border = false}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 14, right: 40),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _aiAvatar(),
           Flexible(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 340),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: border
-                      ? Border.all(color: AppColors.primaryColor)
-                      : null,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  topRight: Radius.circular(18),
+                  bottomLeft: Radius.circular(18),
+                  bottomRight: Radius.circular(18),
                 ),
-                child: child,
+                border: border
+                    ? Border.all(color: AppColors.primaryColor, width: 1.5)
+                    : Border.all(color: const Color(0xFFE8E8E8), width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
+              child: child,
             ),
           ),
         ],

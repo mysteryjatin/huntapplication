@@ -1,8 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:image_picker/image_picker.dart';
+import 'floor_plan_analysis_screen.dart';
 
 class UploadFloorPlanScreen extends StatelessWidget {
   const UploadFloorPlanScreen({super.key});
+
+  Future<void> _pickImage(BuildContext context, ImageSource source) async {
+    final ImagePicker picker = ImagePicker();
+    try {
+      final XFile? image = await picker.pickImage(source: source);
+      if (image != null) {
+        // Navigate to floor plan analysis with the image
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FloorPlanAnalysisScreen(imagePath: image.path),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error picking image: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,11 +43,11 @@ class UploadFloorPlanScreen extends StatelessWidget {
         centerTitle: true,
         title: const Text(
           "Upload Floor Plan",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.history, color: Colors.black),
+            icon: const Icon(Icons.history, color: Colors.black54, size: 22),
             onPressed: () {
               // refresh / reset logic
             },
@@ -35,118 +57,104 @@ class UploadFloorPlanScreen extends StatelessWidget {
 
       // ================= BODY =================
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
 
-              const SizedBox(height: 18),
+            const SizedBox(height: 24),
 
-              // TITLE
-              const Text(
-                "Upload Your Floor Plan",
+            // TITLE
+            const Text(
+              "Upload Your Floor Plan",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: Colors.black,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // SUBTITLE
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                "Please provide a high-quality image of your\nfloor plan for the most accurate Vaastu\nanalysis",
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
+                  fontSize: 14,
+                  color: Colors.black54,
+                  height: 1.5,
                 ),
               ),
+            ),
 
-              const SizedBox(height: 8),
+            const SizedBox(height: 24),
 
-              // SUBTITLE
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  "Please provide a high-quality image of your floor plan for the most accurate Vaastu analysis",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.black54,
-                  ),
+            // ================= INSTRUCTIONS CARD =================
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FBFE),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: const Color(0xFFD6F4E6),
+                  width: 1.5,
                 ),
               ),
-
-              const SizedBox(height: 18),
-
-              // ================= INSTRUCTIONS CARD =================
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF4FAFE),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFD6F4E6)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Row(
-                        children: [
-                          Icon(Icons.info_outline,
-                              size: 18, color: Color(0xFF34F3A3)),
-                          SizedBox(width: 6),
-                          Text(
-                            "INSTRUCTIONS",
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF34F3A3),
-                            ),
-                          ),
-                        ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline,
+                          size: 20, color: Color(0xFF34F3A3)),
+                      SizedBox(width: 8),
+                      Text(
+                        "INSTRUCTIONS",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF34F3A3),
+                          letterSpacing: 0.5,
+                        ),
                       ),
-                      SizedBox(height: 10),
-                      _InstructionRow("Upload JPG / PNG / PDF"),
-                      SizedBox(height: 6),
-                      _InstructionRow("Ensure clear room boundaries"),
                     ],
                   ),
-                ),
+                  SizedBox(height: 14),
+                  _InstructionRow("Upload JPG / PNG / PDF"),
+                  SizedBox(height: 8),
+                  _InstructionRow("Ensure clear room boundaries"),
+                ],
               ),
+            ),
 
-             Spacer(),
+            const Spacer(),
 
-              // ================= ACTION CARDS =================
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _UploadActionCard(
-                  icon: Icons.upload_file_outlined,
-                  title: "Upload from Device",
-                  subtitle: "FROM GALLERY OR FILES",
-                  onTap: () {
-                    // open gallery / file picker
-                  },
-                ),
-              ),
+            // ================= ACTION CARDS =================
+            _UploadActionCard(
+              icon: Icons.upload_file_outlined,
+              title: "Upload from Device",
+              subtitle: "FROM GALLERY OR FILES",
+              onTap: () => _pickImage(context, ImageSource.gallery),
+            ),
 
-              const SizedBox(height: 14),
+            const SizedBox(height: 16),
 
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _UploadActionCard(
-                  icon: Icons.camera_alt_outlined,
-                  title: "Take Photo",
-                  subtitle: "USE YOUR CAMERA",
-                  onTap: () {
-                    // open camera
-                  },
-                ),
-              ),
+            _UploadActionCard(
+              icon: Icons.camera_alt_outlined,
+              title: "Take Photo",
+              subtitle: "USE YOUR CAMERA",
+              onTap: () => _pickImage(context, ImageSource.camera),
+            ),
 
-              const SizedBox(height: 30),
-            ],
-          ),
-        )
-
+            const SizedBox(height: 32),
+          ],
+        ),
       ),
-
-
     );
   }
 }
@@ -162,9 +170,15 @@ class _InstructionRow extends StatelessWidget {
     return Row(
       children: [
         const Icon(Icons.check_circle,
-            size: 18, color: Color(0xFF34F3A3)),
-        const SizedBox(width: 8),
-        Text(text, style: const TextStyle(fontSize: 13)),
+            size: 20, color: Color(0xFF34F3A3)),
+        const SizedBox(width: 10),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 14,
+            color: Colors.black87,
+          ),
+        ),
       ],
     );
   }
@@ -185,69 +199,70 @@ class _UploadActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.cardbg,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFFBDF2DE), // mint border
-            width: 1,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FBFE),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: const Color(0xFFBDF2DE),
+              width: 1.5,
+            ),
           ),
-          // boxShadow: [
-          //   BoxShadow(
-          //     color: Colors.black.withOpacity(0.15),
-          //     blurRadius: 22,
-          //     offset: const Offset(0, 12),
-          //   ),
-          // ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              height: 48,
-              width: 48,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8FFF6),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFBDF2DE), // mint border
-                  width: 1,
+          child: Row(
+            children: [
+              Container(
+                height: 56,
+                width: 56,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8FFF6),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: const Color(0xFFBDF2DE),
+                    width: 1.5,
+                  ),
+                ),
+                child: Icon(
+                  icon,
+                  size: 26,
+                  color: const Color(0xFF34F3A3),
                 ),
               ),
-              child: Icon(
-                icon,
-                size: 22,
-                color: const Color(0xFF34F3A3),
-              ),
-            ),
 
-            const SizedBox(width: 14),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black
-                  ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.black54,
-                  ),
-                ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
