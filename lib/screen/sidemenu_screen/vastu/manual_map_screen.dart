@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/screen/sidemenu_screen/vastu/vaastu_result_screen.dart';
+import 'package:hunt_property/services/vastu_service.dart';
 
 class ManualMapScreen extends StatefulWidget {
   const ManualMapScreen({super.key});
@@ -11,6 +12,8 @@ class ManualMapScreen extends StatefulWidget {
 
 class _ManualMapScreenState extends State<ManualMapScreen> {
   final Map<String, String> selections = {};
+  final VastuService _vastuService = VastuService();
+  bool _isAnalyzing = false;
 
   final List<String> directions = const [
     "North",
@@ -115,23 +118,24 @@ class _ManualMapScreenState extends State<ManualMapScreen> {
                     elevation: 0,
                     shadowColor: AppColors.primaryColor.withOpacity(0.3),
                   ),
-                  onPressed: () {
-                    // Check if all rooms have selections
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const VaastuResultScreen(),
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    "Calculate Compliance Score",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black,
-                    ),
-                  ),
+                  onPressed: _isAnalyzing ? null : () => _analyzeManualMap(),
+                  child: _isAnalyzing
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                          ),
+                        )
+                      : const Text(
+                          "Calculate Compliance Score",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -223,6 +227,87 @@ class _ManualMapScreenState extends State<ManualMapScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _analyzeManualMap() async {
+    // Set defaults for unselected rooms
+    for (var room in rooms) {
+      if (!selections.containsKey(room.name)) {
+        selections[room.name] = "North"; // Default
+      }
+    }
+
+    setState(() {
+      _isAnalyzing = true;
+    });
+
+    try {
+      // Create description of the floor plan based on selections
+      final floorPlanDescription = _generateFloorPlanDescription();
+
+      // Call AI to analyze
+      final response = await _vastuService.getVastuAnalysis(
+        userMessage: floorPlanDescription,
+        context: 'Manual floor plan mapping',
+      );
+
+      if (response['success'] == true) {
+        final analysisText = response['message'] ?? '';
+        
+        // Navigate to result screen with AI analysis
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VaastuResultScreen(
+              aiAnalysis: analysisText,
+              roomSelections: Map<String, String>.from(selections),
+            ),
+          ),
+        );
+      } else {
+        // Show error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Analysis failed: ${response['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAnalyzing = false;
+        });
+      }
+    }
+  }
+
+  String _generateFloorPlanDescription() {
+    final buffer = StringBuffer();
+    buffer.writeln('Please analyze this floor plan according to Vastu Shastra principles:\n');
+    buffer.writeln('Room Placements and Directions:\n');
+
+    selections.forEach((room, direction) {
+      buffer.writeln('• $room: Located in $direction direction');
+    });
+
+    buffer.writeln('\nPlease provide:');
+    buffer.writeln('1. **Overall Vastu Score** (out of 100) - Calculate based on room placements');
+    buffer.writeln('2. **Directional Analysis** - Evaluate all 8 directions');
+    buffer.writeln('3. **Room-by-Room Analysis** - Score each room placement (format: RoomName: Score/100)');
+    buffer.writeln('4. **Critical Issues** - Major Vastu doshas');
+    buffer.writeln('5. **Positive Aspects** - What\'s correct');
+    buffer.writeln('6. **Recommendations** - Specific remedies');
+    buffer.writeln('\nFormat with clear sections, emojis, and scores.');
+
+    return buffer.toString();
   }
 }
 

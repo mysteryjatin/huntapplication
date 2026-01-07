@@ -146,5 +146,112 @@ Format your response in a clear, structured manner.''';
       context: 'Floor plan analysis',
     );
   }
+
+  /// Analyze floor plan image using Vision API
+  /// 
+  /// [imageBase64] - Base64 encoded image of the floor plan
+  /// [northDirection] - Direction where North is located
+  Future<Map<String, dynamic>> analyzeFloorPlanWithVision({
+    required String imageBase64,
+    required String northDirection,
+  }) async {
+    try {
+      final uri = Uri.parse('$_baseUrl/chat/completions');
+      
+      final systemPrompt = '''You are an expert Vastu Shastra consultant analyzing a floor plan image.
+Analyze the image according to traditional Vastu principles considering:
+- North direction is at: $northDirection
+- Room placements and their Vastu compliance
+- Directional alignments
+- Entrance positioning
+- Key Vastu elements
+
+Provide a comprehensive analysis with scores and recommendations.''';
+
+      final messages = [
+        {
+          'role': 'system',
+          'content': systemPrompt,
+        },
+        {
+          'role': 'user',
+          'content': [
+            {
+              'type': 'text',
+              'text': '''Please analyze this floor plan image according to Vastu Shastra principles (North is at $northDirection).
+
+Provide:
+1. **Overall Vastu Score** (X/100)
+2. **Directional Analysis** for all 8 directions
+3. **Room Analysis** with individual scores
+4. **Critical Issues** to address
+5. **Positive Aspects** that are correct
+6. **Recommendations** for improvements
+
+Use clear formatting with emojis for better readability.'''
+            },
+            {
+              'type': 'image_url',
+              'image_url': {
+                'url': 'data:image/jpeg;base64,$imageBase64',
+              }
+            }
+          ]
+        }
+      ];
+
+      final requestBody = {
+        'model': 'gpt-4-vision-preview',
+        'messages': messages,
+        'max_tokens': 2000,
+        'temperature': 0.7,
+      };
+
+      print('📤 VASTU VISION API REQUEST');
+
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_apiKey',
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      print('📥 VASTU VISION API RESPONSE: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final responseBody = jsonDecode(response.body);
+        final content = responseBody['choices']?[0]?['message']?['content'] ?? '';
+        
+        return {
+          'success': true,
+          'message': content,
+          'data': responseBody,
+        };
+      } else {
+        String errorMessage = 'Failed to analyze floor plan image';
+        try {
+          final body = jsonDecode(response.body);
+          if (body is Map && body['error'] != null) {
+            errorMessage = body['error']['message'] ?? errorMessage;
+          }
+        } catch (_) {
+          errorMessage = 'API Error: ${response.statusCode}';
+        }
+
+        return {
+          'success': false,
+          'error': errorMessage,
+        };
+      }
+    } catch (e) {
+      print('❌ VASTU VISION API ERROR: $e');
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
+  }
 }
 
