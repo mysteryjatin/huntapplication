@@ -370,16 +370,20 @@ class PdfReportService {
                     ],
                   ),
                   pw.SizedBox(height: 4),
-                  pw.Container(
-                    height: 6,
-                    decoration: pw.BoxDecoration(
-                      color: PdfColors.grey300,
-                      borderRadius: pw.BorderRadius.circular(3),
-                    ),
-                    child: pw.FractionallySizedBox(
-                      alignment: pw.Alignment.centerLeft,
-                      widthFactor: room.score,
-                      child: pw.Container(
+                  pw.Stack(
+                    children: [
+                      // Background bar
+                      pw.Container(
+                        height: 6,
+                        decoration: pw.BoxDecoration(
+                          color: PdfColors.grey300,
+                          borderRadius: pw.BorderRadius.circular(3),
+                        ),
+                      ),
+                      // Progress bar
+                      pw.Container(
+                        height: 6,
+                        width: (150 * room.score).toDouble(), // Assuming max width of 150
                         decoration: pw.BoxDecoration(
                           color: score >= 80
                               ? PdfColors.green
@@ -389,7 +393,7 @@ class PdfReportService {
                           borderRadius: pw.BorderRadius.circular(3),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),

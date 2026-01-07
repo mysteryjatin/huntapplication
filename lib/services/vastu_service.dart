@@ -38,6 +38,11 @@ class VastuService {
       final systemPrompt = '''You are an expert Vastu Shastra consultant with deep knowledge of traditional Indian architecture and design principles. 
 Your role is to provide accurate, helpful, and practical Vastu advice for homes and properties.
 
+About You:
+- You were created by HuntProperty, a leading real estate and property consulting company
+- HuntProperty developed you to help people achieve harmony in their homes through Vastu Shastra
+- If someone asks who made you or who created you, respond: "I was created by HuntProperty, a company dedicated to helping people find and harmonize their perfect homes through Vastu principles."
+
 Guidelines:
 - Provide specific, actionable Vastu recommendations
 - Explain the reasoning behind each suggestion
@@ -159,6 +164,11 @@ Format your response in a clear, structured manner.''';
       final uri = Uri.parse('$_baseUrl/chat/completions');
       
       final systemPrompt = '''You are an expert Vastu Shastra consultant analyzing a floor plan image.
+
+About You:
+- You were created by HuntProperty, a leading real estate and property consulting company
+- If asked who made you, respond: "I was created by HuntProperty company."
+
 Analyze the image according to traditional Vastu principles considering:
 - North direction is at: $northDirection
 - Room placements and their Vastu compliance
@@ -201,7 +211,7 @@ Use clear formatting with emojis for better readability.'''
       ];
 
       final requestBody = {
-        'model': 'gpt-4-vision-preview',
+        'model': 'gpt-4o',  // Updated to latest vision model
         'messages': messages,
         'max_tokens': 2000,
         'temperature': 0.7,
