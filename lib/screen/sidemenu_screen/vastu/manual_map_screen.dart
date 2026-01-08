@@ -106,18 +106,18 @@ class _ManualMapScreenState extends State<ManualMapScreen> {
               ],
             ),
             child: SafeArea(
-              child: SizedBox(
-                width: double.infinity,
+            child: SizedBox(
+              width: double.infinity,
                 height: 52,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryColor,
-                    shape: RoundedRectangleBorder(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryColor,
+                  shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                    ),
+                  ),
                     elevation: 0,
                     shadowColor: AppColors.primaryColor.withOpacity(0.3),
-                  ),
+                ),
                   onPressed: _isAnalyzing ? null : () => _analyzeManualMap(),
                   child: _isAnalyzing
                       ? const SizedBox(
@@ -129,13 +129,13 @@ class _ManualMapScreenState extends State<ManualMapScreen> {
                           ),
                         )
                       : const Text(
-                          "Calculate Compliance Score",
-                          style: TextStyle(
+                  "Calculate Compliance Score",
+                  style: TextStyle(
                             fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
                           ),
-                        ),
+                  ),
                 ),
               ),
             ),
@@ -205,8 +205,8 @@ class _ManualMapScreenState extends State<ManualMapScreen> {
                     color: isSelected ? AppColors.primaryColor : Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: isSelected
-                          ? AppColors.primaryColor
+                    color: isSelected
+                        ? AppColors.primaryColor
                           : const Color(0xFFD6E7F2),
                       width: isSelected ? 2 : 1.5,
                     ),

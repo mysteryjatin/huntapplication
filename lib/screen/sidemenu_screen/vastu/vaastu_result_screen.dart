@@ -370,7 +370,7 @@ class _VaastuResultScreenState extends State<VaastuResultScreen> {
                     const Padding(
                       padding: EdgeInsets.only(bottom: 8, left: 4),
                       child: Text(
-                        "/100",
+                      "/100",
                         style: TextStyle(
                           fontSize: 20,
                           color: Colors.black54,
@@ -403,12 +403,12 @@ class _VaastuResultScreenState extends State<VaastuResultScreen> {
             height: 120,
             width: 120,
             child: Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
                   height: 120,
                   width: 120,
-                  child: CircularProgressIndicator(
+                child: CircularProgressIndicator(
                     value: percentage,
                     strokeWidth: 10,
                     backgroundColor: const Color(0xFFE8E8E8),
@@ -418,12 +418,12 @@ class _VaastuResultScreenState extends State<VaastuResultScreen> {
                           : score >= 50
                               ? const Color(0xFFFFA726)
                               : const Color(0xFFFF5252),
-                    ),
                   ),
                 ),
-                Column(
+              ),
+              Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
+                children: [
                     Text(
                       statusText,
                       style: const TextStyle(
@@ -432,7 +432,7 @@ class _VaastuResultScreenState extends State<VaastuResultScreen> {
                         color: Colors.black54,
                         letterSpacing: 0.5,
                       ),
-                    ),
+                  ),
                     const SizedBox(height: 2),
                     Text(
                       "$score%",
@@ -442,10 +442,10 @@ class _VaastuResultScreenState extends State<VaastuResultScreen> {
                         fontSize: 28,
                         height: 1,
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
+            ],
             ),
           ),
         ],
@@ -598,11 +598,11 @@ class OutlineActionCard extends StatelessWidget {
                     ),
                   )
                 else
-                  Icon(
-                    icon,
+                Icon(
+                  icon,
                     size: 26,
-                    color: const Color(0xFF34F3A3),
-                  ),
+                  color: const Color(0xFF34F3A3),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   label,
@@ -689,11 +689,11 @@ class _RoomBar extends StatelessWidget {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                     Text(
                       room,
                       style: const TextStyle(
@@ -703,18 +703,18 @@ class _RoomBar extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      dir,
+                Text(
+                  dir,
                       style: const TextStyle(
                         fontSize: 12,
                         color: Colors.black54,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              Text(
-                "${(value * 100).round()}",
+              ],
+            ),
+          ),
+          Text(
+            "${(value * 100).round()}",
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 16,

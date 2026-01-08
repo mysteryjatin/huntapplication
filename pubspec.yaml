@@ -76,6 +76,7 @@ dependencies:
   pdf: ^3.10.8
   path_provider: ^2.1.2
   open_file: ^3.3.2
+  flutter_launcher_icons: ^0.13.1
 
 dev_dependencies:
   flutter_test:
@@ -114,6 +115,15 @@ flutter:
     - assets/icons/
     - .env
   #   - images/a_dot_ham.jpeg
+
+# Flutter Launcher Icons Configuration
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/WhatsApp Image 2025-10-31 at 17.29.24_0d656493.jpg"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/WhatsApp Image 2025-10-31 at 17.29.24_0d656493.jpg"
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

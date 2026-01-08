@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 class PdfReportService {
   /// Generate Vastu PDF report
@@ -15,6 +16,11 @@ class PdfReportService {
     required Map<String, String> roomSelections,
   }) async {
     try {
+      // Load the HuntProperty logo
+      final logoData = await rootBundle.load('assets/images/WhatsApp Image 2025-10-31 at 17.29.24_0d656493.jpg');
+      final logoBytes = logoData.buffer.asUint8List();
+      final logoImage = pw.MemoryImage(logoBytes);
+      
       final pdf = pw.Document();
 
       // Add pages to PDF
@@ -24,8 +30,8 @@ class PdfReportService {
           margin: const pw.EdgeInsets.all(32),
           build: (pw.Context context) {
             return [
-              // Header
-              _buildHeader(score),
+              // Header with logo
+              _buildHeader(score, logoImage),
               pw.SizedBox(height: 20),
 
               // Date
@@ -51,9 +57,9 @@ class PdfReportService {
               // Full AI Analysis
               _buildFullAnalysis(fullAnalysis),
 
-              // Footer
+              // Footer with logo
               pw.SizedBox(height: 30),
-              _buildFooter(),
+              _buildFooter(logoImage),
             ];
           },
         ),
@@ -73,7 +79,7 @@ class PdfReportService {
     }
   }
 
-  pw.Widget _buildHeader(int score) {
+  pw.Widget _buildHeader(int score, pw.MemoryImage logoImage) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(20),
       decoration: pw.BoxDecoration(
@@ -82,42 +88,53 @@ class PdfReportService {
       ),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                'Vastu Analysis Report',
-                style: pw.TextStyle(
-                  fontSize: 24,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.black,
+          // Left side - Title and subtitle
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Vastu Analysis Report',
+                  style: pw.TextStyle(
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.black,
+                  ),
                 ),
-              ),
-              pw.SizedBox(height: 8),
-              pw.Text(
-                'AI-Powered Vaastu Shastra Analysis',
-                style: pw.TextStyle(
-                  fontSize: 12,
-                  color: PdfColors.grey700,
+                pw.SizedBox(height: 8),
+                pw.Text(
+                  'AI-Powered Vaastu Shastra Analysis',
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    color: PdfColors.grey700,
+                  ),
                 ),
-              ),
-            ],
+                pw.SizedBox(height: 12),
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: pw.BoxDecoration(
+                    color: PdfColor.fromHex('#34F3A3'),
+                    borderRadius: pw.BorderRadius.circular(20),
+                  ),
+                  child: pw.Text(
+                    'AI POWERED',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.black,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
+          // Right side - HuntProperty Logo
           pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: pw.BoxDecoration(
-              color: PdfColor.fromHex('#34F3A3'),
-              borderRadius: pw.BorderRadius.circular(20),
-            ),
-            child: pw.Text(
-              'AI POWERED',
-              style: pw.TextStyle(
-                fontSize: 10,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColors.black,
-              ),
-            ),
+            width: 100,
+            height: 80,
+            child: pw.Image(logoImage, fit: pw.BoxFit.contain),
           ),
         ],
       ),
@@ -441,27 +458,62 @@ class PdfReportService {
     );
   }
 
-  pw.Widget _buildFooter() {
+  pw.Widget _buildFooter(pw.MemoryImage logoImage) {
     return pw.Container(
-      padding: const pw.EdgeInsets.all(16),
+      padding: const pw.EdgeInsets.all(20),
       decoration: pw.BoxDecoration(
         color: PdfColor.fromHex('#F8FBFE'),
         borderRadius: pw.BorderRadius.circular(12),
       ),
       child: pw.Column(
         children: [
+          // HuntProperty Logo in center
+          pw.Center(
+            child: pw.Container(
+              width: 150,
+              height: 80,
+              child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+            ),
+          ),
+          pw.SizedBox(height: 16),
+          // Company tagline
+          pw.Center(
+            child: pw.Text(
+              'Think Wisely Invest Smartly',
+              style: pw.TextStyle(
+                fontSize: 12,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.grey800,
+              ),
+            ),
+          ),
+          pw.SizedBox(height: 12),
+          pw.Divider(color: PdfColors.grey400),
+          pw.SizedBox(height: 12),
           pw.Text(
             'This report is generated by AI-powered Vastu analysis',
+            textAlign: pw.TextAlign.center,
             style: pw.TextStyle(
               fontSize: 10,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 6),
+          pw.Text(
+            'Created by HuntProperty - Your trusted partner in real estate and Vastu consulting',
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(
+              fontSize: 9,
+              color: PdfColors.grey700,
               fontWeight: pw.FontWeight.bold,
             ),
           ),
           pw.SizedBox(height: 4),
           pw.Text(
             'For best results, consult with a professional Vastu consultant',
+            textAlign: pw.TextAlign.center,
             style: const pw.TextStyle(
-              fontSize: 9,
+              fontSize: 8,
               color: PdfColors.grey600,
             ),
           ),
