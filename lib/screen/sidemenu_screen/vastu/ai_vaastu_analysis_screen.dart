@@ -223,11 +223,11 @@ Use emojis and clear formatting.''';
           ));
         } else {
           // Show error message
-          _messages.add(ChatMessage(
+    _messages.add(ChatMessage(
             text: "❌ Analysis Error\n\nI encountered an issue while analyzing your floor plan: ${response['error'] ?? 'Unknown error'}\n\nPlease try again or ask me any specific Vastu questions!",
-            isUser: false,
-            timestamp: DateTime.now(),
-          ));
+      isUser: false,
+      timestamp: DateTime.now(),
+    ));
         }
 
         _isLoading = false;
@@ -382,7 +382,7 @@ Use emojis and clear formatting.''';
                   return Column(
                     children: [
                       _chatBubble(
-                        child: _formatMessage(message.text),
+                    child: _formatMessage(message.text),
                         showProgress: message.showProgress,
                       ),
                       if (message.imagePath != null) ...[
@@ -414,60 +414,60 @@ Use emojis and clear formatting.''';
               ],
             ),
             child: SafeArea(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      decoration: InputDecoration(
-                        hintText: "Ask anything about Vaastu...",
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    decoration: InputDecoration(
+                      hintText: "Ask anything about Vaastu...",
                         hintStyle: const TextStyle(
                           fontSize: 14,
                           color: Colors.black45,
                         ),
-                        border: OutlineInputBorder(
+                      border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(26),
                           borderSide: const BorderSide(
                             color: Color(0xFFE0E0E0),
                             width: 1.5,
                           ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
+                      ),
+                      enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(26),
                           borderSide: const BorderSide(
                             color: Color(0xFFE0E0E0),
                             width: 1.5,
                           ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
+                      ),
+                      focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(26),
                           borderSide: const BorderSide(
                             color: AppColors.primaryColor,
                             width: 2,
                           ),
-                        ),
+                      ),
                         filled: true,
                         fillColor: const Color(0xFFF8FBFE),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 18,
                           vertical: 14,
                         ),
-                      ),
-                      style: const TextStyle(fontSize: 14, color: Colors.black),
-                      maxLines: null,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _sendMessage(),
                     ),
+                      style: const TextStyle(fontSize: 14, color: Colors.black),
+                    maxLines: null,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _sendMessage(),
                   ),
+                ),
                   const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: _isLoading ? null : _sendMessage,
-                    child: Container(
+                GestureDetector(
+                  onTap: _isLoading ? null : _sendMessage,
+                  child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24,
                         vertical: 14,
                       ),
-                      decoration: BoxDecoration(
+                    decoration: BoxDecoration(
                         color: _isLoading
                             ? Colors.grey.shade400
                             : AppColors.primaryColor,
@@ -480,18 +480,18 @@ Use emojis and clear formatting.''';
                               offset: const Offset(0, 2),
                             ),
                         ],
-                      ),
-                      child: const Text(
-                        "Send",
+                    ),
+                    child: const Text(
+                      "Send",
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           color: Colors.black,
                           fontSize: 14,
                         ),
-                      ),
                     ),
                   ),
-                ],
+                ),
+              ],
               ),
             ),
           ),
@@ -616,10 +616,10 @@ Use emojis and clear formatting.''';
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Flexible(
-            child: Container(
+              child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.primaryColor,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryColor,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(18),
                   topRight: Radius.circular(18),
@@ -633,9 +633,9 @@ Use emojis and clear formatting.''';
                     offset: const Offset(0, 2),
                   ),
                 ],
-              ),
-              child: Text(
-                text,
+                ),
+                child: Text(
+                  text,
                 style: const TextStyle(
                   fontSize: 14,
                   color: Colors.black,
@@ -663,7 +663,7 @@ Use emojis and clear formatting.''';
       child: Padding(
         padding: const EdgeInsets.all(6),
         child: Image.asset(
-          'assets/images/ganesha_vaastu_ai.png',
+        'assets/images/ganesha_vaastu_ai.png',
           width: 20,
           height: 20,
         ),
@@ -679,10 +679,10 @@ Use emojis and clear formatting.''';
         children: [
           _aiAvatar(),
           Flexible(
-            child: Container(
+              child: Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
+                decoration: BoxDecoration(
+                  color: Colors.white,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(4),
                   topRight: Radius.circular(18),
@@ -699,7 +699,7 @@ Use emojis and clear formatting.''';
                     offset: const Offset(0, 2),
                   ),
                 ],
-              ),
+                ),
               child: showProgress
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

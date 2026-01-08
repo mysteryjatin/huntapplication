@@ -58,102 +58,102 @@ class UploadFloorPlanScreen extends StatelessWidget {
       // ================= BODY =================
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
 
             const SizedBox(height: 24),
 
-            // TITLE
-            const Text(
-              "Upload Your Floor Plan",
-              textAlign: TextAlign.center,
-              style: TextStyle(
+              // TITLE
+              const Text(
+                "Upload Your Floor Plan",
+                textAlign: TextAlign.center,
+                style: TextStyle(
                 fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: Colors.black,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                ),
               ),
-            ),
 
             const SizedBox(height: 12),
 
-            // SUBTITLE
-            const Padding(
+              // SUBTITLE
+              const Padding(
               padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
+                child: Text(
                 "Please provide a high-quality image of your\nfloor plan for the most accurate Vaastu\nanalysis",
-                textAlign: TextAlign.center,
-                style: TextStyle(
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
                   fontSize: 14,
-                  color: Colors.black54,
+                    color: Colors.black54,
                   height: 1.5,
+                  ),
                 ),
               ),
-            ),
 
             const SizedBox(height: 24),
 
-            // ================= INSTRUCTIONS CARD =================
+              // ================= INSTRUCTIONS CARD =================
             Container(
-              width: double.infinity,
+                  width: double.infinity,
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
+                  decoration: BoxDecoration(
                 color: const Color(0xFFF8FBFE),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: const Color(0xFFD6F4E6),
                   width: 1.5,
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Row(
-                    children: [
-                      Icon(Icons.info_outline,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline,
                           size: 20, color: Color(0xFF34F3A3)),
                       SizedBox(width: 8),
-                      Text(
-                        "INSTRUCTIONS",
-                        style: TextStyle(
-                          fontSize: 12,
+                          Text(
+                            "INSTRUCTIONS",
+                            style: TextStyle(
+                              fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF34F3A3),
+                              color: Color(0xFF34F3A3),
                           letterSpacing: 0.5,
-                        ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
                   SizedBox(height: 14),
-                  _InstructionRow("Upload JPG / PNG / PDF"),
+                      _InstructionRow("Upload JPG / PNG / PDF"),
                   SizedBox(height: 8),
-                  _InstructionRow("Ensure clear room boundaries"),
-                ],
+                      _InstructionRow("Ensure clear room boundaries"),
+                    ],
+                ),
               ),
-            ),
 
             const Spacer(),
 
-            // ================= ACTION CARDS =================
+              // ================= ACTION CARDS =================
             _UploadActionCard(
-              icon: Icons.upload_file_outlined,
-              title: "Upload from Device",
-              subtitle: "FROM GALLERY OR FILES",
+                  icon: Icons.upload_file_outlined,
+                  title: "Upload from Device",
+                  subtitle: "FROM GALLERY OR FILES",
               onTap: () => _pickImage(context, ImageSource.gallery),
-            ),
+              ),
 
             const SizedBox(height: 16),
 
             _UploadActionCard(
-              icon: Icons.camera_alt_outlined,
-              title: "Take Photo",
-              subtitle: "USE YOUR CAMERA",
+                  icon: Icons.camera_alt_outlined,
+                  title: "Take Photo",
+                  subtitle: "USE YOUR CAMERA",
               onTap: () => _pickImage(context, ImageSource.camera),
-            ),
+              ),
 
             const SizedBox(height: 32),
-          ],
-        ),
+            ],
+          ),
       ),
     );
   }
@@ -204,64 +204,64 @@ class _UploadActionCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Container(
+      onTap: onTap,
+      child: Container(
           padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
+        decoration: BoxDecoration(
             color: const Color(0xFFF8FBFE),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(
+          border: Border.all(
               color: const Color(0xFFBDF2DE),
               width: 1.5,
-            ),
           ),
-          child: Row(
-            children: [
-              Container(
+        ),
+        child: Row(
+          children: [
+            Container(
                 height: 56,
                 width: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8FFF6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8FFF6),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
+                border: Border.all(
                     color: const Color(0xFFBDF2DE),
                     width: 1.5,
-                  ),
-                ),
-                child: Icon(
-                  icon,
-                  size: 26,
-                  color: const Color(0xFF34F3A3),
                 ),
               ),
+              child: Icon(
+                icon,
+                  size: 26,
+                color: const Color(0xFF34F3A3),
+              ),
+            ),
 
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w600,
                         color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.black54,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 0.3,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+                ),
+            ),
+          ],
           ),
         ),
       ),
