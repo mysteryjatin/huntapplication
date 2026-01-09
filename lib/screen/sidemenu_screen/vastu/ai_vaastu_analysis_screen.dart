@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/vastu_service.dart';
+import 'package:hunt_property/utils/text_formatter.dart';
+import 'package:hunt_property/utils/vastu_response_parser.dart';
 
 class ChatMessage {
   final String text;
@@ -44,6 +46,8 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
   bool _isLoading = false;
   bool _analysisMode = false;
   String? _selectedDirection;
+  String? _selectedImageSide; // Top, Right, Left, Bottom
+  bool _imageValidated = false;
 
   @override
   void initState() {
@@ -81,36 +85,101 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
     // Show the uploaded floor plan
     setState(() {
       _messages.add(ChatMessage(
-        text: "Great! I can see your floor plan.",
+        text: "Great! I can see your floor plan image. Let me validate if it's suitable for Vastu analysis...",
         isUser: false,
         timestamp: DateTime.now(),
         imagePath: widget.imagePath,
+        showProgress: true,
       ));
     });
 
     _scrollToBottom();
 
-    // Ask for direction after a delay
-    Future.delayed(const Duration(milliseconds: 800), () {
+    // Validate image first
+    _validateImage();
+  }
+
+  Future<void> _validateImage() async {
+    try {
+      if (widget.imagePath == null) {
+        _showImageValidationError("No image found. Please upload a floor plan image.");
+        return;
+      }
+
+      final imageBytes = await File(widget.imagePath!).readAsBytes();
+      final imageBase64 = base64Encode(imageBytes);
+
+      // Use Vision API to validate if it's a floor plan
+      final validationResponse = await _vastuService.validateFloorPlanImage(
+        imageBase64: imageBase64,
+      );
+
       setState(() {
-        _messages.add(ChatMessage(
-          text: "Phase 1: Direction Setup ✓\n\nBefore we analyze, please tell me which direction is NORTH in your image.\n\n👇 Select the North direction below:",
-          isUser: false,
-          timestamp: DateTime.now(),
-          directionButtons: const [
-            "North",
-            "Northeast",
-            "East",
-            "Southeast",
-            "South",
-            "Southwest",
-            "West",
-            "Northwest",
-          ],
-        ));
+        // Remove progress message
+        _messages.removeWhere((msg) => msg.showProgress);
+
+        if (validationResponse['success'] == true && 
+            validationResponse['isValid'] == true) {
+          _imageValidated = true;
+          
+          // Show success message
+          _messages.add(ChatMessage(
+            text: "Perfect! The image looks like a valid floor plan. Let's proceed with the analysis.",
+            isUser: false,
+            timestamp: DateTime.now(),
+          ));
+
+          // Ask for direction after a delay
+          Future.delayed(const Duration(milliseconds: 1000), () {
+            setState(() {
+              _messages.add(ChatMessage(
+                text: "Phase 1: Direction Setup\n\nBefore we analyze, please tell me which direction is NORTH in your image.\n\n👇 Select the North direction below:",
+                isUser: false,
+                timestamp: DateTime.now(),
+                directionButtons: const [
+                  "North",
+                  "Northeast",
+                  "East",
+                  "Southeast",
+                  "South",
+                  "Southwest",
+                  "West",
+                  "Northwest",
+                ],
+              ));
+            });
+            _scrollToBottom();
+          });
+        } else {
+          _imageValidated = false;
+          _showImageValidationError(
+            validationResponse['message'] ?? 
+            "This doesn't appear to be a valid floor plan image. Please upload a clear floor plan image for accurate Vastu analysis."
+          );
+        }
       });
+
       _scrollToBottom();
+    } catch (e) {
+      print('Image validation error: $e');
+      setState(() {
+        _messages.removeWhere((msg) => msg.showProgress);
+        _showImageValidationError(
+          "Unable to validate the image. Please ensure you've uploaded a clear floor plan image and try again."
+        );
+      });
+    }
+  }
+
+  void _showImageValidationError(String message) {
+    setState(() {
+      _messages.add(ChatMessage(
+        text: "Image Validation\n\n$message\n\nPlease upload a clear floor plan image and try again.",
+        isUser: false,
+        timestamp: DateTime.now(),
+      ));
     });
+    _scrollToBottom();
   }
 
   void _selectDirection(String direction) {
@@ -123,10 +192,43 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
         isUser: true,
         timestamp: DateTime.now(),
       ));
+    });
+
+    _scrollToBottom();
+
+    // Ask second question about image orientation
+    Future.delayed(const Duration(milliseconds: 500), () {
+      setState(() {
+        _messages.add(ChatMessage(
+          text: "Great! You selected $direction as North.\n\nNow, please tell me which side of the image is facing $direction?\n\n👇 Select the image side:",
+          isUser: false,
+          timestamp: DateTime.now(),
+          directionButtons: const [
+            "Top",
+            "Right",
+            "Bottom",
+            "Left",
+          ],
+        ));
+      });
+      _scrollToBottom();
+    });
+  }
+
+  void _selectImageSide(String side) {
+    setState(() {
+      _selectedImageSide = side;
+      
+      // Add user's selection
+      _messages.add(ChatMessage(
+        text: "I selected: $side",
+        isUser: true,
+        timestamp: DateTime.now(),
+      ));
 
       // Show analyzing message
       _messages.add(ChatMessage(
-        text: "Analyzing with North at $direction ✓\n\nPhase 2: Detecting rooms and analyzing structure...\n\nThis may take 10-15 seconds as I analyze your floor plan using AI...",
+        text: "Perfect! North is at $_selectedDirection, facing $side.\n\nPhase 2: Detecting rooms and analyzing structure...\n\nThis may take 10-15 seconds as I analyze your floor plan using AI...",
         isUser: false,
         timestamp: DateTime.now(),
         showProgress: true,
@@ -135,11 +237,11 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
 
     _scrollToBottom();
 
-    // Perform real AI analysis
-    _performAIAnalysis(direction);
+    // Perform real AI analysis with both direction and side
+    _performAIAnalysis(_selectedDirection!, side);
   }
 
-  Future<void> _performAIAnalysis(String direction) async {
+  Future<void> _performAIAnalysis(String direction, String? imageSide) async {
     try {
       Map<String, dynamic> response;
 
@@ -150,15 +252,22 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
           final imageBytes = await File(widget.imagePath!).readAsBytes();
           final imageBase64 = base64Encode(imageBytes);
 
+          final northDirectionInfo = imageSide != null 
+              ? '$direction (facing $imageSide)'
+              : direction;
+
           response = await _vastuService.analyzeFloorPlanWithVision(
             imageBase64: imageBase64,
-            northDirection: direction,
+            northDirection: northDirectionInfo,
           );
         } catch (visionError) {
           print('Vision API not available, using text-based analysis: $visionError');
           
           // Fallback to text-based analysis
-          final query = '''I have uploaded a floor plan image with North direction at $direction.
+          final imageSideInfo = imageSide != null 
+              ? ', and North is facing $imageSide in the image'
+              : '';
+          final query = '''I have uploaded a floor plan image with North direction at $direction$imageSideInfo.
 
 Please analyze this floor plan according to Vastu Shastra principles and provide:
 
@@ -200,15 +309,17 @@ Use emojis and clear formatting.''';
 
         if (response['success'] == true) {
           final analysisText = response['message'] ?? 'Analysis completed';
+          // Don't clean text before parsing - parser needs the structure
+          // Cleaning will happen in the formatter if needed
           
           // Add completion message
           _messages.add(ChatMessage(
-            text: "Phase 3: Vaastu Analysis Complete! ✅\n\nHere's your AI-powered detailed Vaastu report:",
+            text: "Phase 3: Vaastu Analysis Complete!\n\nHere's your AI-powered detailed Vaastu report:",
             isUser: false,
             timestamp: DateTime.now(),
           ));
 
-          // Add the AI analysis
+          // Add the AI analysis (will be cleaned and formatted by the formatter)
           _messages.add(ChatMessage(
             text: analysisText,
             isUser: false,
@@ -217,14 +328,14 @@ Use emojis and clear formatting.''';
 
           // Add next steps
           _messages.add(ChatMessage(
-            text: "💡 What's Next?\n\nYou can:\n1. Ask me specific questions about any room\n2. Get detailed remedies for problem areas\n3. Request clarification on any aspect\n4. Learn more about specific Vastu principles\n\nJust type your question below!",
+            text: "What's Next?\n\nYou can:\n1. Ask me specific questions about any room\n2. Get detailed remedies for problem areas\n3. Request clarification on any aspect\n4. Learn more about specific Vastu principles\n\nJust type your question below!",
             isUser: false,
             timestamp: DateTime.now(),
           ));
         } else {
           // Show error message
     _messages.add(ChatMessage(
-            text: "❌ Analysis Error\n\nI encountered an issue while analyzing your floor plan: ${response['error'] ?? 'Unknown error'}\n\nPlease try again or ask me any specific Vastu questions!",
+            text: "Analysis Error\n\nI encountered an issue while analyzing your floor plan: ${response['error'] ?? 'Unknown error'}\n\nPlease try again or ask me any specific Vastu questions!",
       isUser: false,
       timestamp: DateTime.now(),
     ));
@@ -240,7 +351,7 @@ Use emojis and clear formatting.''';
         _messages.removeWhere((msg) => msg.showProgress);
 
         _messages.add(ChatMessage(
-          text: "❌ Analysis Error\n\nSomething went wrong: $e\n\nPlease try again or ask me any specific Vastu questions!",
+          text: "Analysis Error\n\nSomething went wrong: $e\n\nPlease try again or ask me any specific Vastu questions!",
           isUser: false,
           timestamp: DateTime.now(),
         ));
@@ -284,8 +395,10 @@ Use emojis and clear formatting.''';
     setState(() {
       _isLoading = false;
       if (response['success'] == true) {
+        final responseText = response['message'] ?? 'No response received';
+        // Don't clean here - let the formatter handle it
         _messages.add(ChatMessage(
-          text: response['message'] ?? 'No response received',
+          text: responseText,
           isUser: false,
           timestamp: DateTime.now(),
         ));
@@ -379,11 +492,25 @@ Use emojis and clear formatting.''';
                 if (message.isUser) {
                   return _userMessageBubble(message.text);
                 } else {
+                  // Check if this is a Vastu analysis report
+                  final isAnalysisReport = (message.text.contains('Overall') && 
+                                           (message.text.contains('Score') || 
+                                            message.text.contains('Vastu') ||
+                                            message.text.contains('Analysis'))) ||
+                                           (message.text.contains('Directional Analysis') ||
+                                            message.text.contains('Room Analysis') ||
+                                            message.text.contains('Critical Issues') ||
+                                            message.text.contains('Positive Aspects') ||
+                                            message.text.contains('Recommendations'));
+                  
                   return Column(
                     children: [
                       _chatBubble(
-                    child: _formatMessage(message.text),
+                        child: isAnalysisReport 
+                            ? _formatStructuredReport(message.text)
+                            : _formatMessage(message.text),
                         showProgress: message.showProgress,
+                        isStructuredReport: isAnalysisReport,
                       ),
                       if (message.imagePath != null) ...[
                         const SizedBox(height: 8),
@@ -528,15 +655,28 @@ Use emojis and clear formatting.''';
   }
 
   Widget _buildDirectionButtons(List<String> directions) {
+    // Check if these are image side buttons (Top, Right, Bottom, Left) or direction buttons
+    final isImageSideButtons = directions.length == 4 && 
+                               directions.every((d) => ['Top', 'Right', 'Bottom', 'Left'].contains(d));
+    
     return Padding(
       padding: const EdgeInsets.only(bottom: 14, right: 40, left: 42),
       child: Wrap(
         spacing: 10,
         runSpacing: 10,
         children: directions.map((direction) {
-          final isSelected = _selectedDirection == direction;
+          final isSelected = isImageSideButtons 
+              ? _selectedImageSide == direction
+              : _selectedDirection == direction;
+          
           return InkWell(
-            onTap: isSelected ? null : () => _selectDirection(direction),
+            onTap: isSelected ? null : () {
+              if (isImageSideButtons) {
+                _selectImageSide(direction);
+              } else {
+                _selectDirection(direction);
+              }
+            },
             borderRadius: BorderRadius.circular(12),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -552,7 +692,7 @@ Use emojis and clear formatting.''';
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    Icons.navigation,
+                    isImageSideButtons ? Icons.crop_free : Icons.navigation,
                     color: isSelected ? Colors.black : const Color(0xFF34F3A3),
                     size: 16,
                   ),
@@ -584,13 +724,6 @@ Use emojis and clear formatting.''';
           return const SizedBox(height: 6);
         }
         final isBold = line.startsWith('•') || 
-                      line.startsWith('✅') ||
-                      line.startsWith('⚠️') ||
-                      line.startsWith('📊') ||
-                      line.startsWith('🧭') ||
-                      line.startsWith('🏠') ||
-                      line.startsWith('✨') ||
-                      line.startsWith('💡') ||
                       line.contains(':') && (line.contains('Score') || line.contains('Issues') || line.contains('Aspects') || line.contains('Phase') || line.contains('How'));
         return Padding(
           padding: const EdgeInsets.only(bottom: 3),
@@ -605,6 +738,1349 @@ Use emojis and clear formatting.''';
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _formatStructuredReport(String text) {
+    // Always use the detailed text report formatter to ensure all sections are extracted
+    // This matches the PDF format requirement
+    // Use minimal cleaning to preserve structure
+    String cleanedText = text.trim();
+    // Only remove markdown formatting, keep everything else
+    cleanedText = cleanedText.replaceAll(RegExp(r'\*\*([^*]+)\*\*'), r'$1');
+    cleanedText = cleanedText.replaceAll(RegExp(r'\*([^*]+)\*'), r'$1');
+    cleanedText = cleanedText.replaceAll(RegExp(r'^#{1,6}\s+', multiLine: true), '');
+    
+    // Check if this looks like a Vastu analysis report
+    if (cleanedText.contains('Overall') || 
+        cleanedText.contains('Score') ||
+        cleanedText.contains('Directional') || 
+        cleanedText.contains('Room') ||
+        cleanedText.contains('Critical') ||
+        cleanedText.contains('Positive') ||
+        cleanedText.contains('Recommendation')) {
+      return _formatDetailedTextReport(cleanedText);
+    }
+    
+    // Fallback to simple formatting
+    return _formatMessage(text);
+  }
+
+  // Fallback formatter that creates cards from text sections even if parsing fails
+  Widget _formatDetailedTextReport(String text) {
+    // Use text as-is, minimal cleaning
+    String cleanedText = text.trim();
+    
+    final sections = <Widget>[];
+    
+    print('Using fallback formatter for text report');
+    print('Text length: ${cleanedText.length}');
+    print('Text preview: ${cleanedText.substring(0, cleanedText.length > 500 ? 500 : cleanedText.length)}');
+    
+    // Extract score - only once
+    final scoreMatch = RegExp(r'(\d+)\s*/\s*100', caseSensitive: false).firstMatch(cleanedText);
+    if (scoreMatch != null) {
+      final score = int.tryParse(scoreMatch.group(1) ?? '0') ?? 0;
+      if (score > 0) {
+        sections.add(_buildScoreCard(score));
+        sections.add(const SizedBox(height: 16));
+      }
+    }
+    
+    // Extract all analysis sections and combine into single card
+    Map<String, List<String>> analysisData = _extractAllAnalysisSections(cleanedText);
+    
+    // If simple extraction didn't find enough, try regex patterns as fallback
+    if (analysisData.length < 2) {
+      print('Simple extraction found ${analysisData.length} sections, trying regex fallback');
+      final sectionPatterns = {
+        'Directional Analysis': [
+          RegExp(r'2\.\s*Directional\s*Analysis[:\s]*\n(.*?)(?=\n\s*(?:3\.|Room\s*Analysis|Critical|Positive|Recommendation|$))', caseSensitive: false, dotAll: true),
+          RegExp(r'Directional\s*Analysis[:\s]*\n(.*?)(?=\n\s*(?:3\.|Room\s*Analysis|Critical|Positive|Recommendation|$))', caseSensitive: false, dotAll: true),
+        ],
+        'Room Analysis': [
+          RegExp(r'3\.\s*Room\s*Analysis[:\s]*\n(.*?)(?=\n\s*(?:4\.|Critical\s*Issues|Positive|Recommendation|$))', caseSensitive: false, dotAll: true),
+          RegExp(r'Room\s*Analysis[:\s]*\n(.*?)(?=\n\s*(?:4\.|Critical\s*Issues|Positive|Recommendation|$))', caseSensitive: false, dotAll: true),
+        ],
+        'Critical Issues': [
+          RegExp(r'4\.\s*Critical\s*Issues[:\s]*\n(.*?)(?=\n\s*(?:5\.|Positive\s*Aspects|Recommendation|$))', caseSensitive: false, dotAll: true),
+          RegExp(r'Critical\s*Issues[:\s]*\n(.*?)(?=\n\s*(?:5\.|Positive\s*Aspects|Recommendation|$))', caseSensitive: false, dotAll: true),
+        ],
+        'Positive Aspects': [
+          RegExp(r'5\.\s*Positive\s*Aspects[:\s]*\n(.*?)(?=\n\s*(?:6\.|Recommendations|$))', caseSensitive: false, dotAll: true),
+          RegExp(r'Positive\s*Aspects[:\s]*\n(.*?)(?=\n\s*(?:6\.|Recommendations|$))', caseSensitive: false, dotAll: true),
+        ],
+        'Recommendations': [
+          RegExp(r'6\.\s*Recommendations[:\s]*\n(.*?)(?=\n\s*(?:\d+\.|$))', caseSensitive: false, dotAll: true),
+          RegExp(r'Recommendations[:\s]*\n(.*?)$', caseSensitive: false, dotAll: true),
+        ],
+      };
+      
+      for (var entry in sectionPatterns.entries) {
+        if (analysisData.containsKey(entry.key)) continue; // Skip if already found
+        
+        String? sectionContent;
+        for (var pattern in entry.value) {
+          final match = pattern.firstMatch(cleanedText);
+          if (match != null) {
+            sectionContent = match.group(1)?.trim();
+            if (sectionContent != null && sectionContent.isNotEmpty) {
+              break;
+            }
+          }
+        }
+        
+        if (sectionContent != null && sectionContent.isNotEmpty) {
+          final items = _extractItemsFromSection(sectionContent);
+          if (items.isNotEmpty) {
+            analysisData[entry.key] = items;
+            print('Found ${entry.key} with regex fallback, ${items.length} items');
+          }
+        }
+      }
+    }
+    
+    // Build single combined analysis card with all sections
+    if (analysisData.isNotEmpty) {
+      sections.add(_buildCombinedAnalysisCard(analysisData));
+    }
+    
+    
+    if (sections.isEmpty || sections.length <= 1) {
+      print('No sections found in fallback formatter, showing raw text');
+      // Last resort: show the text as-is but in a card
+      return _formatMessage(text);
+    }
+    
+    print('Built ${sections.length} sections in fallback formatter');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: sections,
+      ),
+    );
+  }
+
+  List<Widget> _extractSectionsSimple(String text) {
+    final sections = <Widget>[];
+    final lines = text.split('\n');
+    
+    String? currentSection;
+    List<String> currentItems = [];
+    
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (line.isEmpty) continue;
+      
+      // Check for section headers - be more flexible
+      final lowerLine = line.toLowerCase();
+      
+      // Check for numbered sections (2. Directional Analysis) or unnumbered
+      if ((lowerLine.startsWith('2.') || lowerLine.startsWith('2 ')) && 
+          (lowerLine.contains('directional') || lowerLine.contains('direction'))) {
+        _addSectionIfNotEmpty(sections, currentSection, currentItems);
+        currentSection = 'Directional Analysis';
+        currentItems = [];
+      } else if (lowerLine.contains('directional') && 
+                 (lowerLine.contains('analysis') || lowerLine.contains(':'))) {
+        _addSectionIfNotEmpty(sections, currentSection, currentItems);
+        currentSection = 'Directional Analysis';
+        currentItems = [];
+      } else if ((lowerLine.startsWith('3.') || lowerLine.startsWith('3 ')) && 
+                 lowerLine.contains('room')) {
+        _addSectionIfNotEmpty(sections, currentSection, currentItems);
+        currentSection = 'Room Analysis';
+        currentItems = [];
+      } else if (lowerLine.contains('room') && 
+                 (lowerLine.contains('analysis') || lowerLine.contains(':'))) {
+        _addSectionIfNotEmpty(sections, currentSection, currentItems);
+        currentSection = 'Room Analysis';
+        currentItems = [];
+      } else if ((lowerLine.startsWith('4.') || lowerLine.startsWith('4 ')) && 
+                 (lowerLine.contains('critical') || lowerLine.contains('issue'))) {
+        _addSectionIfNotEmpty(sections, currentSection, currentItems);
+        currentSection = 'Critical Issues';
+        currentItems = [];
+      } else if (lowerLine.contains('critical') && 
+                 (lowerLine.contains('issue') || lowerLine.contains(':'))) {
+        _addSectionIfNotEmpty(sections, currentSection, currentItems);
+        currentSection = 'Critical Issues';
+        currentItems = [];
+      } else if ((lowerLine.startsWith('5.') || lowerLine.startsWith('5 ')) && 
+                 lowerLine.contains('positive')) {
+        _addSectionIfNotEmpty(sections, currentSection, currentItems);
+        currentSection = 'Positive Aspects';
+        currentItems = [];
+      } else if (lowerLine.contains('positive') && 
+                 (lowerLine.contains('aspect') || lowerLine.contains(':'))) {
+        _addSectionIfNotEmpty(sections, currentSection, currentItems);
+        currentSection = 'Positive Aspects';
+        currentItems = [];
+      } else if ((lowerLine.startsWith('6.') || lowerLine.startsWith('6 ')) && 
+                 lowerLine.contains('recommendation')) {
+        _addSectionIfNotEmpty(sections, currentSection, currentItems);
+        currentSection = 'Recommendations';
+        currentItems = [];
+      } else if (lowerLine.contains('recommendation') && 
+                 (lowerLine.contains('improvement') || lowerLine.contains(':'))) {
+        _addSectionIfNotEmpty(sections, currentSection, currentItems);
+        currentSection = 'Recommendations';
+        currentItems = [];
+      } else if (currentSection != null) {
+        // Add content to current section - be more lenient
+        if (line.length > 5 && 
+            !line.toLowerCase().contains('overall') &&
+            !line.toLowerCase().contains('score') &&
+            !line.toLowerCase().contains('vastu score')) {
+          // Remove number prefixes but keep content
+          var cleanedLine = line.replaceAll(RegExp(r'^\d+\.\s*'), '');
+          cleanedLine = cleanedLine.replaceAll(RegExp(r'^[-•]\s*'), '');
+          cleanedLine = cleanedLine.trim();
+          
+          // Skip if it's another section header
+          if (cleanedLine.isNotEmpty && 
+              cleanedLine.length > 5 &&
+              !cleanedLine.toLowerCase().contains('directional analysis') &&
+              !cleanedLine.toLowerCase().contains('room analysis') &&
+              !cleanedLine.toLowerCase().contains('critical issues') &&
+              !cleanedLine.toLowerCase().contains('positive aspects') &&
+              !cleanedLine.toLowerCase().contains('recommendations')) {
+            currentItems.add(cleanedLine);
+          }
+        }
+      }
+    }
+    
+    // Add last section
+    _addSectionIfNotEmpty(sections, currentSection, currentItems);
+    
+    print('Simple extraction found ${sections.length} section widgets');
+    return sections;
+  }
+
+  void _addSectionIfNotEmpty(List<Widget> sections, String? sectionName, List<String> items) {
+    if (sectionName != null && items.isNotEmpty) {
+      print('Adding $sectionName with ${items.length} items (simple extraction)');
+      sections.add(_buildTextSection(sectionName, items));
+      sections.add(const SizedBox(height: 16));
+    }
+  }
+
+  Map<String, List<String>> _extractAllAnalysisSections(String text) {
+    final sections = <String, List<String>>{};
+    final lines = text.split('\n');
+    
+    String? currentSection;
+    List<String> currentItems = [];
+    
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (line.isEmpty) continue;
+      
+      final lowerLine = line.toLowerCase();
+      
+      // Check for section headers
+      if ((lowerLine.startsWith('2.') || lowerLine.startsWith('2 ')) && 
+          (lowerLine.contains('directional') || lowerLine.contains('direction'))) {
+        _saveSection(sections, currentSection, currentItems);
+        currentSection = 'Directional Analysis';
+        currentItems = [];
+      } else if (lowerLine.contains('directional') && 
+                 (lowerLine.contains('analysis') || lowerLine.contains(':'))) {
+        _saveSection(sections, currentSection, currentItems);
+        currentSection = 'Directional Analysis';
+        currentItems = [];
+      } else if ((lowerLine.startsWith('3.') || lowerLine.startsWith('3 ')) && 
+                 lowerLine.contains('room')) {
+        _saveSection(sections, currentSection, currentItems);
+        currentSection = 'Room Analysis';
+        currentItems = [];
+      } else if (lowerLine.contains('room') && 
+                 (lowerLine.contains('analysis') || lowerLine.contains(':'))) {
+        _saveSection(sections, currentSection, currentItems);
+        currentSection = 'Room Analysis';
+        currentItems = [];
+      } else if ((lowerLine.startsWith('4.') || lowerLine.startsWith('4 ')) && 
+                 (lowerLine.contains('critical') || lowerLine.contains('issue'))) {
+        _saveSection(sections, currentSection, currentItems);
+        currentSection = 'Critical Issues';
+        currentItems = [];
+      } else if (lowerLine.contains('critical') && 
+                 (lowerLine.contains('issue') || lowerLine.contains(':'))) {
+        _saveSection(sections, currentSection, currentItems);
+        currentSection = 'Critical Issues';
+        currentItems = [];
+      } else if ((lowerLine.startsWith('5.') || lowerLine.startsWith('5 ')) && 
+                 lowerLine.contains('positive')) {
+        _saveSection(sections, currentSection, currentItems);
+        currentSection = 'Positive Aspects';
+        currentItems = [];
+      } else if (lowerLine.contains('positive') && 
+                 (lowerLine.contains('aspect') || lowerLine.contains(':'))) {
+        _saveSection(sections, currentSection, currentItems);
+        currentSection = 'Positive Aspects';
+        currentItems = [];
+      } else if ((lowerLine.startsWith('6.') || lowerLine.startsWith('6 ')) && 
+                 lowerLine.contains('recommendation')) {
+        _saveSection(sections, currentSection, currentItems);
+        currentSection = 'Recommendations';
+        currentItems = [];
+      } else if (lowerLine.contains('recommendation') && 
+                 (lowerLine.contains('improvement') || lowerLine.contains(':'))) {
+        _saveSection(sections, currentSection, currentItems);
+        currentSection = 'Recommendations';
+        currentItems = [];
+      } else if (currentSection != null) {
+        // Add content to current section
+        if (line.length > 5 && 
+            !line.toLowerCase().contains('overall') &&
+            !line.toLowerCase().contains('score') &&
+            !line.toLowerCase().contains('vastu score')) {
+          var cleanedLine = line.replaceAll(RegExp(r'^\d+\.\s*'), '');
+          cleanedLine = cleanedLine.replaceAll(RegExp(r'^[-•]\s*'), '');
+          cleanedLine = cleanedLine.trim();
+          
+          if (cleanedLine.isNotEmpty && 
+              cleanedLine.length > 5 &&
+              !cleanedLine.toLowerCase().contains('directional analysis') &&
+              !cleanedLine.toLowerCase().contains('room analysis') &&
+              !cleanedLine.toLowerCase().contains('critical issues') &&
+              !cleanedLine.toLowerCase().contains('positive aspects') &&
+              !cleanedLine.toLowerCase().contains('recommendations')) {
+            currentItems.add(cleanedLine);
+          }
+        }
+      }
+    }
+    
+    // Save last section
+    _saveSection(sections, currentSection, currentItems);
+    
+    return sections;
+  }
+
+  void _saveSection(Map<String, List<String>> sections, String? sectionName, List<String> items) {
+    if (sectionName != null && items.isNotEmpty) {
+      sections[sectionName] = items;
+      print('Saved $sectionName with ${items.length} items');
+    }
+  }
+
+  Widget _buildCombinedAnalysisCard(Map<String, List<String>> analysisData) {
+    // Calculate summary statistics
+    final totalSections = analysisData.length;
+    final totalItems = analysisData.values.fold<int>(0, (sum, items) => sum + items.length);
+    final hasIssues = analysisData.containsKey('Critical Issues') && analysisData['Critical Issues']!.isNotEmpty;
+    final hasRecommendations = analysisData.containsKey('Recommendations') && analysisData['Recommendations']!.isNotEmpty;
+    
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Summary Header
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5F0F8), width: 1),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF34F3A3).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.analytics_outlined,
+                    size: 20,
+                    color: Color(0xFF34F3A3),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Detailed Analysis Report',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$totalSections sections analyzed • $totalItems key points identified',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (hasIssues)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFA726).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.warning, size: 14, color: Color(0xFFFFA726)),
+                        SizedBox(width: 4),
+                        Text(
+                          'Issues Found',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFFFA726),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          
+          // Directional Analysis
+          if (analysisData.containsKey('Directional Analysis'))
+            ..._buildSectionInCard('Directional Analysis', analysisData['Directional Analysis']!, Icons.explore),
+          
+          // Room Analysis
+          if (analysisData.containsKey('Room Analysis'))
+            ..._buildSectionInCard('Room Analysis', analysisData['Room Analysis']!, Icons.home),
+          
+          // Critical Issues
+          if (analysisData.containsKey('Critical Issues'))
+            ..._buildSectionInCard('Critical Issues', analysisData['Critical Issues']!, Icons.warning),
+          
+          // Positive Aspects
+          if (analysisData.containsKey('Positive Aspects'))
+            ..._buildSectionInCard('Positive Aspects', analysisData['Positive Aspects']!, Icons.check_circle),
+          
+          // Recommendations
+          if (analysisData.containsKey('Recommendations'))
+            ..._buildSectionInCard('Recommendations', analysisData['Recommendations']!, Icons.lightbulb),
+          
+          // Footer note
+          if (hasRecommendations)
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF34F3A3).withOpacity(0.05),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0xFF34F3A3).withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: Color(0xFF34F3A3),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Following these Vastu principles can help optimize energy flow and harmony in your space.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.black87,
+                        height: 1.4,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildSectionInCard(String title, List<String> items, IconData icon) {
+    return [
+      // Section Header with divider
+      Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF34F3A3).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 18, color: const Color(0xFF34F3A3)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title.toUpperCase(),
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Colors.black,
+                fontSize: 15,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 14),
+      // Items with enhanced formatting
+      ...items.map((item) => _buildDetailedItemCard(item, title)),
+      const SizedBox(height: 18),
+    ];
+  }
+
+  Widget _buildDetailedItemCard(String item, String sectionType) {
+    // Extract direction name and description
+    String? directionName;
+    String description = item;
+    Color? itemColor;
+    IconData? itemIcon;
+    
+    // Check if it's a direction (North, East, etc.)
+    final directionMatch = RegExp(r'^(North|Northeast|East|Southeast|South|Southwest|West|Northwest|North-East|South-East|South-West|North-West)[:\s]+', caseSensitive: false).firstMatch(item);
+    if (directionMatch != null) {
+      directionName = directionMatch.group(1);
+      description = item.substring(directionMatch.end).trim();
+    }
+    
+    // Check for room scores (Kitchen: 12/20, Kitchen: 9/10 - description, etc.)
+    final roomScoreMatch = RegExp(r'^([A-Za-z\s]+(?:Bedroom|Kitchen|Pooja|Puja|Bathroom|Toilet|Living|Dining|Room|Area|Entrance|Balcony)?):\s*(\d+)\s*/\s*(\d+)', caseSensitive: false).firstMatch(item);
+    String? roomName;
+    int? score;
+    int? maxScore;
+    if (roomScoreMatch != null) {
+      roomName = roomScoreMatch.group(1)?.trim();
+      score = int.tryParse(roomScoreMatch.group(2) ?? '0');
+      maxScore = int.tryParse(roomScoreMatch.group(3) ?? '10');
+      description = item.substring(roomScoreMatch.end).trim();
+      if (description.startsWith('-') || description.startsWith(':')) {
+        description = description.replaceFirst(RegExp(r'^[-:\s]+'), '').trim();
+      }
+      if (description.isEmpty) {
+        // Try to extract from the full item if description is missing
+        final fullMatch = RegExp(r':\s*(\d+)\s*/\s*(\d+)\s*[-:]?\s*(.+)', caseSensitive: false).firstMatch(item);
+        if (fullMatch != null) {
+          description = fullMatch.group(3)?.trim() ?? '';
+        }
+      }
+    } else {
+      // Try alternative format: "Kitchen: 9/10" without description
+      final simpleRoomMatch = RegExp(r'^([A-Za-z\s]+(?:Bedroom|Kitchen|Pooja|Puja|Bathroom|Toilet|Living|Dining|Room|Area|Entrance|Balcony)):\s*(\d+)\s*/\s*(\d+)$', caseSensitive: false).firstMatch(item);
+      if (simpleRoomMatch != null) {
+        roomName = simpleRoomMatch.group(1)?.trim();
+        score = int.tryParse(simpleRoomMatch.group(2) ?? '0');
+        maxScore = int.tryParse(simpleRoomMatch.group(3) ?? '10');
+        description = 'Score: $score out of $maxScore';
+      }
+    }
+    
+    // Determine color and icon based on content and section type
+    if (sectionType.contains('Critical') || sectionType.contains('Issues')) {
+      itemColor = const Color(0xFFFFA726);
+      itemIcon = Icons.warning_amber_rounded;
+    } else if (sectionType.contains('Positive')) {
+      itemColor = const Color(0xFF34F3A3);
+      itemIcon = Icons.check_circle;
+    } else if (sectionType.contains('Recommendation')) {
+      itemColor = const Color(0xFF34F3A3);
+      itemIcon = Icons.lightbulb_outline;
+    } else {
+      // Check if description indicates an issue
+      final lowerDesc = description.toLowerCase();
+      if (lowerDesc.contains('not ideal') || 
+          lowerDesc.contains('inauspicious') || 
+          lowerDesc.contains('defect') ||
+          lowerDesc.contains('problem') ||
+          lowerDesc.contains('should not') ||
+          lowerDesc.contains('avoid')) {
+        itemColor = const Color(0xFFFFA726);
+        itemIcon = Icons.warning_amber_rounded;
+      } else {
+        itemColor = const Color(0xFF34F3A3);
+        itemIcon = Icons.check_circle;
+      }
+    }
+    
+    // Calculate score percentage if room score exists
+    double? scorePercentage;
+    if (score != null && maxScore != null && maxScore > 0) {
+      scorePercentage = score / maxScore;
+    }
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: itemColor?.withOpacity(0.3) ?? const Color(0xFFE5F0F8),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row with direction/room name and icon
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (itemIcon != null)
+                Container(
+                  margin: const EdgeInsets.only(right: 10, top: 2),
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: itemColor?.withOpacity(0.1) ?? const Color(0xFFF8FBFE),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(
+                    itemIcon,
+                    size: 16,
+                    color: itemColor ?? const Color(0xFF34F3A3),
+                  ),
+                ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Direction or Room name
+                    if (directionName != null || roomName != null)
+                      Row(
+                        children: [
+                          Text(
+                            directionName ?? roomName ?? '',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black,
+                              fontSize: 14,
+                            ),
+                          ),
+                          if (roomName != null && score != null && maxScore != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: scorePercentage! >= 0.8
+                                    ? const Color(0xFF34F3A3).withOpacity(0.15)
+                                    : scorePercentage >= 0.6
+                                        ? const Color(0xFFFFA726).withOpacity(0.15)
+                                        : const Color(0xFFFF5252).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '$score/$maxScore',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: scorePercentage >= 0.8
+                                      ? const Color(0xFF34F3A3)
+                                      : scorePercentage >= 0.6
+                                          ? const Color(0xFFFFA726)
+                                          : const Color(0xFFFF5252),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            if (scorePercentage >= 0.8) ...[
+                              const SizedBox(width: 6),
+                              const Icon(
+                                Icons.check_circle,
+                                size: 16,
+                                color: Color(0xFF34F3A3),
+                              ),
+                            ],
+                          ],
+                        ],
+                      ),
+                    if (directionName != null || roomName != null)
+                      const SizedBox(height: 6),
+                    // Description
+                    Text(
+                      description.isNotEmpty ? description : item,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.black87,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // Score progress bar for rooms
+          if (scorePercentage != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: scorePercentage,
+                      minHeight: 6,
+                      backgroundColor: const Color(0xFFE8E8E8),
+                      valueColor: AlwaysStoppedAnimation(
+                        scorePercentage >= 0.8
+                            ? const Color(0xFF34F3A3)
+                            : scorePercentage >= 0.6
+                                ? const Color(0xFFFFA726)
+                                : const Color(0xFFFF5252),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${(scorePercentage * 100).toInt()}%',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: scorePercentage >= 0.8
+                        ? const Color(0xFF34F3A3)
+                        : scorePercentage >= 0.6
+                            ? const Color(0xFFFFA726)
+                            : const Color(0xFFFF5252),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<String> _extractItemsFromSection(String sectionText) {
+    final items = <String>[];
+    final lines = sectionText.split('\n');
+    
+    for (var line in lines) {
+      line = line.trim();
+      if (line.isEmpty) continue;
+      
+      // Skip section headers
+      if (line.toLowerCase().contains('directional analysis') || 
+          line.toLowerCase().contains('room analysis') ||
+          line.toLowerCase().contains('critical issues') ||
+          line.toLowerCase().contains('positive aspects') ||
+          line.toLowerCase().contains('recommendations')) {
+        continue;
+      }
+      
+      // Extract numbered items (1. North: description or 1. Entrance: 9/10 - description)
+      if (RegExp(r'^\d+\.').hasMatch(line)) {
+        // Remove number prefix but keep the content
+        final cleanedLine = line.replaceAll(RegExp(r'^\d+\.\s*'), '').trim();
+        if (cleanedLine.isNotEmpty && cleanedLine.length > 5) {
+          items.add(cleanedLine);
+        }
+      } 
+      // Extract direction lines (North: description)
+      else if (RegExp(r'^(North|Northeast|East|Southeast|South|Southwest|West|Northwest|North-East|South-East|South-West|North-West)[:\s]', caseSensitive: false).hasMatch(line)) {
+        if (line.length > 10) {
+          items.add(line);
+        }
+      }
+      // Extract room lines (Kitchen: 12/20 - description or Kitchen: description)
+      else if (RegExp(r'^([A-Za-z\s]+(?:Bedroom|Kitchen|Pooja|Puja|Bathroom|Toilet|Living|Dining|Room|Area|Entrance|Balcony))[:\s]', caseSensitive: false).hasMatch(line)) {
+        if (line.length > 10) {
+          items.add(line);
+        }
+      }
+      else if (line.startsWith('-') || line.startsWith('•')) {
+        // Add bullet points
+        final cleanedLine = line.replaceAll(RegExp(r'^[-•]\s*'), '').trim();
+        if (cleanedLine.isNotEmpty && cleanedLine.length > 10) {
+          items.add(cleanedLine);
+        }
+      } else if (line.length > 15 && 
+                 (line.contains(':') || 
+                  line.contains(RegExp(r'\d+/\d+')) ||
+                  line.contains('North') ||
+                  line.contains('East') ||
+                  line.contains('South') ||
+                  line.contains('West'))) {
+        // Add lines that look like content (have colons, scores, or directions)
+        items.add(line);
+      }
+    }
+    
+    // Remove duplicates
+    final uniqueItems = <String>[];
+    for (var item in items) {
+      if (!uniqueItems.any((existing) => existing.toLowerCase() == item.toLowerCase().substring(0, item.length > 30 ? 30 : item.length))) {
+        uniqueItems.add(item);
+      }
+    }
+    
+    return uniqueItems;
+  }
+
+  Widget _buildTextSection(String title, List<String> items) {
+    IconData icon;
+    if (title.contains('Directional')) {
+      icon = Icons.explore;
+    } else if (title.contains('Room')) {
+      icon = Icons.home;
+    } else if (title.contains('Critical') || title.contains('Issues')) {
+      icon = Icons.warning;
+    } else if (title.contains('Positive')) {
+      icon = Icons.check_circle;
+    } else if (title.contains('Recommendation')) {
+      icon = Icons.lightbulb;
+    } else {
+      icon = Icons.info;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: const Color(0xFF34F3A3)),
+              const SizedBox(width: 8),
+              Text(
+                title.toUpperCase(),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...items.map((item) => Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5F0F8), width: 1),
+            ),
+            child: Text(
+              item,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.black87,
+                height: 1.4,
+              ),
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreCard(int score) {
+    final percentage = score / 100.0;
+    String statusText;
+    Color statusColor;
+    
+    if (score >= 80) {
+      statusText = "EXCELLENT";
+      statusColor = const Color(0xFF34F3A3);
+    } else if (score >= 60) {
+      statusText = "GOOD";
+      statusColor = const Color(0xFF34F3A3);
+    } else if (score >= 40) {
+      statusText = "AVERAGE";
+      statusColor = const Color(0xFFFFA726);
+    } else {
+      statusText = "NEEDS IMPROVED HARMONY";
+      statusColor = const Color(0xFFFF5252);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "OVERALL VASTU SCORE",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  "$score/100",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                    fontSize: 32,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: statusColor,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Row(
+            children: [
+              SizedBox(
+                height: 100,
+                width: 100,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      height: 100,
+                      width: 100,
+                      child: CircularProgressIndicator(
+                        value: percentage,
+                        strokeWidth: 8,
+                        backgroundColor: const Color(0xFFE8E8E8),
+                        valueColor: AlwaysStoppedAnimation(statusColor),
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "$score%",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black,
+                            fontSize: 20,
+                            height: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Icon(
+                Icons.eco,
+                size: 32,
+                color: Color(0xFF34F3A3),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDirectionalAnalysis(List<DirectionInfo> directions) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.explore, size: 20, color: Color(0xFF34F3A3)),
+              const SizedBox(width: 8),
+              const Text(
+                "DIRECTIONAL ANALYSIS",
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...directions.map((dir) => _buildDirectionCard(dir)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDirectionCard(DirectionInfo direction) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: direction.hasIssue 
+              ? const Color(0xFFFFA726).withOpacity(0.5)
+              : const Color(0xFFE5F0F8),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (direction.hasIssue)
+            const Padding(
+              padding: EdgeInsets.only(right: 10, top: 2),
+              child: Icon(
+                Icons.warning_amber_rounded,
+                size: 20,
+                color: Color(0xFFFFA726),
+              ),
+            ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  direction.direction,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  direction.description,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoomAnalysis(List<RoomInfo> rooms) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.home, size: 20, color: Color(0xFF34F3A3)),
+              const SizedBox(width: 8),
+              const Text(
+                "ROOM ANALYSIS",
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...rooms.map((room) => _buildRoomCard(room)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoomCard(RoomInfo room) {
+    final scoreColor = room.score >= 8
+        ? const Color(0xFF34F3A3)
+        : room.score >= 6
+            ? const Color(0xFFFFA726)
+            : const Color(0xFFFF5252);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5F0F8), width: 1),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  room.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  room.description,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            "${room.score}/10",
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: scoreColor,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIssuesSection(List<String> issues) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFF5252),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close, size: 16, color: Colors.white),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                "ROOM ANALYSIS",
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...issues.map((issue) => _buildIssueCard(issue)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIssueCard(String issue) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFFF5252).withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Text(
+        issue,
+        style: const TextStyle(
+          fontSize: 13,
+          color: Colors.black87,
+          height: 1.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPositiveAspects(List<String> aspects) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.check_circle, size: 20, color: Color(0xFF34F3A3)),
+              const SizedBox(width: 8),
+              const Text(
+                "POSITIVE ASPECTS",
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...aspects.map((aspect) => _buildPositiveAspectCard(aspect)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPositiveAspectCard(String aspect) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFF34F3A3).withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.check_circle,
+            size: 18,
+            color: Color(0xFF34F3A3),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              aspect,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.black87,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecommendations(List<String> recommendations) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.lightbulb, size: 20, color: Color(0xFF34F3A3)),
+              const SizedBox(width: 8),
+              const Text(
+                "RECOMMENDATIONS",
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...recommendations.map((rec) => _buildRecommendationCard(rec)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecommendationCard(String recommendation) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5F0F8), width: 1),
+      ),
+      child: Text(
+        recommendation,
+        style: const TextStyle(
+          fontSize: 13,
+          color: Colors.black87,
+          height: 1.4,
+        ),
+      ),
     );
   }
 
@@ -671,7 +2147,15 @@ Use emojis and clear formatting.''';
     );
   }
 
-  static Widget _chatBubble({required Widget child, bool border = false, bool showProgress = false}) {
+  static Widget _chatBubble({required Widget child, bool border = false, bool showProgress = false, bool isStructuredReport = false}) {
+    if (isStructuredReport) {
+      // For structured reports, display full width without chat bubble styling
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: child,
+      );
+    }
+    
     return Padding(
       padding: const EdgeInsets.only(bottom: 14, right: 40),
       child: Row(
@@ -684,21 +2168,21 @@ Use emojis and clear formatting.''';
                 decoration: BoxDecoration(
                   color: Colors.white,
                 borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(4),
-                  topRight: Radius.circular(18),
-                  bottomLeft: Radius.circular(18),
-                  bottomRight: Radius.circular(18),
-                ),
-                border: border || showProgress
+                        topLeft: Radius.circular(4),
+                        topRight: Radius.circular(18),
+                        bottomLeft: Radius.circular(18),
+                        bottomRight: Radius.circular(18),
+                      ),
+                border: (border || showProgress)
                     ? Border.all(color: AppColors.primaryColor, width: 1.5)
                     : Border.all(color: const Color(0xFFE8E8E8), width: 1),
                 boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                 ),
               child: showProgress
                   ? Column(
