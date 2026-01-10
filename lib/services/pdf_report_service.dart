@@ -3,6 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
@@ -422,11 +423,137 @@ class PdfReportService {
   }
 
   pw.Widget _buildFullAnalysis(String analysis) {
-    // Clean up the analysis text
-    final cleanedAnalysis = analysis
+    // Clean up the analysis text and split into lines
+    String cleanedAnalysis = analysis
         .replaceAll('**', '')
         .replaceAll('###', '')
-        .replaceAll('##', '');
+        .replaceAll('##', '')
+        .trim();
+    
+    // Split into lines and process
+    final lines = cleanedAnalysis.split('\n');
+    final widgets = <pw.Widget>[];
+    
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (line.isEmpty) {
+        widgets.add(pw.SizedBox(height: 6));
+        continue;
+      }
+      
+      // Check if it's a main section header (numbered like "1.", "2.", "3." followed by section name)
+      final mainSectionMatch = RegExp(r'^(\d+)\.\s*(Overall|Directional|Room|Critical|Positive|Recommendation)', caseSensitive: false).firstMatch(line);
+      if (mainSectionMatch != null) {
+        // This is a main section header - make it bold and add spacing
+        widgets.add(
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(top: 12, bottom: 6),
+            child: pw.Text(
+              line,
+              style: pw.TextStyle(
+                fontSize: 11,
+                fontWeight: pw.FontWeight.bold,
+                lineSpacing: 1.4,
+              ),
+              textAlign: pw.TextAlign.left,
+            ),
+          ),
+        );
+        continue;
+      }
+      
+      // Check if it's a numbered list item (1., 2., etc.) - could be nested
+      if (RegExp(r'^\d+\.').hasMatch(line)) {
+        // Check if next line is also a numbered item (nested list)
+        bool isNested = false;
+        if (i + 1 < lines.length) {
+          final nextLine = lines[i + 1].trim();
+          if (RegExp(r'^\d+\.').hasMatch(nextLine)) {
+            isNested = true;
+          }
+        }
+        
+        widgets.add(
+          pw.Padding(
+            padding: pw.EdgeInsets.only(
+              left: isNested ? 20 : 12,
+              bottom: 4,
+            ),
+            child: pw.Text(
+              line,
+              style: const pw.TextStyle(
+                fontSize: 10,
+                lineSpacing: 1.4,
+              ),
+              textAlign: pw.TextAlign.left,
+            ),
+          ),
+        );
+      }
+      // Check if it's a bullet point (-, •, etc.)
+      else if (line.startsWith('-') || line.startsWith('•')) {
+        widgets.add(
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(left: 12, bottom: 4),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  '• ',
+                  style: const pw.TextStyle(
+                    fontSize: 10,
+                    lineSpacing: 1.4,
+                  ),
+                ),
+                pw.Expanded(
+                  child: pw.Text(
+                    line.substring(1).trim(),
+                    style: const pw.TextStyle(
+                      fontSize: 10,
+                      lineSpacing: 1.4,
+                    ),
+                    textAlign: pw.TextAlign.left,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+      // Check if it's a section header (contains colon and is short, but not a numbered item)
+      else if (line.contains(':') && line.length < 60 && !RegExp(r'^\d+\.').hasMatch(line)) {
+        widgets.add(
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(top: 8, bottom: 4),
+            child: pw.Text(
+              line,
+              style: pw.TextStyle(
+                fontSize: 11,
+                fontWeight: pw.FontWeight.bold,
+                lineSpacing: 1.4,
+              ),
+              textAlign: pw.TextAlign.left,
+            ),
+          ),
+        );
+      }
+      // Regular text
+      else {
+        widgets.add(
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 4),
+            child: pw.Text(
+              line,
+              style: const pw.TextStyle(
+                fontSize: 10,
+                lineSpacing: 1.4,
+              ),
+              textAlign: pw.TextAlign.left,
+            ),
+          ),
+        );
+      }
+    }
 
     return pw.Container(
       padding: const pw.EdgeInsets.all(16),
@@ -444,15 +571,10 @@ class PdfReportService {
               fontSize: 16,
               fontWeight: pw.FontWeight.bold,
             ),
+            textAlign: pw.TextAlign.left,
           ),
           pw.SizedBox(height: 12),
-          pw.Text(
-            cleanedAnalysis,
-            style: const pw.TextStyle(
-              fontSize: 10,
-              lineSpacing: 1.5,
-            ),
-          ),
+          ...widgets,
         ],
       ),
     );
@@ -532,6 +654,24 @@ class PdfReportService {
 
   Future<void> openPdf(String path) async {
     await OpenFile.open(path);
+  }
+
+  Future<void> sharePdf(String path) async {
+    try {
+      final file = File(path);
+      if (await file.exists()) {
+        await Share.shareXFiles(
+          [XFile(path)],
+          text: 'Vastu Analysis Report',
+          subject: 'Vastu Analysis Report - HuntProperty',
+        );
+      } else {
+        throw Exception('PDF file not found at path: $path');
+      }
+    } catch (e) {
+      print('Error sharing PDF: $e');
+      rethrow;
+    }
   }
 }
 
