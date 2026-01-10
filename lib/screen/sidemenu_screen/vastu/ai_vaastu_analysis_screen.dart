@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/vastu_service.dart';
+import 'package:hunt_property/services/pdf_report_service.dart';
 import 'package:hunt_property/utils/text_formatter.dart';
 import 'package:hunt_property/utils/vastu_response_parser.dart';
+import 'package:hunt_property/screen/sidemenu_screen/vastu/invalid_image_screen.dart';
 
 class ChatMessage {
   final String text;
@@ -48,6 +50,9 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
   String? _selectedDirection;
   String? _selectedImageSide; // Top, Right, Left, Bottom
   bool _imageValidated = false;
+  bool _analysisComplete = false;
+  bool _showChatInput = false;
+  bool _isGeneratingPdf = false;
 
   @override
   void initState() {
@@ -172,14 +177,28 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
   }
 
   void _showImageValidationError(String message) {
-    setState(() {
-      _messages.add(ChatMessage(
-        text: "Image Validation\n\n$message\n\nPlease upload a clear floor plan image and try again.",
-        isUser: false,
-        timestamp: DateTime.now(),
-      ));
-    });
-    _scrollToBottom();
+    // Navigate to invalid image screen instead of showing message
+    if (widget.imagePath != null && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => InvalidImageScreen(
+            imagePath: widget.imagePath!,
+            errorMessage: message,
+          ),
+        ),
+      );
+    } else {
+      // Fallback to message if no image path
+      setState(() {
+        _messages.add(ChatMessage(
+          text: "Image Validation\n\n$message\n\nPlease upload a clear floor plan image and try again.",
+          isUser: false,
+          timestamp: DateTime.now(),
+        ));
+      });
+      _scrollToBottom();
+    }
   }
 
   void _selectDirection(String direction) {
@@ -312,6 +331,9 @@ Use emojis and clear formatting.''';
           // Don't clean text before parsing - parser needs the structure
           // Cleaning will happen in the formatter if needed
           
+          // Mark analysis as complete to show action buttons
+          _analysisComplete = true;
+          
           // Add completion message
           _messages.add(ChatMessage(
             text: "Phase 3: Vaastu Analysis Complete!\n\nHere's your AI-powered detailed Vaastu report:",
@@ -426,6 +448,146 @@ Use emojis and clear formatting.''';
     });
   }
 
+  Future<void> _generatePdfReport() async {
+    setState(() {
+      _isGeneratingPdf = true;
+    });
+
+    try {
+      // Extract analysis data from messages
+      final analysisMessage = _messages.lastWhere(
+        (msg) => !msg.isUser && (msg.text.contains('Overall') || msg.text.contains('Score') || msg.text.contains('Analysis')),
+        orElse: () => ChatMessage(
+          text: '',
+          isUser: false,
+          timestamp: DateTime.now(),
+        ),
+      );
+
+      final pdfService = PdfReportService();
+      
+      // Extract score from analysis text
+      final scoreMatch = RegExp(r'(\d+)\s*/\s*100', caseSensitive: false).firstMatch(analysisMessage.text);
+      final score = scoreMatch != null ? int.tryParse(scoreMatch.group(1) ?? '0') ?? 0 : 0;
+
+      final result = await pdfService.generateVastuReport(
+        score: score,
+        directions: [],
+        rooms: [],
+        fullAnalysis: analysisMessage.text,
+        roomSelections: {},
+      );
+
+      if (result['success'] == true) {
+        if (mounted) {
+          // Try to share/download, but handle errors gracefully
+          bool shareSuccess = false;
+          try {
+            await pdfService.sharePdf(result['path']);
+            shareSuccess = true;
+          } catch (shareError) {
+            // If share fails (e.g., MissingPluginException), just continue
+            // The PDF is still saved and can be opened
+            print('Share error (non-critical): $shareError');
+            shareSuccess = false;
+          }
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                shareSuccess 
+                  ? 'PDF Report generated and ready to share!'
+                  : 'PDF Report generated successfully!',
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () {
+                  pdfService.openPdf(result['path']);
+                },
+              ),
+            ),
+          );
+        }
+      } else {
+        throw Exception(result['error'] ?? 'Failed to generate PDF');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingPdf = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildOutlineActionCard({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required bool isLoading,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: isLoading ? null : onTap,
+        child: Container(
+          height: 80,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFFBDF2DE),
+              width: 2,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (isLoading)
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF34F3A3)),
+                  ),
+                )
+              else
+                Icon(
+                  icon,
+                  size: 26,
+                  color: const Color(0xFF34F3A3),
+                ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -527,101 +689,145 @@ Use emojis and clear formatting.''';
             ),
           ),
 
-          /// INPUT BAR
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 12,
-                  offset: const Offset(0, -2),
+          /// INPUT BAR or ACTION BUTTONS
+          if (_analysisComplete && widget.imagePath != null && !_showChatInput)
+            // Show My Report and Ask AI buttons
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _buildOutlineActionCard(
+                        icon: Icons.picture_as_pdf_outlined,
+                        label: "My Report",
+                        isLoading: _isGeneratingPdf,
+                        onTap: _generatePdfReport,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _buildOutlineActionCard(
+                        icon: Icons.chat_bubble_outline,
+                        label: "Ask AI",
+                        isLoading: false,
+                        onTap: () {
+                          setState(() {
+                            _showChatInput = true;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: SafeArea(
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: InputDecoration(
-                      hintText: "Ask anything about Vaastu...",
-                        hintStyle: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black45,
+              ),
+            )
+          else
+            // Show regular chat input
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        decoration: InputDecoration(
+                          hintText: "Ask anything about Vaastu...",
+                          hintStyle: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.black45,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(26),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE0E0E0),
+                              width: 1.5,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(26),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE0E0E0),
+                              width: 1.5,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(26),
+                            borderSide: const BorderSide(
+                              color: AppColors.primaryColor,
+                              width: 2,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FBFE),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 14,
+                          ),
                         ),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(26),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFE0E0E0),
-                            width: 1.5,
-                          ),
+                        style: const TextStyle(fontSize: 14, color: Colors.black),
+                        maxLines: null,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _sendMessage(),
                       ),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(26),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFE0E0E0),
-                            width: 1.5,
-                          ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(26),
-                          borderSide: const BorderSide(
-                            color: AppColors.primaryColor,
-                            width: 2,
-                          ),
-                      ),
-                        filled: true,
-                        fillColor: const Color(0xFFF8FBFE),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 18,
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: _isLoading ? null : _sendMessage,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
                           vertical: 14,
                         ),
-                    ),
-                      style: const TextStyle(fontSize: 14, color: Colors.black),
-                    maxLines: null,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
-                ),
-                  const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: _isLoading ? null : _sendMessage,
-                  child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 14,
-                      ),
-                    decoration: BoxDecoration(
-                        color: _isLoading
-                            ? Colors.grey.shade400
-                            : AppColors.primaryColor,
-                        borderRadius: BorderRadius.circular(26),
-                        boxShadow: [
-                          if (!_isLoading)
-                            BoxShadow(
-                              color: AppColors.primaryColor.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                        ],
-                    ),
-                    child: const Text(
-                      "Send",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black,
-                          fontSize: 14,
+                        decoration: BoxDecoration(
+                          color: _isLoading
+                              ? Colors.grey.shade400
+                              : AppColors.primaryColor,
+                          borderRadius: BorderRadius.circular(26),
+                          boxShadow: [
+                            if (!_isLoading)
+                              BoxShadow(
+                                color: AppColors.primaryColor.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                          ],
                         ),
+                        child: const Text(
+                          "Send",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
               ),
             ),
-          ),
         ],
       ),
     );
