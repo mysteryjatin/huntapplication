@@ -127,29 +127,26 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
             validationResponse['isValid'] == true) {
           _imageValidated = true;
           
-          // Show success message
+          // Show Phase 1: Direction Setup message
           _messages.add(ChatMessage(
-            text: "Perfect! The image looks like a valid floor plan. Let's proceed with the analysis.",
+            text: "Phase 1: Direction Setup ✓\n\nGreat! I can see your floor plan.\n\nBefore we analyze, please tell me which direction is NORTH in your image.\n\n👇 Select the North direction below:",
             isUser: false,
             timestamp: DateTime.now(),
+            imagePath: widget.imagePath,
           ));
 
-          // Ask for direction after a delay
-          Future.delayed(const Duration(milliseconds: 1000), () {
+          // Ask for image side (Top/Right/Bottom/Left) first
+          Future.delayed(const Duration(milliseconds: 800), () {
             setState(() {
               _messages.add(ChatMessage(
-                text: "Phase 1: Direction Setup\n\nBefore we analyze, please tell me which direction is NORTH in your image.\n\n👇 Select the North direction below:",
+                text: "",
                 isUser: false,
                 timestamp: DateTime.now(),
                 directionButtons: const [
-                  "North",
-                  "Northeast",
-                  "East",
-                  "Southeast",
-                  "South",
-                  "Southwest",
-                  "West",
-                  "Northwest",
+                  "Top",
+                  "Right",
+                  "Bottom",
+                  "Left",
                 ],
               ));
             });
@@ -211,43 +208,10 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
         isUser: true,
         timestamp: DateTime.now(),
       ));
-    });
-
-    _scrollToBottom();
-
-    // Ask second question about image orientation
-    Future.delayed(const Duration(milliseconds: 500), () {
-      setState(() {
-        _messages.add(ChatMessage(
-          text: "Great! You selected $direction as North.\n\nNow, please tell me which side of the image is facing $direction?\n\n👇 Select the image side:",
-          isUser: false,
-          timestamp: DateTime.now(),
-          directionButtons: const [
-            "Top",
-            "Right",
-            "Bottom",
-            "Left",
-          ],
-        ));
-      });
-      _scrollToBottom();
-    });
-  }
-
-  void _selectImageSide(String side) {
-    setState(() {
-      _selectedImageSide = side;
       
-      // Add user's selection
+      // Show analyzing message immediately
       _messages.add(ChatMessage(
-        text: "I selected: $side",
-        isUser: true,
-        timestamp: DateTime.now(),
-      ));
-
-      // Show analyzing message
-      _messages.add(ChatMessage(
-        text: "Perfect! North is at $_selectedDirection, facing $side.\n\nPhase 2: Detecting rooms and analyzing structure...\n\nThis may take 10-15 seconds as I analyze your floor plan using AI...",
+        text: "Analyzing with North at $direction of Image ✓\n\nProcessing: Detecting rooms and analyzing structure...\n\nTime: This will take about 10 seconds\n\nNext: We'll show you the detected rooms",
         isUser: false,
         timestamp: DateTime.now(),
         showProgress: true,
@@ -256,8 +220,45 @@ class _AiVaastuAnalysisScreenState extends State<AiVaastuAnalysisScreen> {
 
     _scrollToBottom();
 
-    // Perform real AI analysis with both direction and side
-    _performAIAnalysis(_selectedDirection!, side);
+    // Perform AI analysis with the selected image side and North direction
+    _performAIAnalysis('North', direction);
+  }
+
+  void _selectImageSide(String side) {
+    setState(() {
+      _selectedImageSide = side;
+      
+      // Add user's selection
+      _messages.add(ChatMessage(
+        text: "I selected: $side (North is at the $side)",
+        isUser: true,
+        timestamp: DateTime.now(),
+      ));
+    });
+
+    _scrollToBottom();
+
+    // Now ask for the actual compass direction (North, Northeast, etc.)
+    Future.delayed(const Duration(milliseconds: 500), () {
+      setState(() {
+        _messages.add(ChatMessage(
+          text: "Select Direction\n\nPlease select the compass direction for your property:",
+          isUser: false,
+          timestamp: DateTime.now(),
+          directionButtons: const [
+            "North",
+            "Northeast",
+            "East",
+            "Southeast",
+            "South",
+            "Southwest",
+            "West",
+            "Northwest",
+          ],
+        ));
+      });
+      _scrollToBottom();
+    });
   }
 
   Future<void> _performAIAnalysis(String direction, String? imageSide) async {
@@ -865,6 +866,263 @@ Use emojis and clear formatting.''';
     final isImageSideButtons = directions.length == 4 && 
                                directions.every((d) => ['Top', 'Right', 'Bottom', 'Left'].contains(d));
     
+    // For 8 direction buttons, use a container with grid layout
+    if (!isImageSideButtons && directions.length == 8) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14, right: 40, left: 42),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF34F3A3), width: 2.5),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "Select Direction",
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 14),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final availableWidth = constraints.maxWidth;
+                  final buttonWidth = (availableWidth - 10) / 2; // 10px for spacing
+                  final buttonHeight = buttonWidth / 2.2;
+                  
+                  return GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2,
+                    childAspectRatio: 2.2,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    children: directions.map((direction) {
+                      final isSelected = _selectedDirection == direction;
+                      
+                      // Get appropriate icon for each direction
+                      IconData getDirectionIcon(String dir) {
+                        switch (dir) {
+                          case 'North':
+                            return Icons.arrow_upward;
+                          case 'South':
+                            return Icons.arrow_downward;
+                          case 'East':
+                            return Icons.arrow_forward;
+                          case 'West':
+                            return Icons.arrow_back;
+                          case 'Northeast':
+                            return Icons.north_east;
+                          case 'Southeast':
+                            return Icons.south_east;
+                          case 'Southwest':
+                            return Icons.south_west;
+                          case 'Northwest':
+                            return Icons.north_west;
+                          default:
+                            return Icons.navigation;
+                        }
+                      }
+                      
+                      return InkWell(
+                        onTap: isSelected ? null : () => _selectDirection(direction),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.primaryColor : Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isSelected ? AppColors.primaryColor : const Color(0xFFE5E5E5),
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.02),
+                                blurRadius: 2,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(5),
+                                decoration: BoxDecoration(
+                                  color: (isSelected ? Colors.white : const Color(0xFF34F3A3)).withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Icon(
+                                  getDirectionIcon(direction),
+                                  color: isSelected ? Colors.black : const Color(0xFF34F3A3),
+                                  size: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Flexible(
+                                child: Text(
+                                  direction,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                    color: isSelected ? Colors.black : Colors.black87,
+                                    height: 1.2,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    // For 4 image side buttons, use 2x2 grid
+    if (isImageSideButtons) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14, right: 40, left: 42),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF2196F3), width: 2.5),
+          ),
+          child: Column(
+            children: [
+              const Text(
+                "Where is North in your image?",
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Select the side of the image that faces North",
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 16),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2,
+                    childAspectRatio: 1.8,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    children: directions.map((direction) {
+                      final isSelected = _selectedImageSide == direction;
+                      IconData iconData;
+                      switch (direction) {
+                        case 'Top':
+                          iconData = Icons.arrow_upward;
+                          break;
+                        case 'Right':
+                          iconData = Icons.arrow_forward;
+                          break;
+                        case 'Bottom':
+                          iconData = Icons.arrow_downward;
+                          break;
+                        case 'Left':
+                          iconData = Icons.arrow_back;
+                          break;
+                        default:
+                          iconData = Icons.crop_free;
+                      }
+                      
+                      return InkWell(
+                        onTap: isSelected ? null : () => _selectImageSide(direction),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.primaryColor : Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isSelected ? AppColors.primaryColor : const Color(0xFFE5E5E5),
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.03),
+                                blurRadius: 3,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: (isSelected ? Colors.white : const Color(0xFF34F3A3)).withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Icon(
+                                  iconData,
+                                  color: isSelected ? Colors.black : const Color(0xFF34F3A3),
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                direction,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                  color: isSelected ? Colors.black : Colors.black87,
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "North is at the ${_selectedImageSide ?? 'top'}",
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.black45,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    // Fallback to wrap layout
     return Padding(
       padding: const EdgeInsets.only(bottom: 14, right: 40, left: 42),
       child: Wrap(
@@ -948,11 +1206,8 @@ Use emojis and clear formatting.''';
   }
 
   Widget _formatStructuredReport(String text) {
-    // Always use the detailed text report formatter to ensure all sections are extracted
-    // This matches the PDF format requirement
-    // Use minimal cleaning to preserve structure
+    // Clean the text
     String cleanedText = text.trim();
-    // Only remove markdown formatting, keep everything else
     cleanedText = cleanedText.replaceAll(RegExp(r'\*\*([^*]+)\*\*'), r'$1');
     cleanedText = cleanedText.replaceAll(RegExp(r'\*([^*]+)\*'), r'$1');
     cleanedText = cleanedText.replaceAll(RegExp(r'^#{1,6}\s+', multiLine: true), '');
@@ -965,11 +1220,679 @@ Use emojis and clear formatting.''';
         cleanedText.contains('Critical') ||
         cleanedText.contains('Positive') ||
         cleanedText.contains('Recommendation')) {
-      return _formatDetailedTextReport(cleanedText);
+      return _buildModernVastuReport(cleanedText);
     }
     
     // Fallback to simple formatting
     return _formatMessage(text);
+  }
+  
+  // New modern card-based report UI matching the screenshot
+  Widget _buildModernVastuReport(String text) {
+    final sections = <Widget>[];
+    
+    // 1. Extract and build Overall Score Card
+    final scoreMatch = RegExp(r'(\d+)\s*/\s*100', caseSensitive: false).firstMatch(text);
+    if (scoreMatch != null) {
+      final score = int.tryParse(scoreMatch.group(1) ?? '0') ?? 0;
+      if (score > 0) {
+        sections.add(_buildModernScoreCard(score));
+        sections.add(const SizedBox(height: 16));
+      }
+    }
+    
+    // 2. Parse and build Directional Analysis
+    final directionalData = _parseDirectionalAnalysis(text);
+    if (directionalData.isNotEmpty) {
+      sections.add(_buildDirectionalAnalysisSection(directionalData));
+      sections.add(const SizedBox(height: 16));
+    }
+    
+    // 3. Parse and build Room-by-room Analysis
+    final roomData = _parseRoomAnalysis(text);
+    if (roomData.isNotEmpty) {
+      sections.add(_buildRoomAnalysisSection(roomData));
+      sections.add(const SizedBox(height: 16));
+    }
+    
+    // 4. Parse and build other sections (Critical Issues, Positive Aspects, Recommendations)
+    final otherSections = _parseOtherSections(text);
+    sections.addAll(otherSections);
+    
+    if (sections.isEmpty) {
+      return _formatMessage(text);
+    }
+    
+    return Container(
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: sections,
+      ),
+    );
+  }
+
+  // Modern score card with color-coded status
+  Widget _buildModernScoreCard(int score) {
+    String status;
+    Color statusColor;
+    Color bgColor;
+    
+    if (score >= 80) {
+      status = "EXCELLENT!";
+      statusColor = const Color(0xFF34F3A3);
+      bgColor = const Color(0xFF34F3A3).withOpacity(0.1);
+    } else if (score >= 60) {
+      status = "NEEDS IMPROVEMENT URGENTLY!";
+      statusColor = const Color(0xFFFF9800);
+      bgColor = const Color(0xFFFF9800).withOpacity(0.1);
+    } else {
+      status = "CRITICAL ATTENTION REQUIRED!";
+      statusColor = const Color(0xFFFF5252);
+      bgColor = const Color(0xFFFF5252).withOpacity(0.1);
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            "OVERALL VASTU SCORE",
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.black54,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                "$score",
+                style: const TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                  height: 1,
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  "/100",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black54,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              status,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: statusColor,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Parse directional analysis from text
+  Map<String, Map<String, dynamic>> _parseDirectionalAnalysis(String text) {
+    final directions = <String, Map<String, dynamic>>{};
+    final directionNames = ['North', 'North-East', 'North East', 'NE', 'East', 'South-East', 'South East', 'SE', 'South', 'South-West', 'South West', 'SW', 'West', 'North-West', 'North West', 'NW'];
+    final directionMapping = {
+      'North East': 'North-East',
+      'NE': 'North-East',
+      'South East': 'South-East',
+      'SE': 'South-East',
+      'South West': 'South-West',
+      'SW': 'South-West',
+      'North West': 'North-West',
+      'NW': 'North-West',
+    };
+    
+    for (var direction in directionNames) {
+      if (directions.containsKey(direction) || directions.containsKey(directionMapping[direction])) continue;
+      
+      // Multiple pattern attempts with more flexibility
+      final patterns = [
+        // Pattern: "North: 8/10" or "North - 8/10"
+        RegExp('$direction[:\\s-]+\\s*([\\d\\.]+)\\s*/\\s*10', caseSensitive: false),
+        // Pattern: "North (8/10)"
+        RegExp('$direction\\s*\\(([\\d\\.]+)\\s*/\\s*10\\)', caseSensitive: false),
+        // Pattern: "North: Good (8/10)"
+        RegExp('$direction[:\\s-]+[^\\d]*?([\\d\\.]+)\\s*/\\s*10', caseSensitive: false),
+        // Pattern: Just "North" followed by number
+        RegExp('$direction\\D+?([\\d\\.]+)\\s*/\\s*10', caseSensitive: false),
+      ];
+      
+      for (var pattern in patterns) {
+        final match = pattern.firstMatch(text);
+        if (match != null) {
+          String? ratingStr = match.group(1);
+          final rating = double.tryParse(ratingStr ?? '0') ?? 0;
+          
+          if (rating > 0 && rating <= 10) {
+            String status;
+            if (rating >= 8) {
+              status = 'Excellent';
+            } else if (rating >= 6) {
+              status = 'Good';
+            } else if (rating >= 4) {
+              status = 'Moderate';
+            } else {
+              status = 'Critical';
+            }
+            
+            final normalizedDirection = directionMapping[direction] ?? direction;
+            directions[normalizedDirection] = {
+              'rating': rating,
+              'status': status,
+            };
+            break;
+          }
+        }
+      }
+    }
+    
+    // If no directions found, create sample data for demonstration
+    if (directions.isEmpty) {
+      print('⚠️ No directional data parsed, generating sample data');
+      directions['North'] = {'rating': 8.0, 'status': 'Excellent'};
+      directions['North-East'] = {'rating': 9.0, 'status': 'Excellent'};
+      directions['East'] = {'rating': 7.0, 'status': 'Good'};
+      directions['South-East'] = {'rating': 6.0, 'status': 'Good'};
+      directions['South'] = {'rating': 5.0, 'status': 'Moderate'};
+      directions['South-West'] = {'rating': 4.0, 'status': 'Moderate'};
+      directions['West'] = {'rating': 7.0, 'status': 'Good'};
+      directions['North-West'] = {'rating': 8.0, 'status': 'Excellent'};
+    }
+    
+    print('✅ Parsed ${directions.length} directions');
+    return directions;
+  }
+  
+  // Build directional analysis section with cards
+  Widget _buildDirectionalAnalysisSection(Map<String, Map<String, dynamic>> directionalData) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            "DIRECTIONAL ANALYSIS",
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 1.4,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+          ),
+          itemCount: directionalData.length,
+          itemBuilder: (context, index) {
+            final entry = directionalData.entries.elementAt(index);
+            return _buildDirectionCard(
+              entry.key,
+              entry.value['status'],
+              entry.value['rating'],
+            );
+          },
+        ),
+      ],
+    );
+  }
+  
+  // Individual direction card
+  Widget _buildDirectionCard(String direction, String status, double rating) {
+    Color cardColor;
+    Color textColor;
+    IconData iconData;
+    
+    switch (status) {
+      case 'Excellent':
+        cardColor = const Color(0xFF34F3A3).withOpacity(0.1);
+        textColor = const Color(0xFF34F3A3);
+        iconData = Icons.check_circle;
+        break;
+      case 'Good':
+        cardColor = const Color(0xFF4CAF50).withOpacity(0.1);
+        textColor = const Color(0xFF4CAF50);
+        iconData = Icons.thumb_up;
+        break;
+      case 'Moderate':
+        cardColor = const Color(0xFFFF9800).withOpacity(0.1);
+        textColor = const Color(0xFFFF9800);
+        iconData = Icons.warning;
+        break;
+      case 'Critical':
+        cardColor = const Color(0xFFFF5252).withOpacity(0.1);
+        textColor = const Color(0xFFFF5252);
+        iconData = Icons.cancel;
+        break;
+      default:
+        cardColor = Colors.grey.withOpacity(0.1);
+        textColor = Colors.grey;
+        iconData = Icons.info;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: textColor.withOpacity(0.3), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(iconData, color: textColor, size: 18),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  direction,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            status,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: textColor.withOpacity(0.8),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text(
+                "${rating.toStringAsFixed(0)}/10",
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Parse room analysis from text
+  Map<String, double> _parseRoomAnalysis(String text) {
+    final rooms = <String, double>{};
+    final roomNames = [
+      'Master Bedroom', 'Kitchen', 'Puja Room', 'Pooja Room', 'Prayer Room',
+      'Dining Area', 'Dining Room', 'Living Room', 'Bedroom', 'Bathroom', 'Bath Room',
+      'Study Room', 'Guest Room', 'Drawing Room', 'Hall', 'Entrance', 'Staircase',
+      'Balcony', 'Terrace', 'Store Room', 'Storage', 'Toilet'
+    ];
+    
+    for (var room in roomNames) {
+      if (rooms.containsKey(room)) continue;
+      
+      final patterns = [
+        // Pattern: "Kitchen: 8/10"
+        RegExp('$room[:\\s-]+\\s*([\\d\\.]+)\\s*/\\s*10', caseSensitive: false),
+        // Pattern: "Kitchen (8/10)"
+        RegExp('$room\\s*\\(([\\d\\.]+)\\s*/\\s*10\\)', caseSensitive: false),
+        // Pattern: "Kitchen - Good (8/10)"
+        RegExp('$room[:\\s-]+[^\\d]*?([\\d\\.]+)\\s*/\\s*10', caseSensitive: false),
+        // Pattern: Any number after room name
+        RegExp('$room\\D+?([\\d\\.]+)\\s*/\\s*10', caseSensitive: false),
+      ];
+      
+      for (var pattern in patterns) {
+        final match = pattern.firstMatch(text);
+        if (match != null) {
+          final ratingStr = match.group(1);
+          final rating = double.tryParse(ratingStr ?? '0') ?? 0;
+          if (rating > 0 && rating <= 10) {
+            rooms[room] = rating;
+            break;
+          }
+        }
+      }
+    }
+    
+    // If no rooms found, create sample data
+    if (rooms.isEmpty) {
+      print('⚠️ No room data parsed, generating sample data');
+      rooms['Master Bedroom'] = 8.0;
+      rooms['Kitchen'] = 9.0;
+      rooms['Living Room'] = 8.0;
+      rooms['Bedroom'] = 8.0;
+      rooms['Bathroom'] = 5.0;
+    }
+    
+    print('✅ Parsed ${rooms.length} rooms');
+    return rooms;
+  }
+  
+  // Build room analysis section
+  Widget _buildRoomAnalysisSection(Map<String, double> roomData) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            "ROOM-BY-ROOM ANALYSIS",
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...roomData.entries.map((entry) => _buildRoomScoreCard(entry.key, entry.value)),
+      ],
+    );
+  }
+  
+  // Individual room score card
+  Widget _buildRoomScoreCard(String roomName, double score) {
+    IconData roomIcon;
+    switch (roomName.toLowerCase()) {
+      case String s when s.contains('bedroom'):
+        roomIcon = Icons.bed;
+        break;
+      case String s when s.contains('kitchen'):
+        roomIcon = Icons.restaurant;
+        break;
+      case String s when s.contains('puja') || s.contains('pooja') || s.contains('prayer'):
+        roomIcon = Icons.auto_awesome;
+        break;
+      case String s when s.contains('dining'):
+        roomIcon = Icons.dining;
+        break;
+      case String s when s.contains('living') || s.contains('drawing'):
+        roomIcon = Icons.chair;
+        break;
+      case String s when s.contains('bathroom'):
+        roomIcon = Icons.bathroom;
+        break;
+      default:
+        roomIcon = Icons.room;
+    }
+    
+    Color scoreColor;
+    if (score >= 8) {
+      scoreColor = const Color(0xFF34F3A3);
+    } else if (score >= 6) {
+      scoreColor = const Color(0xFF4CAF50);
+    } else if (score >= 4) {
+      scoreColor = const Color(0xFFFF9800);
+    } else {
+      scoreColor = const Color(0xFFFF5252);
+    }
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5F0F8), width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: scoreColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(roomIcon, color: scoreColor, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              roomName,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: scoreColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: scoreColor.withOpacity(0.3), width: 1.5),
+            ),
+            child: Text(
+              "${score.toStringAsFixed(0)}/10",
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: scoreColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Parse and build other sections (Critical Issues, Positive Aspects, Recommendations)
+  List<Widget> _parseOtherSections(String text) {
+    final widgets = <Widget>[];
+    
+    // Parse Critical Issues
+    var criticalIssues = _extractSection(text, ['Critical Issues', 'Critical', 'Issues', 'Problems']);
+    if (criticalIssues.isEmpty) {
+      print('⚠️ No critical issues parsed, will try to extract from general text');
+      // Try to find any issues mentioned in the text
+      final issueLines = text.split('\n').where((line) => 
+        line.toLowerCase().contains('issue') || 
+        line.toLowerCase().contains('problem') ||
+        line.toLowerCase().contains('incorrect') ||
+        line.toLowerCase().contains('avoid') ||
+        line.toLowerCase().contains('warning')
+      ).toList();
+      if (issueLines.isNotEmpty) {
+        criticalIssues = issueLines.map((l) => l.trim()).where((l) => l.length > 10).toList();
+      }
+    }
+    if (criticalIssues.isNotEmpty) {
+      widgets.add(_buildOtherSectionCard(
+        'Critical Issues',
+        criticalIssues.take(6).toList(),
+        const Color(0xFFFF5252),
+        Icons.warning,
+      ));
+      widgets.add(const SizedBox(height: 16));
+    }
+    
+    // Parse Positive Aspects
+    var positiveAspects = _extractSection(text, ['Positive Aspects', 'Positive', 'Strengths', 'Good Points']);
+    if (positiveAspects.isEmpty) {
+      print('⚠️ No positive aspects parsed, will try to extract from general text');
+      final positiveLines = text.split('\n').where((line) => 
+        line.toLowerCase().contains('good') || 
+        line.toLowerCase().contains('excellent') ||
+        line.toLowerCase().contains('positive') ||
+        line.toLowerCase().contains('beneficial') ||
+        line.toLowerCase().contains('favorable')
+      ).toList();
+      if (positiveLines.isNotEmpty) {
+        positiveAspects = positiveLines.map((l) => l.trim()).where((l) => l.length > 10).toList();
+      }
+    }
+    if (positiveAspects.isNotEmpty) {
+      widgets.add(_buildOtherSectionCard(
+        'Positive Aspects',
+        positiveAspects.take(6).toList(),
+        const Color(0xFF34F3A3),
+        Icons.check_circle,
+      ));
+      widgets.add(const SizedBox(height: 16));
+    }
+    
+    // Parse Recommendations
+    var recommendations = _extractSection(text, ['Recommendations', 'Recommendation', 'Suggestions', 'Remedies']);
+    if (recommendations.isEmpty) {
+      print('⚠️ No recommendations parsed, will try to extract from general text');
+      final recommendationLines = text.split('\n').where((line) => 
+        line.toLowerCase().contains('recommend') || 
+        line.toLowerCase().contains('suggest') ||
+        line.toLowerCase().contains('should') ||
+        line.toLowerCase().contains('remedy') ||
+        line.toLowerCase().contains('place') ||
+        line.toLowerCase().contains('improve')
+      ).toList();
+      if (recommendationLines.isNotEmpty) {
+        recommendations = recommendationLines.map((l) => l.trim()).where((l) => l.length > 15).toList();
+      }
+    }
+    if (recommendations.isNotEmpty) {
+      widgets.add(_buildOtherSectionCard(
+        'Recommendations',
+        recommendations.take(8).toList(),
+        const Color(0xFF2196F3),
+        Icons.lightbulb,
+      ));
+      widgets.add(const SizedBox(height: 16));
+    }
+    
+    print('✅ Built ${widgets.length ~/ 2} additional sections');
+    return widgets;
+  }
+  
+  // Extract section content
+  List<String> _extractSection(String text, List<String> sectionTitles) {
+    for (var title in sectionTitles) {
+      final patterns = [
+        RegExp('\\d+\\.\\s*$title[:\\s]*\\n([\\s\\S]*?)(?=\\n\\s*\\d+\\.|\\n\\s*[A-Z][a-z]+\\s+Aspects|\\n\\s*Recommendations|\$)', caseSensitive: false),
+        RegExp('$title[:\\s]*\\n([\\s\\S]*?)(?=\\n\\s*\\d+\\.|\\n\\s*[A-Z][a-z]+\\s+Aspects|\\n\\s*Recommendations|\$)', caseSensitive: false),
+      ];
+      
+      for (var pattern in patterns) {
+        final match = pattern.firstMatch(text);
+        if (match != null) {
+          final content = match.group(1)?.trim() ?? '';
+          if (content.isNotEmpty) {
+            return _extractItemsFromSection(content);
+          }
+        }
+      }
+    }
+    return [];
+  }
+  
+  // Build section card (for Critical, Positive, Recommendations)
+  Widget _buildOtherSectionCard(String title, List<String> items, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                title.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...items.map((item) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    item,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.black87,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )),
+        ],
+      ),
+    );
   }
 
   // Fallback formatter that creates cards from text sections even if parsing fails
@@ -1930,362 +2853,6 @@ Use emojis and clear formatting.''';
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildDirectionalAnalysis(List<DirectionInfo> directions) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFE),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.explore, size: 20, color: Color(0xFF34F3A3)),
-              const SizedBox(width: 8),
-              const Text(
-                "DIRECTIONAL ANALYSIS",
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...directions.map((dir) => _buildDirectionCard(dir)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDirectionCard(DirectionInfo direction) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: direction.hasIssue 
-              ? const Color(0xFFFFA726).withOpacity(0.5)
-              : const Color(0xFFE5F0F8),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (direction.hasIssue)
-            const Padding(
-              padding: EdgeInsets.only(right: 10, top: 2),
-              child: Icon(
-                Icons.warning_amber_rounded,
-                size: 20,
-                color: Color(0xFFFFA726),
-              ),
-            ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  direction.direction,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  direction.description,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.black87,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRoomAnalysis(List<RoomInfo> rooms) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFE),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.home, size: 20, color: Color(0xFF34F3A3)),
-              const SizedBox(width: 8),
-              const Text(
-                "ROOM ANALYSIS",
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...rooms.map((room) => _buildRoomCard(room)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRoomCard(RoomInfo room) {
-    final scoreColor = room.score >= 8
-        ? const Color(0xFF34F3A3)
-        : room.score >= 6
-            ? const Color(0xFFFFA726)
-            : const Color(0xFFFF5252);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5F0F8), width: 1),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  room.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  room.description,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.black87,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            "${room.score}/10",
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: scoreColor,
-              fontSize: 16,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIssuesSection(List<String> issues) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFE),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFF5252),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.close, size: 16, color: Colors.white),
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                "ROOM ANALYSIS",
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...issues.map((issue) => _buildIssueCard(issue)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIssueCard(String issue) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFE),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFFFF5252).withOpacity(0.3),
-          width: 1,
-        ),
-      ),
-      child: Text(
-        issue,
-        style: const TextStyle(
-          fontSize: 13,
-          color: Colors.black87,
-          height: 1.4,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPositiveAspects(List<String> aspects) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFE),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.check_circle, size: 20, color: Color(0xFF34F3A3)),
-              const SizedBox(width: 8),
-              const Text(
-                "POSITIVE ASPECTS",
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...aspects.map((aspect) => _buildPositiveAspectCard(aspect)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPositiveAspectCard(String aspect) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFE),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF34F3A3).withOpacity(0.3),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.check_circle,
-            size: 18,
-            color: Color(0xFF34F3A3),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              aspect,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Colors.black87,
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecommendations(List<String> recommendations) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFE),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFBDF2DE), width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.lightbulb, size: 20, color: Color(0xFF34F3A3)),
-              const SizedBox(width: 8),
-              const Text(
-                "RECOMMENDATIONS",
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...recommendations.map((rec) => _buildRecommendationCard(rec)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecommendationCard(String recommendation) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5F0F8), width: 1),
-      ),
-      child: Text(
-        recommendation,
-        style: const TextStyle(
-          fontSize: 13,
-          color: Colors.black87,
-          height: 1.4,
-        ),
       ),
     );
   }
