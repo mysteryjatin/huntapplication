@@ -281,22 +281,10 @@ class _InvalidImageScreenState extends State<InvalidImageScreen> {
                 Positioned(
                   top: -8,
                   left: -8,
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF34F3A3),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white,
-                        width: 2.5,
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.home,
-                      color: Colors.white,
-                      size: 24,
-                    ),
+                  child: Image.asset(
+                    'assets/images/ganesha_vaastu_ai.png',
+                    width: 50,
+                    height: 50,
                   ),
                 ),
               ],
