@@ -46,12 +46,12 @@ class _FloorPlanAnalysisScreenState extends State<FloorPlanAnalysisScreen> {
     Future.delayed(const Duration(seconds: 10), () {
       if (mounted) {
         // Navigate to result screen
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const VaastuResultScreen(),
-          ),
-        );
+        // Navigator.pushReplacement(
+        //   context,
+        //   MaterialPageRoute(
+        //     builder: (_) => const VaastuResultScreen(),
+        //   ),
+        // );
       }
     });
   }

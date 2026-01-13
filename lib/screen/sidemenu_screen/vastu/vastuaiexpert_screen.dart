@@ -65,14 +65,14 @@ class VastuAiExpertScreen extends StatelessWidget {
             _StepTile(
               icon: Icons.description_outlined,
               text: "Upload your property floor plan or drawing",
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const UploadFloorPlanScreen(),
-                  ),
-                );
-              },
+              // onTap: () {
+              //   Navigator.push(
+              //     context,
+              //     MaterialPageRoute(
+              //       builder: (_) => const UploadFloorPlanScreen(),
+              //     ),
+              //   );
+              // },
             ),
 
             _StepTile(
@@ -83,14 +83,14 @@ class VastuAiExpertScreen extends StatelessWidget {
             _StepTile(
               icon: Icons.auto_graph_outlined,
               text: "AI analyzes every corner and calculates score",
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const AiVaastuAnalysisScreen(),
-                  ),
-                );
-              },
+              // onTap: () {
+              //   Navigator.push(
+              //     context,
+              //     MaterialPageRoute(
+              //       builder: (_) => const AiVaastuAnalysisScreen(),
+              //     ),
+              //   );
+              // },
             ),
 
             const SizedBox(height: 24),

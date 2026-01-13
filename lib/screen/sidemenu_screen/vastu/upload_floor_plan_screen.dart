@@ -204,64 +204,72 @@ class _UploadActionCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-      onTap: onTap,
-      child: Container(
+        onTap: onTap,
+        child: Container(
           padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
+          decoration: BoxDecoration(
             color: const Color(0xFFF8FBFE),
             borderRadius: BorderRadius.circular(18),
-          border: Border.all(
+            border: Border.all(
               color: const Color(0xFFBDF2DE),
               width: 1.5,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-                height: 56,
-                width: 56,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8FFF6),
-                  borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                    color: const Color(0xFFBDF2DE),
-                    width: 1.5,
-                ),
-              ),
-              child: Icon(
-                icon,
-                  size: 26,
-                color: const Color(0xFF34F3A3),
-              ),
             ),
 
+            // ✅ SHADOW EFFECT
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                height: 56,
+                width: 56,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8FFF6),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: const Color(0xFFBDF2DE),
+                    width: 1.5,
+                  ),
+                ),
+                child: Icon(
+                  icon,
+                  size: 26,
+                  color: const Color(0xFF34F3A3),
+                ),
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
                         fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w600,
                         color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.black54,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 0.3,
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-                ),
-            ),
-          ],
+              ),
+            ],
           ),
         ),
       ),
