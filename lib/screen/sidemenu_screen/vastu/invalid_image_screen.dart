@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:ui' as ui;
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:image_picker/image_picker.dart';
@@ -232,25 +233,14 @@ class _InvalidImageScreenState extends State<InvalidImageScreen> {
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(14),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFF5252),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.close,
-                                        size: 28,
-                                        color: Colors.white,
-                                      ),
-                                    ),
+                                    SvgPicture.asset("assets/icons/invaild.svg"),
                                     const SizedBox(height: 10),
                                     const Text(
                                       "Invalid Document",
                                       style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.white,
+                                        color: Colors.red,
                                       ),
                                     ),
                                   ],
@@ -289,9 +279,9 @@ class _InvalidImageScreenState extends State<InvalidImageScreen> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Upload New Image Button
             Container(
               width: double.infinity,
@@ -299,16 +289,21 @@ class _InvalidImageScreenState extends State<InvalidImageScreen> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    const Color(0xFF34F3A3),
-                    const Color(0xFF2FED9A),
+                    const Color(0xFFEAF9FF),
+                    const Color(0xFFD1D3FB),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(16),
+                // 👇 ADD THIS
+                border: Border.all(
+                  color: const Color(0xFFCECCCF), // border color
+                  width: 1.2,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF34F3A3).withOpacity(0.3),
+                    color: const Color(0xFFCECCCF).withOpacity(0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),
@@ -318,8 +313,8 @@ class _InvalidImageScreenState extends State<InvalidImageScreen> {
                 color: Colors.transparent,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(16),
-                  onTap: _isPickingImage 
-                      ? null 
+                  onTap: _isPickingImage
+                      ? null
                       : () {
                           print('🔘 Upload button tapped');
                           if (mounted && context.mounted) {
@@ -346,14 +341,10 @@ class _InvalidImageScreenState extends State<InvalidImageScreen> {
                               : Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
+                                    color: Colors.white,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(
-                                    Icons.upload_file,
-                                    color: Colors.white,
-                                    size: 24,
-                                  ),
+                                  child:SvgPicture.asset("assets/icons/upload.svg"),
                                 ),
                           const SizedBox(height: 10),
                           Text(
@@ -361,7 +352,7 @@ class _InvalidImageScreenState extends State<InvalidImageScreen> {
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                              color: Colors.black,
                             ),
                           ),
                           const SizedBox(height: 6),
@@ -370,9 +361,9 @@ class _InvalidImageScreenState extends State<InvalidImageScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const Icon(
-                                Icons.check_circle,
+                                Icons.check,
                                 size: 14,
-                                color: Colors.white,
+                                color: Color(0xFF3847ED),
                               ),
                               const SizedBox(width: 5),
                               const Text(
@@ -380,7 +371,7 @@ class _InvalidImageScreenState extends State<InvalidImageScreen> {
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.white,
+                                  color: Color(0xFF3847ED),
                                   letterSpacing: 0.3,
                                 ),
                               ),

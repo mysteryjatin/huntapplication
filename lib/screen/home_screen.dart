@@ -93,14 +93,14 @@ class _HomeScreenState extends State<HomeScreen>
   ];
 
   final List<Map<String, String>> _services = [
-    {'asset': 'assets/icons/home_serives.svg', 'label': 'Home Loan'},
-    {'asset': 'assets/icons/property_worth.svg', 'label': 'Property Worth\nCalculator'},
-    {'asset': 'assets/icons/vastu.svg', 'label': 'Vastu\nCalculator'},
-    {'asset': 'assets/icons/sellorrentproperty.svg', 'label': 'Sell / Rent Ad\nPackages'},
-    {'asset': 'assets/icons/channelpartner.svg', 'label': 'Channel\nPartner'},
-    {'asset': 'assets/icons/legaladvisory.svg', 'label': 'Legal\nAdvisory'},
-    {'asset': 'assets/icons/nricenter.svg', 'label': 'NRI\nCenter'},
-    {'asset': 'assets/icons/rera.svg', 'label': 'RERA\nService'},
+    {'asset': 'assets/icons/home loan.png', 'label': 'Home Loan'},
+    {'asset': 'assets/icons/property worth calculator.png', 'label': 'Property Worth\nCalculator'},
+    {'asset': 'assets/icons/vaastu calculator.png', 'label': 'Vastu\nCalculator'},
+    {'asset': 'assets/icons/sell rent ad packages.png', 'label': 'Sell / Rent Ad\nPackages'},
+    {'asset': 'assets/icons/channel partner.png', 'label': 'Channel\nPartner'},
+    {'asset': 'assets/icons/legal advisory.png', 'label': 'Legal\nAdvisory'},
+    {'asset': 'assets/icons/nri center.png', 'label': 'NRI\nCenter'},
+    {'asset': 'assets/icons/rera service.png', 'label': 'RERA\nService'},
   ];
 
 
@@ -829,7 +829,7 @@ class _ServicesGrid extends StatelessWidget {
             itemBuilder: (context, i) {
               final s = services[i];
               return _ServiceItem(
-                svgAsset: s['asset'] as String,
+                pngAsset: s['asset'] as String, // ✅ PNG asset
                 label: s['label'] as String,
               );
             },
@@ -842,17 +842,18 @@ class _ServicesGrid extends StatelessWidget {
 }
 
 class _ServiceItem extends StatelessWidget {
-  final String svgAsset;
+  final String pngAsset;
   final String label;
 
   const _ServiceItem({
-    required this.svgAsset,
+    required this.pngAsset,
     required this.label,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
       decoration: BoxDecoration(
         color: const Color(0xFFE7F1FF),
         borderRadius: BorderRadius.circular(8),
@@ -861,20 +862,15 @@ class _ServiceItem extends StatelessWidget {
           width: 1,
         ),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
             height: 30,
-            child: SvgPicture.asset(
-              svgAsset,
+            child: Image.asset(
+              pngAsset,
               fit: BoxFit.contain,
-              colorFilter: const ColorFilter.mode(
-                AppColors.textDark,
-                BlendMode.srcIn,
-              ),
             ),
           ),
 

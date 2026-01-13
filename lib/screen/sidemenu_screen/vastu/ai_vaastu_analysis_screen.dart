@@ -2913,8 +2913,8 @@ Use emojis and clear formatting.''';
         padding: const EdgeInsets.all(6),
         child: Image.asset(
         'assets/images/ganesha_vaastu_ai.png',
-          width: 20,
-          height: 20,
+          width: 50,
+          height: 50,
         ),
       ),
     );
