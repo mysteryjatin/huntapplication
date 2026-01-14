@@ -127,93 +127,89 @@ class _InvalidImageScreenState extends State<InvalidImageScreen> {
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 45, vertical: 25),
         child: Column(
           children: [
-            const SizedBox(height: 12),
-            
-            // Invalid Image Card
+            const SizedBox(height: 10),
+
+            // 🔹 COMBINED CONTAINER (Single Green Border)
             Stack(
               clipBehavior: Clip.none,
               children: [
+
+                /// 🟢 GREEN BORDER CARD
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: const Color(0xFFBDF2DE),
-                      width: 2,
+                      color: const Color(0xFF5BE0A1), // green border
+                      width: 1.5,
                     ),
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Warning Icon
+
+                      /// ⚠️ WARNING ICON
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFF5252).withOpacity(0.1),
+                          color: const Color(0xFFFF5252).withOpacity(0.12),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
                           Icons.warning_amber_rounded,
-                          size: 28,
+                          size: 26,
                           color: Color(0xFFFF5252),
                         ),
                       ),
-                      
-                      const SizedBox(height: 12),
-                      
-                      // Error Title
+
+                      const SizedBox(height: 10),
+
+                      /// 🔴 TITLE
                       const Text(
                         "Image Validation Failed",
-                        textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFFFF5252),
+                          color: Color(0xFFFF3B30),
                         ),
                       ),
-                      
-                      const SizedBox(height: 10),
-                      
-                      // Error Message
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Text(
-                          widget.errorMessage ?? 
-                          "This image is not supported. Please update floor plan image.",
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.black54,
-                            height: 1.4,
-                          ),
+
+                      const SizedBox(height: 6),
+
+                      /// 📝 SUBTITLE
+                      Text(
+                        widget.errorMessage ??
+                            "This image not supported Please update floor plan image",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
                         ),
                       ),
-                      
+
                       const SizedBox(height: 16),
-                      
-                      // Invalid Image Preview
+
+                      /// ❌ INVALID IMAGE
                       Container(
-                        height: 180,
-                        width: double.infinity,
+                        height: 170,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: const Color(0xFFFF5252),
-                            width: 2,
+                            width: 1.6,
                           ),
                         ),
                         child: Stack(
                           children: [
-                            // Blurred Image
                             ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(10),
                               child: ImageFiltered(
-                                imageFilter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                                imageFilter:
+                                ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
                                 child: Image.file(
                                   File(widget.imagePath),
                                   fit: BoxFit.cover,
@@ -222,23 +218,26 @@ class _InvalidImageScreenState extends State<InvalidImageScreen> {
                                 ),
                               ),
                             ),
-                            
-                            // Overlay with Invalid Icon
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.4),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Center(
+
+                            /// FULL OVERLAY
+                            Positioned.fill(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.45),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    SvgPicture.asset("assets/icons/invaild.svg"),
-                                    const SizedBox(height: 10),
+                                    SvgPicture.asset(
+                                      "assets/icons/invaild.svg",
+                                      height: 34,
+                                    ),
+                                    const SizedBox(height: 8),
                                     const Text(
                                       "Invalid Document",
                                       style: TextStyle(
-                                        fontSize: 14,
+                                        fontSize: 13,
                                         fontWeight: FontWeight.w600,
                                         color: Colors.red,
                                       ),
@@ -250,141 +249,106 @@ class _InvalidImageScreenState extends State<InvalidImageScreen> {
                           ],
                         ),
                       ),
-                      
+
                       const SizedBox(height: 14),
-                      
-                      // Instruction Text
+
                       const Text(
                         "Please upload a clear floor plan image to proceed",
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.black87,
                           fontWeight: FontWeight.w500,
+                          color: Colors.black
+                        ),
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      /// ⬆️ UPLOAD BUTTON
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFEAF9FF), Color(0xFFD1D3FB)],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFCECCCF),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: _isPickingImage
+                              ? null
+                              : () => _showImageSourceDialog(context),
+                          child: Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                                child:
+                                SvgPicture.asset("assets/icons/upload.svg"),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                "Upload New Image",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.black
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Icon(Icons.check,
+                                      size: 14, color: Color(0xFF3847ED)),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    "CHOOSE CLEAR HOUSE PLAN",
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF3847ED),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                
-                // Decorative Icon (top left)
+
+                /// 🟡 GANESHA JI – OUTSIDE GREEN BORDER
                 Positioned(
-                  top: -8,
-                  left: -8,
+                  top: 0,   // ⬅️ clearly outside
+                  left: -40,
                   child: Image.asset(
                     'assets/images/ganesha_vaastu_ai.png',
-                    width: 50,
-                    height: 50,
+                    width: 40,
+                    height: 45,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 20),
-
-            // Upload New Image Button
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFFEAF9FF),
-                    const Color(0xFFD1D3FB),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                // 👇 ADD THIS
-                border: Border.all(
-                  color: const Color(0xFFCECCCF), // border color
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFCECCCF).withOpacity(0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: _isPickingImage
-                      ? null
-                      : () {
-                          print('🔘 Upload button tapped');
-                          if (mounted && context.mounted) {
-                            _showImageSourceDialog(context);
-                          }
-                        },
-                  child: AnimatedOpacity(
-                    opacity: _isPickingImage ? 0.7 : 1.0,
-                    duration: const Duration(milliseconds: 200),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _isPickingImage
-                              ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                  ),
-                                )
-                              : Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child:SvgPicture.asset("assets/icons/upload.svg"),
-                                ),
-                          const SizedBox(height: 10),
-                          Text(
-                            _isPickingImage ? "Selecting Image..." : "Upload New Image",
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.check,
-                                size: 14,
-                                color: Color(0xFF3847ED),
-                              ),
-                              const SizedBox(width: 5),
-                              const Text(
-                                "CHOOSE CLEAR HOUSE PLAN",
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF3847ED),
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
           ],
         ),
       ),
