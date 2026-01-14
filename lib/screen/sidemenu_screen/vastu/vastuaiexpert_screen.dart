@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hunt_property/screen/sidemenu_screen/vastu/upload_floor_plan_screen.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 
+import 'ai_vaastu_analysis_new_screen.dart';
 import 'ai_vaastu_analysis_screen.dart';
 import 'manual_map_screen.dart';
 
@@ -65,14 +66,14 @@ class VastuAiExpertScreen extends StatelessWidget {
             _StepTile(
               icon: Icons.description_outlined,
               text: "Upload your property floor plan or drawing",
-              // onTap: () {
-              //   Navigator.push(
-              //     context,
-              //     MaterialPageRoute(
-              //       builder: (_) => const UploadFloorPlanScreen(),
-              //     ),
-              //   );
-              // },
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AiVaastuAnalysisNewScreen(),
+                  ),
+                );
+              },
             ),
 
             _StepTile(
