@@ -93,15 +93,16 @@ class _HomeScreenState extends State<HomeScreen>
   ];
 
   final List<Map<String, String>> _services = [
-    {'asset': 'assets/icons/home loan.png', 'label': 'Home Loan'},
-    {'asset': 'assets/icons/property worth calculator.png', 'label': 'Property Worth\nCalculator'},
-    {'asset': 'assets/icons/vaastu calculator.png', 'label': 'Vastu\nCalculator'},
-    {'asset': 'assets/icons/sell rent ad packages.png', 'label': 'Sell / Rent Ad\nPackages'},
-    {'asset': 'assets/icons/channel partner.png', 'label': 'Channel\nPartner'},
-    {'asset': 'assets/icons/legal advisory.png', 'label': 'Legal\nAdvisory'},
-    {'asset': 'assets/icons/nri center.png', 'label': 'NRI\nCenter'},
-    {'asset': 'assets/icons/rera service.png', 'label': 'RERA\nService'},
+    {'asset': 'assets/images/home_loan.png', 'label': 'Home Loan'},
+    {'asset': 'assets/images/property_worth_calculator.png', 'label': 'Property Worth\nCalculator'},
+    {'asset': 'assets/images/vaastu_calculator.png', 'label': 'Vastu\nCalculator'},
+    {'asset': 'assets/images/sellrentadpackages.png', 'label': 'Sell / Rent Ad\nPackages'},
+    {'asset': 'assets/images/channel_partner.png', 'label': 'Channel\nPartner'},
+    {'asset': 'assets/images/legal_advisory.png', 'label': 'Legal\nAdvisory'},
+    {'asset': 'assets/images/nri_center.png', 'label': 'NRI\nCenter'},
+    {'asset': 'assets/images/rera_service.png', 'label': 'RERA\nService'},
   ];
+
 
 
   final List<Map<String, dynamic>> _blogs = [

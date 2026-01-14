@@ -533,61 +533,73 @@ Use emojis and clear formatting.''';
     }
   }
 
-  Widget _buildOutlineActionCard({
+  Widget _buildActionCard({
     required IconData icon,
     required String label,
     required VoidCallback onTap,
     required bool isLoading,
+    bool isFilled = false,
   }) {
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         onTap: isLoading ? null : onTap,
         child: Container(
-          height: 80,
+          height: 70,
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: const Color(0xFFBDF2DE),
-              width: 2,
+            color: isFilled
+                ? const Color(0xFF34F3A3) // ASK AI
+                : const Color(0xFFF4FAFF), // REPORT
+            borderRadius: BorderRadius.circular(18),
+            border: isFilled
+                ? null
+                : Border.all(
+              color: const Color(0xFFC8CED6),
+              width: 1.6,
             ),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (isLoading)
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF34F3A3)),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (isLoading)
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                      AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                else
+                  Icon(
+                    icon,
+                    size: 26,
+                    color:
+                    isFilled ? Colors.black : Colors.black87,
                   ),
-                )
-              else
-                Icon(
-                  icon,
-                  size: 26,
-                  color: const Color(0xFF34F3A3),
+                const SizedBox(height: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color:
+                    isFilled ? Colors.black : Colors.black87,
+                    letterSpacing: 0.3,
+                  ),
                 ),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -709,8 +721,8 @@ Use emojis and clear formatting.''';
                 child: Row(
                   children: [
                     Expanded(
-                      child: _buildOutlineActionCard(
-                        icon: Icons.picture_as_pdf_outlined,
+                      child: _buildActionCard(
+                        icon: Icons.download,
                         label: "My Report",
                         isLoading: _isGeneratingPdf,
                         onTap: _generatePdfReport,
@@ -718,10 +730,11 @@ Use emojis and clear formatting.''';
                     ),
                     const SizedBox(width: 14),
                     Expanded(
-                      child: _buildOutlineActionCard(
+                      child: _buildActionCard(
                         icon: Icons.chat_bubble_outline,
                         label: "Ask AI",
                         isLoading: false,
+                        isFilled: true,
                         onTap: () {
                           setState(() {
                             _showChatInput = true;
@@ -1002,7 +1015,7 @@ Use emojis and clear formatting.''';
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF2196F3), width: 2.5),
+            border: Border.all(color: AppColors.primaryColor, width: 2),
           ),
           child: Column(
             children: [
@@ -1277,7 +1290,7 @@ Use emojis and clear formatting.''';
     String status;
     Color statusColor;
     Color bgColor;
-    
+
     if (score >= 80) {
       status = "EXCELLENT!";
       statusColor = const Color(0xFF34F3A3);
@@ -1291,7 +1304,7 @@ Use emojis and clear formatting.''';
       statusColor = const Color(0xFFFF5252);
       bgColor = const Color(0xFFFF5252).withOpacity(0.1);
     }
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
