@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:image_picker/image_picker.dart';
-import 'ai_vaastu_analysis_screen.dart';
+import 'ai_vaastu_analysis_new_screen.dart';
 
 class UploadFloorPlanScreen extends StatelessWidget {
   const UploadFloorPlanScreen({super.key});
@@ -11,11 +11,11 @@ class UploadFloorPlanScreen extends StatelessWidget {
     try {
       final XFile? image = await picker.pickImage(source: source);
       if (image != null) {
-        // Navigate to AI chat screen with the image
+        // Navigate to AI analysis screen with the image
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => AiVaastuAnalysisScreen(imagePath: image.path),
+            builder: (_) => AiVaastuAnalysisNewScreen(imagePath: image.path),
           ),
         );
       }

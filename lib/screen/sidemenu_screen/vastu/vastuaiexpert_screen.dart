@@ -70,7 +70,7 @@ class VastuAiExpertScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const AiVaastuAnalysisNewScreen(),
+                    builder: (_) => const UploadFloorPlanScreen(),
                   ),
                 );
               },
