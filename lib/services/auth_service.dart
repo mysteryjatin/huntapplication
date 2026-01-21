@@ -40,6 +40,8 @@ class AuthService {
     }
   }
 
+  // ===== ORIGINAL IMPLEMENTATION (COMMENTED OUT FOR TESTING) =====
+  /*
   Future<Map<String, dynamic>> verifyOtp(String phone, String otp) async {
     try {
       final response = await http.post(
@@ -60,6 +62,15 @@ class AuthService {
     } catch (e) {
       return {'success': false, 'error': e.toString()};
     }
+  }
+  */
+  // ===== END ORIGINAL IMPLEMENTATION =====
+  
+  // Placeholder method for testing (will use static OTP in cubit)
+  Future<Map<String, dynamic>> verifyOtp(String phone, String otp) async {
+    // This method is not used during testing mode
+    // Static OTP check is handled in auth_cubit.dart
+    return {'success': false, 'error': 'Using static OTP for testing'};
   }
 
   Future<Map<String, dynamic>> signup({
@@ -194,6 +205,8 @@ class AuthService {
     }
   }
 
+  // ===== ORIGINAL IMPLEMENTATION (COMMENTED OUT FOR TESTING) =====
+  /*
   Future<Map<String, dynamic>> loginVerifyOtp(String phone, String otp) async {
     try {
       final response = await http.post(
@@ -214,6 +227,15 @@ class AuthService {
     } catch (e) {
       return {'success': false, 'error': e.toString()};
     }
+  }
+  */
+  // ===== END ORIGINAL IMPLEMENTATION =====
+  
+  // Placeholder method for testing (will use static OTP in cubit)
+  Future<Map<String, dynamic>> loginVerifyOtp(String phone, String otp) async {
+    // This method is not used during testing mode
+    // Static OTP check is handled in auth_cubit.dart
+    return {'success': false, 'error': 'Using static OTP for testing'};
   }
 }
 
