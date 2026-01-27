@@ -64,7 +64,7 @@ class _SearchAgentsScreenState extends State<SearchAgentsScreen> {
                             child: Text(
                               chipLabels[index],
                               style: GoogleFonts.poppins(
-                                color: active ? Colors.white : Colors.black,
+                                color: active ? Colors.black : Colors.black,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),

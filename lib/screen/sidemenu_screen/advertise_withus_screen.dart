@@ -40,7 +40,7 @@ class _AdvertiseWithUsScreenState extends State<AdvertiseWithUsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _appBar(context),
-              const SizedBox(height: 6),
+              const SizedBox(height: 10),
               _title(),
               const SizedBox(height: 16),
               _packageGrid(),
@@ -101,7 +101,7 @@ class _AdvertiseWithUsScreenState extends State<AdvertiseWithUsScreen> {
       child: Text(
         "Select Package",
         style: TextStyle(
-            fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black),
+            fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
       ),
     );
   }
@@ -145,7 +145,11 @@ class _AdvertiseWithUsScreenState extends State<AdvertiseWithUsScreen> {
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xffeef6ff),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: Colors.grey.shade300,
+            width: 1.2,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(.08),
@@ -162,9 +166,10 @@ class _AdvertiseWithUsScreenState extends State<AdvertiseWithUsScreen> {
                   title,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black,
-                      fontWeight: FontWeight.w600),
+                    fontSize: 14,
+                    color: Colors.black,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -173,9 +178,12 @@ class _AdvertiseWithUsScreenState extends State<AdvertiseWithUsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: const Color(0xffeef6ff),
-                borderRadius:
-                const BorderRadius.vertical(bottom: Radius.circular(14)),
-                border: Border(top: BorderSide(color: Colors.grey.shade300)),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(14),
+                ),
+                border: Border(
+                  top: BorderSide(color: Colors.grey.shade300),
+                ),
               ),
               child: Row(
                 children: [
@@ -183,24 +191,27 @@ class _AdvertiseWithUsScreenState extends State<AdvertiseWithUsScreen> {
                     isSelected
                         ? Icons.radio_button_checked
                         : Icons.radio_button_off,
-                    color:
-                    isSelected ? const Color(0xFF2FED9A) : Colors.grey,
+                    color: isSelected
+                        ? const Color(0xFF2FED9A)
+                        : Colors.grey,
                     size: 22,
                   ),
                   const SizedBox(width: 10),
                   Text(
                     price,
                     style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black,
+                    ),
                   ),
                 ],
               ),
             ),
           ],
         ),
-      ),
+      )
+
     );
   }
 
