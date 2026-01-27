@@ -243,7 +243,7 @@ class _SpinPopupScreenState extends State<SpinPopupScreen>
                           scale: _bounceAnimation.value,
                           child: Transform.rotate(
                             angle: _rotationAngle * _animation.value,
-                            child: _buildWheel(),
+                            child: _buildWheel(_rotationAngle * _animation.value),
                           ),
                         );
                       },
@@ -375,7 +375,7 @@ class _SpinPopupScreenState extends State<SpinPopupScreen>
   }
 
   // ===== WHEEL UI =====
-  Widget _buildWheel() {
+  Widget _buildWheel(double currentAngle) {
     const double wheelSize = 300;
 
     return SizedBox(
@@ -429,8 +429,8 @@ class _SpinPopupScreenState extends State<SpinPopupScreen>
             ),
           ),
 
-          // ===== CENTER CIRCLE (EXACT IMAGE MATCH) =====
-          buildCenterCircle(),
+          // ===== CENTER CIRCLE (keeps orientation upright) =====
+          buildCenterCircle(currentAngle),
         ],
       ),
     );
@@ -465,65 +465,70 @@ class _SpinPopupScreenState extends State<SpinPopupScreen>
   }
 
   // ===== CENTER CIRCLE =====
-  Widget buildCenterCircle() {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Outer shadow
-        Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.22),
-                blurRadius: 14,
-                offset: const Offset(0, 6),
-              ),
-            ],
+  Widget buildCenterCircle(double currentAngle) {
+    return Transform.rotate(
+      angle: -currentAngle, // keep text/logo upright while wheel spins
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Outer shadow
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.22),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
           ),
-        ),
 
-        // Inner content
-        Container(
-          width: 100,
-          height: 100,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                height: 46, //
-                child: FittedBox(
-                  fit: BoxFit.contain,
-                  child: Image.asset(
-                    'assets/images/WhatsApp Image 2025-10-31 at 17.29.24_0d656493.jpg',
+          // Inner content
+          Container(
+            width: 100,
+            height: 100,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            alignment: Alignment.center, // keep logo + text perfectly centered
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.max,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  height: 46, //
+                  child: FittedBox(
+                    fit: BoxFit.contain,
+                    child: Image.asset(
+                      'assets/images/WhatsApp Image 2025-10-31 at 17.29.24_0d656493.jpg',
+                    ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 2),
-              const Text(
-                'Spin\nNow',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  height: 1.0,
-                  color: Colors.black,
+                const SizedBox(height: 2),
+                const Text(
+                  'Spin\nNow',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    height: 1.0,
+                    color: Colors.black,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

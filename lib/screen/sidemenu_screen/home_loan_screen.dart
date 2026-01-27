@@ -139,7 +139,7 @@ class _HomeLoanScreenState extends State<HomeLoanScreen> {
                             loanTypes[index],
                             style: TextStyle(
                               color: isSelected
-                                  ? Colors.white
+                                  ? Colors.black87
                                   : Colors.black87,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,

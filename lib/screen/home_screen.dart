@@ -113,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen>
     },
     {
       'title': 'YEDA Unveils Mega Plot Scheme Near Delhi...',
-      'image': 'assets/images/blog2.png',
+      'image': 'assets/images/yeid.jpg',
       'bg': const Color(0xFF66BB6A)
     },
   ];
@@ -327,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Text(
         t,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold,color: Colors.black,),
       ),
     );
   }
@@ -582,7 +582,7 @@ class _GetStartedCarousel extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text("Get Started with",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold,color: Colors.black,)),
               SizedBox(height: 4),
               Text("Find your ideal home with us",
                   style: TextStyle(fontSize: 14, color: AppColors.textLight)),
@@ -1045,7 +1045,7 @@ class _SellingRentingCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.primaryColor), ),
       child: Column(children: [
-        const Text("Selling or Renting ?", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        const Text("Selling or Renting ?", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold,color: Colors.black,)),
         const SizedBox(height: 6),
         Text(
           "Post your property for free and reach thousands of buyers.",

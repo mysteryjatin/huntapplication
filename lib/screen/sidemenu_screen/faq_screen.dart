@@ -121,7 +121,7 @@ class _FAQScreenState extends State<FAQScreen> {
       padding: EdgeInsets.only(left: 20, top: 6, bottom: 16),
       child: Text(
         "How it Works",
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,color: Colors.black),
       ),
     );
   }

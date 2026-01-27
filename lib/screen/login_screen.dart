@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hunt_property/cubit/auth_cubit.dart';
+import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -15,6 +18,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _input = TextEditingController();
   final FocusNode _phoneFocus = FocusNode(debugLabel: 'phone_input');
+  bool _isGoogleLoading = false;
 
   @override
   void dispose() {
@@ -26,6 +30,60 @@ class _LoginScreenState extends State<LoginScreen> {
   String _formatPhoneNumber(String phone) {
     final cleaned = phone.replaceAll(RegExp(r'[^\d]'), '');
     return '+91$cleaned';
+  }
+
+  Future<void> _signInWithGoogle() async {
+    if (_isGoogleLoading) return;
+    setState(() => _isGoogleLoading = true);
+
+    try {
+      final googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+      );
+
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        setState(() => _isGoogleLoading = false);
+        return; // user cancelled
+      }
+
+      final auth = await account.authentication;
+      final credential = GoogleAuthProvider.credential(
+        idToken: auth.idToken,
+        accessToken: auth.accessToken,
+      );
+
+      final userCred =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+      final user = userCred.user;
+
+      // Save minimal session using existing storage service
+      await StorageService.saveUserId(user?.uid ?? account.id);
+      await StorageService.saveUserPhone(user?.email ?? account.email);
+      await StorageService.saveUserType('user');
+      await StorageService.setLoggedIn(true);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Google sign-in successful'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.of(context).pushReplacementNamed('/home');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Google sign-in failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isGoogleLoading = false);
+      }
+    }
   }
 
   @override
@@ -234,7 +292,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       _SocialButton(
                         icon: 'assets/icons/google icon.svg',
                         label: 'Sign in with Google',
-                        onTap: () {},
+                        loading: _isGoogleLoading,
+                        onTap: _signInWithGoogle,
                       ),
 
                       const SizedBox(height: 14),
@@ -262,11 +321,13 @@ class _SocialButton extends StatelessWidget {
   final String icon;
   final String label;
   final VoidCallback onTap;
+  final bool loading;
 
   const _SocialButton({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.loading = false,
   });
 
   @override
@@ -274,7 +335,7 @@ class _SocialButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton(
-        onPressed: onTap,
+        onPressed: loading ? null : onTap,
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 13),
           side: const BorderSide(color: Color(0xFFE0E0E0)),
@@ -285,10 +346,23 @@ class _SocialButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SvgPicture.asset(icon, width: 22, height: 22),
-            const SizedBox(width: 10),
+            if (loading) ...[
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(AppColors.textDark),
+                ),
+              ),
+              const SizedBox(width: 10),
+            ] else ...[
+              SvgPicture.asset(icon, width: 22, height: 22),
+              const SizedBox(width: 10),
+            ],
             Text(
-              label,
+              loading ? 'Signing in...' : label,
               style: const TextStyle(
                 color: AppColors.textDark,
                 fontSize: 14,
