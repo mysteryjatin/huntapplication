@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hunt_property/cubit/auth_cubit.dart';
 import 'package:hunt_property/services/storage_service.dart';
+import 'package:hunt_property/services/auth_service.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -57,11 +58,47 @@ class _LoginScreenState extends State<LoginScreen> {
           await FirebaseAuth.instance.signInWithCredential(credential);
       final user = userCred.user;
 
-      // Save minimal session using existing storage service
-      await StorageService.saveUserId(user?.uid ?? account.id);
-      await StorageService.saveUserPhone(user?.email ?? account.email);
-      await StorageService.saveUserType('user');
+      // Get user info from Google account
+      final email = user?.email ?? account.email ?? '';
+      final name = user?.displayName ?? account.displayName ?? 'User';
+      final photoUrl = user?.photoURL ?? account.photoUrl;
+
+      if (email.isEmpty) {
+        throw Exception('Email not available from Google account');
+      }
+
+      // Find or create user in backend database
+      final authService = AuthService();
+      final result = await authService.googleSignIn(
+        email: email,
+        name: name,
+        photoUrl: photoUrl,
+      );
+
+      if (!result['success']) {
+        throw Exception(result['error'] ?? 'Failed to authenticate with backend');
+      }
+
+      final userData = result['data'];
+      final userId = userData['user_id']?.toString();
+      final userType = userData['user_type']?.toString() ?? 'buyer';
+      final phone = userData['phone']?.toString() ?? email;
+
+      if (userId == null || userId.isEmpty) {
+        throw Exception('User ID not received from backend');
+      }
+
+      // Save user data to storage
+      await StorageService.saveUserId(userId);
+      await StorageService.saveUserPhone(phone);
+      await StorageService.saveUserType(userType);
       await StorageService.setLoggedIn(true);
+
+      print('✅ Google Sign-In: User authenticated successfully');
+      print('   User ID: $userId');
+      print('   Email: $email');
+      print('   Name: $name');
+      print('   User Type: $userType');
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -72,10 +109,11 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       Navigator.of(context).pushReplacementNamed('/home');
     } catch (e) {
+      print('❌ Google Sign-In Error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Google sign-in failed: $e'),
+          content: Text('Google sign-in failed: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );

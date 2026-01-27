@@ -144,7 +144,8 @@ class _HomeScreenState extends State<HomeScreen>
     final userPropertiesCount = await _propertyService.getUserPropertiesCount();
     print('📊 User properties count: $userPropertiesCount');
     
-    // Show spin popup ONLY if user has 0 properties (no flag check needed)
+    // Show spin popup ONLY if user has exactly 0 properties
+    // If count is 1 or greater, no popup will appear - go directly to add post screen
     if (userPropertiesCount == 0) {
       print('✅ User has 0 properties, showing spin popup');
       if (mounted) {
@@ -163,10 +164,11 @@ class _HomeScreenState extends State<HomeScreen>
         return; // Don't navigate to add post, let spin popup handle it
       }
     } else {
-      print('⚠️ User has $userPropertiesCount properties, going directly to add post');
+      // User has 1 or more properties - no popup, go directly to add post
+      print('⚠️ User has $userPropertiesCount properties (count > 0), skipping popup and going directly to add post');
     }
     
-    // If user has properties, go directly to add post
+    // If user has properties (count >= 1), go directly to add post without popup
     if (mounted) {
       print('➡️ Navigating to add post screen');
       setState(() => selectedIndex = 2);

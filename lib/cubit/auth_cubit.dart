@@ -247,44 +247,6 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> verifyOtp(String phone, String otp, {bool isLogin = false}) async {
     emit(AuthLoading());
     try {
-      // ===== TESTING MODE: Static OTP Check =====
-      // For testing only - accept static OTP "123456"
-      if (otp == '123456') {
-        print('✅ Testing mode: Static OTP 123456 accepted');
-        
-        // Simulate successful verification
-        // Check if phone exists (this still works normally)
-        final phoneExists = await _authService.checkPhoneExists(phone);
-        
-        // Save user data to storage (with error handling)
-        try {
-          // For testing, use phone as temporary user ID
-          await StorageService.saveUserId(phone);
-          await StorageService.saveUserPhone(phone);
-          await StorageService.setLoggedIn(true);
-        } catch (e) {
-          print('Error saving user data to storage: $e');
-          // Continue even if storage fails - user can still proceed
-        }
-        
-        if (isLogin) {
-          // Login successful, navigate to home
-          emit(OtpVerified(phoneExists: true));
-        } else {
-          if (phoneExists) {
-            // Phone exists, user is logged in
-            emit(OtpVerified(phoneExists: true));
-          } else {
-            // Phone doesn't exist, need to signup
-            emit(SignupRequired(phone));
-          }
-        }
-        return;
-      }
-      // ===== END TESTING MODE =====
-      
-      // ===== ORIGINAL IMPLEMENTATION (COMMENTED OUT FOR TESTING) =====
-      /*
       Map<String, dynamic> result;
       if (isLogin) {
         // Use login verify API
@@ -355,8 +317,6 @@ class AuthCubit extends Cubit<AuthState> {
       } else {
         emit(AuthError(result['error'] ?? 'Invalid OTP'));
       }
-      */
-      // ===== END ORIGINAL IMPLEMENTATION =====
       
       // If OTP is not the static testing OTP, show error
       emit(AuthError('Invalid OTP. For testing, use: 123456'));
