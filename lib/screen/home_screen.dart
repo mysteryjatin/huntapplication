@@ -113,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen>
     },
     {
       'title': 'YEDA Unveils Mega Plot Scheme Near Delhi...',
-      'image': 'assets/images/blog2.png',
+      'image': 'assets/images/yeid.jpg',
       'bg': const Color(0xFF66BB6A)
     },
   ];
