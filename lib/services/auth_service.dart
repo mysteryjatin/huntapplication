@@ -237,5 +237,120 @@ class AuthService {
     // Static OTP check is handled in auth_cubit.dart
     return {'success': false, 'error': 'Using static OTP for testing'};
   }
+
+  // Find user by email
+  Future<Map<String, dynamic>> findUserByEmail(String email) async {
+    try {
+      // Use dedicated endpoint to find user by email (more efficient)
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/auth/find-user-by-email/${Uri.encodeComponent(email)}'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        if (data['exists'] == true && data['user'] != null) {
+          return {
+            'success': true,
+            'data': data['user'],
+          };
+        } else {
+          return {'success': false, 'error': 'User not found'};
+        }
+      } else {
+        return {
+          'success': false,
+          'error': 'Failed to search for user',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  // Google Sign-In: Find or create user
+  Future<Map<String, dynamic>> googleSignIn({
+    required String email,
+    required String name,
+    String? photoUrl,
+  }) async {
+    try {
+      print('🔍 Google Sign-In: Searching for user with email: $email');
+      
+      // First, try to find existing user by email
+      final findResult = await findUserByEmail(email);
+      
+      if (findResult['success']) {
+        print('✅ Google Sign-In: User found in database');
+        return {
+          'success': true,
+          'data': findResult['data'],
+        };
+      }
+
+      // User doesn't exist, create new user via /api/users/ endpoint
+      print('📝 Google Sign-In: User not found, creating new user...');
+      
+      // Generate a unique phone number from email for Google users
+      // Format: +91 followed by hash of email (first 10 digits)
+      final emailHash = email.hashCode.abs().toString();
+      final phoneNumber = '+91${emailHash.padLeft(10, '0').substring(0, 10)}';
+      
+      // Create user directly via users endpoint (no OTP required)
+      final createResponse = await http.post(
+        Uri.parse('$baseUrl/api/users/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'name': name,
+          'email': email.trim(),
+          'phone': phoneNumber,
+          'user_type': 'buyer',
+          'password': emailHash, // Use email hash as password for Google users
+        }),
+      );
+
+      print('📥 Google Sign-In Response: ${createResponse.statusCode} ${createResponse.body}');
+
+      if (createResponse.statusCode == 200 || createResponse.statusCode == 201) {
+        final userData = jsonDecode(createResponse.body);
+        print('✅ Google Sign-In: User created successfully');
+        return {
+          'success': true,
+          'data': {
+            'user_id': userData['_id']?.toString() ?? userData['id']?.toString(),
+            'email': userData['email'],
+            'name': userData['name'] ?? userData['full_name'],
+            'phone': userData['phone'] ?? phoneNumber,
+            'user_type': userData['user_type'] ?? 'buyer',
+          },
+        };
+      } else {
+        final errorBody = jsonDecode(createResponse.body);
+        final errorMessage = errorBody['detail']?.toString() ?? 'Failed to create user';
+        print('⚠️ Google Sign-In: User creation failed: $errorMessage');
+        
+        // If email already exists, try to find the user again
+        if (errorMessage.contains('already registered') || errorMessage.contains('already exists')) {
+          print('🔄 Google Sign-In: Email exists, retrying find...');
+          final retryFind = await findUserByEmail(email);
+          if (retryFind['success']) {
+            return {
+              'success': true,
+              'data': retryFind['data'],
+            };
+          }
+        }
+        
+        return {
+          'success': false,
+          'error': errorMessage,
+        };
+      }
+    } catch (e) {
+      print('❌ Google Sign-In Error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
 }
 
