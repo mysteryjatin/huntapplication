@@ -40,8 +40,7 @@ class AuthService {
     }
   }
 
-  // ===== ORIGINAL IMPLEMENTATION (COMMENTED OUT FOR TESTING) =====
-  /*
+  // Verify OTP for signup flow
   Future<Map<String, dynamic>> verifyOtp(String phone, String otp) async {
     try {
       final response = await http.post(
@@ -49,6 +48,8 @@ class AuthService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'phone_number': phone, 'otp': otp}),
       );
+
+      print('📥 Verify OTP Response: ${response.statusCode} ${response.body}');
 
       if (response.statusCode == 200) {
         return {'success': true, 'data': jsonDecode(response.body)};
@@ -60,17 +61,9 @@ class AuthService {
         };
       }
     } catch (e) {
+      print('❌ Verify OTP Error: $e');
       return {'success': false, 'error': e.toString()};
     }
-  }
-  */
-  // ===== END ORIGINAL IMPLEMENTATION =====
-  
-  // Placeholder method for testing (will use static OTP in cubit)
-  Future<Map<String, dynamic>> verifyOtp(String phone, String otp) async {
-    // This method is not used during testing mode
-    // Static OTP check is handled in auth_cubit.dart
-    return {'success': false, 'error': 'Using static OTP for testing'};
   }
 
   Future<Map<String, dynamic>> signup({
@@ -205,8 +198,7 @@ class AuthService {
     }
   }
 
-  // ===== ORIGINAL IMPLEMENTATION (COMMENTED OUT FOR TESTING) =====
-  /*
+  // Login verify OTP method
   Future<Map<String, dynamic>> loginVerifyOtp(String phone, String otp) async {
     try {
       final response = await http.post(
@@ -214,6 +206,8 @@ class AuthService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'phone_number': phone, 'otp': otp}),
       );
+
+      print('📥 Login Verify OTP Response: ${response.statusCode} ${response.body}');
 
       if (response.statusCode == 200) {
         return {'success': true, 'data': jsonDecode(response.body)};
@@ -225,79 +219,27 @@ class AuthService {
         };
       }
     } catch (e) {
-      return {'success': false, 'error': e.toString()};
-    }
-  }
-  */
-  // ===== END ORIGINAL IMPLEMENTATION =====
-  
-  // Placeholder method for testing (will use static OTP in cubit)
-  Future<Map<String, dynamic>> loginVerifyOtp(String phone, String otp) async {
-    // This method is not used during testing mode
-    // Static OTP check is handled in auth_cubit.dart
-    return {'success': false, 'error': 'Using static OTP for testing'};
-  }
-
-  // Find user by email
-  Future<Map<String, dynamic>> findUserByEmail(String email) async {
-    try {
-      // Use dedicated endpoint to find user by email (more efficient)
-      final response = await http.get(
-        Uri.parse('$baseUrl/api/auth/find-user-by-email/${Uri.encodeComponent(email)}'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        
-        if (data['exists'] == true && data['user'] != null) {
-          return {
-            'success': true,
-            'data': data['user'],
-          };
-        } else {
-          return {'success': false, 'error': 'User not found'};
-        }
-      } else {
-        return {
-          'success': false,
-          'error': 'Failed to search for user',
-        };
-      }
-    } catch (e) {
+      print('❌ Login Verify OTP Error: $e');
       return {'success': false, 'error': e.toString()};
     }
   }
 
-  // Google Sign-In: Find or create user
+  // Google Sign-In: Find or create user (no backend changes needed)
   Future<Map<String, dynamic>> googleSignIn({
     required String email,
     required String name,
     String? photoUrl,
   }) async {
     try {
-      print('🔍 Google Sign-In: Searching for user with email: $email');
-      
-      // First, try to find existing user by email
-      final findResult = await findUserByEmail(email);
-      
-      if (findResult['success']) {
-        print('✅ Google Sign-In: User found in database');
-        return {
-          'success': true,
-          'data': findResult['data'],
-        };
-      }
-
-      // User doesn't exist, create new user via /api/users/ endpoint
-      print('📝 Google Sign-In: User not found, creating new user...');
+      print('🔍 Google Sign-In: Attempting to create/find user with email: $email');
       
       // Generate a unique phone number from email for Google users
       // Format: +91 followed by hash of email (first 10 digits)
       final emailHash = email.hashCode.abs().toString();
       final phoneNumber = '+91${emailHash.padLeft(10, '0').substring(0, 10)}';
       
-      // Create user directly via users endpoint (no OTP required)
+      // Try to create user directly via users endpoint
+      // If user already exists, we'll handle the error
       final createResponse = await http.post(
         Uri.parse('$baseUrl/api/users/'),
         headers: {'Content-Type': 'application/json'},
@@ -313,6 +255,7 @@ class AuthService {
       print('📥 Google Sign-In Response: ${createResponse.statusCode} ${createResponse.body}');
 
       if (createResponse.statusCode == 200 || createResponse.statusCode == 201) {
+        // User created successfully
         final userData = jsonDecode(createResponse.body);
         print('✅ Google Sign-In: User created successfully');
         return {
@@ -326,19 +269,47 @@ class AuthService {
           },
         };
       } else {
+        // User creation failed - likely because email already exists
         final errorBody = jsonDecode(createResponse.body);
         final errorMessage = errorBody['detail']?.toString() ?? 'Failed to create user';
         print('⚠️ Google Sign-In: User creation failed: $errorMessage');
         
-        // If email already exists, try to find the user again
+        // If email already exists, query users to find the existing user
         if (errorMessage.contains('already registered') || errorMessage.contains('already exists')) {
-          print('🔄 Google Sign-In: Email exists, retrying find...');
-          final retryFind = await findUserByEmail(email);
-          if (retryFind['success']) {
-            return {
-              'success': true,
-              'data': retryFind['data'],
-            };
+          print('🔄 Google Sign-In: Email exists, querying users to find existing user...');
+          
+          // Query users endpoint to find the existing user by email
+          final usersResponse = await http.get(
+            Uri.parse('$baseUrl/api/users/?limit=1000'),
+            headers: {'Content-Type': 'application/json'},
+          );
+          
+          if (usersResponse.statusCode == 200) {
+            final List<dynamic> users = jsonDecode(usersResponse.body);
+            try {
+              final user = users.firstWhere(
+                (u) => u['email']?.toString().toLowerCase() == email.toLowerCase(),
+              );
+              
+              print('✅ Google Sign-In: Found existing user');
+              return {
+                'success': true,
+                'data': {
+                  'user_id': user['_id']?.toString() ?? user['id']?.toString(),
+                  'email': user['email'],
+                  'name': user['name'] ?? user['full_name'],
+                  'phone': user['phone'] ?? user['phone_number'],
+                  'user_type': user['user_type'] ?? 'buyer',
+                },
+              };
+            } catch (_) {
+              // User not found in list (shouldn't happen, but handle gracefully)
+              print('❌ Google Sign-In: User not found in users list');
+              return {
+                'success': false,
+                'error': 'User exists but could not be retrieved',
+              };
+            }
           }
         }
         

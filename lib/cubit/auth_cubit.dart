@@ -317,9 +317,6 @@ class AuthCubit extends Cubit<AuthState> {
       } else {
         emit(AuthError(result['error'] ?? 'Invalid OTP'));
       }
-      
-      // If OTP is not the static testing OTP, show error
-      emit(AuthError('Invalid OTP. For testing, use: 123456'));
     } catch (e) {
       emit(AuthError(e.toString()));
     }
