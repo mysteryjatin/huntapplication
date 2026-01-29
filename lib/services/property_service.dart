@@ -122,27 +122,36 @@ class PropertyService {
     try {
       final userId = await StorageService.getUserId();
       print('🔍 getUserPropertiesCount - User ID: $userId');
-      if (userId == null || userId.isEmpty) {
-        print('⚠️ getUserPropertiesCount - No user ID, returning 0');
+      if (userId == null || userId.isEmpty || userId == '000000000000000000000000') {
+        print('⚠️ getUserPropertiesCount - No valid user ID, returning 0');
         return 0;
       }
 
       final allProperties = await getProperties();
-      print('📊 getUserPropertiesCount - Total properties: ${allProperties.length}');
+      print('📊 getUserPropertiesCount - Total properties fetched: ${allProperties.length}');
       
-      // Filter properties by owner_id
+      // Filter properties by owner_id (case-insensitive string comparison)
       final userProperties = allProperties.where((property) {
-        final matches = property.ownerId == userId;
+        final propertyOwnerId = property.ownerId?.toString().trim() ?? '';
+        final currentUserId = userId.toString().trim();
+        
+        // Compare both as strings, case-insensitive
+        final matches = propertyOwnerId.toLowerCase() == currentUserId.toLowerCase();
+        
         if (matches) {
-          print('✅ Found matching property: ${property.id}, owner_id: ${property.ownerId}');
+          print('✅ Found matching property: ${property.id}, owner_id: $propertyOwnerId, user_id: $currentUserId');
+        } else {
+          print('   Property ${property.id}: owner_id="$propertyOwnerId" != user_id="$currentUserId"');
         }
         return matches;
       }).toList();
       
       print('🎯 getUserPropertiesCount - User properties count: ${userProperties.length}');
+      print('   User ID used for comparison: $userId');
       return userProperties.length;
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ GET USER PROPERTIES COUNT ERROR: $e');
+      print('❌ Stack Trace: $stackTrace');
       return 0;
     }
   }
