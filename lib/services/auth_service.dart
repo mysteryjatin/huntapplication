@@ -252,30 +252,50 @@ class AuthService {
         }),
       );
 
-      print('📥 Google Sign-In Response: ${createResponse.statusCode} ${createResponse.body}');
+      print('📥 Google Sign-In Create Response: ${createResponse.statusCode}');
+      print('📥 Google Sign-In Response Body: ${createResponse.body}');
 
       if (createResponse.statusCode == 200 || createResponse.statusCode == 201) {
         // User created successfully
         final userData = jsonDecode(createResponse.body);
         print('✅ Google Sign-In: User created successfully');
+        print('   User Data: $userData');
+        
+        final userId = userData['_id']?.toString() ?? userData['id']?.toString();
+        if (userId == null || userId.isEmpty) {
+          print('❌ Google Sign-In: User ID is null or empty');
+          return {
+            'success': false,
+            'error': 'User created but user ID not found in response',
+          };
+        }
+        
         return {
           'success': true,
           'data': {
-            'user_id': userData['_id']?.toString() ?? userData['id']?.toString(),
-            'email': userData['email'],
-            'name': userData['name'] ?? userData['full_name'],
-            'phone': userData['phone'] ?? phoneNumber,
-            'user_type': userData['user_type'] ?? 'buyer',
+            'user_id': userId,
+            'email': userData['email']?.toString() ?? email,
+            'name': userData['name']?.toString() ?? name,
+            'phone': userData['phone']?.toString() ?? phoneNumber,
+            'user_type': userData['user_type']?.toString() ?? 'buyer',
           },
         };
       } else {
         // User creation failed - likely because email already exists
-        final errorBody = jsonDecode(createResponse.body);
-        final errorMessage = errorBody['detail']?.toString() ?? 'Failed to create user';
+        String errorMessage = 'Failed to create user';
+        try {
+          final errorBody = jsonDecode(createResponse.body);
+          errorMessage = errorBody['detail']?.toString() ?? errorBody['message']?.toString() ?? 'Failed to create user';
+        } catch (_) {
+          errorMessage = createResponse.body;
+        }
+        
         print('⚠️ Google Sign-In: User creation failed: $errorMessage');
         
         // If email already exists, query users to find the existing user
-        if (errorMessage.contains('already registered') || errorMessage.contains('already exists')) {
+        if (errorMessage.toLowerCase().contains('already registered') || 
+            errorMessage.toLowerCase().contains('already exists') ||
+            errorMessage.toLowerCase().contains('email')) {
           print('🔄 Google Sign-In: Email exists, querying users to find existing user...');
           
           // Query users endpoint to find the existing user by email
@@ -284,32 +304,44 @@ class AuthService {
             headers: {'Content-Type': 'application/json'},
           );
           
+          print('📥 Google Sign-In Users Query Response: ${usersResponse.statusCode}');
+          
           if (usersResponse.statusCode == 200) {
-            final List<dynamic> users = jsonDecode(usersResponse.body);
             try {
+              final List<dynamic> users = jsonDecode(usersResponse.body);
+              print('📊 Google Sign-In: Found ${users.length} users in database');
+              
               final user = users.firstWhere(
                 (u) => u['email']?.toString().toLowerCase() == email.toLowerCase(),
               );
               
-              print('✅ Google Sign-In: Found existing user');
+              final userId = user['_id']?.toString() ?? user['id']?.toString();
+              print('✅ Google Sign-In: Found existing user with ID: $userId');
+              
               return {
                 'success': true,
                 'data': {
-                  'user_id': user['_id']?.toString() ?? user['id']?.toString(),
-                  'email': user['email'],
-                  'name': user['name'] ?? user['full_name'],
-                  'phone': user['phone'] ?? user['phone_number'],
-                  'user_type': user['user_type'] ?? 'buyer',
+                  'user_id': userId,
+                  'email': user['email']?.toString() ?? email,
+                  'name': user['name']?.toString() ?? name,
+                  'phone': user['phone']?.toString() ?? phoneNumber,
+                  'user_type': user['user_type']?.toString() ?? 'buyer',
                 },
               };
-            } catch (_) {
-              // User not found in list (shouldn't happen, but handle gracefully)
-              print('❌ Google Sign-In: User not found in users list');
+            } catch (e) {
+              // User not found in list
+              print('❌ Google Sign-In: User not found in users list: $e');
               return {
                 'success': false,
-                'error': 'User exists but could not be retrieved',
+                'error': 'User exists but could not be retrieved: $e',
               };
             }
+          } else {
+            print('❌ Google Sign-In: Failed to query users: ${usersResponse.statusCode}');
+            return {
+              'success': false,
+              'error': 'Failed to query users list',
+            };
           }
         }
         
@@ -318,8 +350,9 @@ class AuthService {
           'error': errorMessage,
         };
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ Google Sign-In Error: $e');
+      print('❌ Stack Trace: $stackTrace');
       return {'success': false, 'error': e.toString()};
     }
   }
