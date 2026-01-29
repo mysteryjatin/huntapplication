@@ -298,49 +298,88 @@ class AuthService {
             errorMessage.toLowerCase().contains('email')) {
           print('🔄 Google Sign-In: Email exists, querying users to find existing user...');
           
-          // Query users endpoint to find the existing user by email
-          final usersResponse = await http.get(
-            Uri.parse('$baseUrl/api/users/?limit=1000'),
-            headers: {'Content-Type': 'application/json'},
-          );
+          // Query users endpoint with pagination to find the existing user by email
+          // Backend has max limit of 100, so we'll paginate through results
+          int skip = 0;
+          const int limit = 100; // Max allowed by backend
+          const int maxPages = 10; // Safety limit: max 1000 users to search
+          bool found = false;
+          Map<String, dynamic>? foundUser;
+          int pageCount = 0;
           
-          print('📥 Google Sign-In Users Query Response: ${usersResponse.statusCode}');
-          
-          if (usersResponse.statusCode == 200) {
-            try {
-              final List<dynamic> users = jsonDecode(usersResponse.body);
-              print('📊 Google Sign-In: Found ${users.length} users in database');
-              
-              final user = users.firstWhere(
-                (u) => u['email']?.toString().toLowerCase() == email.toLowerCase(),
-              );
-              
-              final userId = user['_id']?.toString() ?? user['id']?.toString();
-              print('✅ Google Sign-In: Found existing user with ID: $userId');
-              
-              return {
-                'success': true,
-                'data': {
-                  'user_id': userId,
-                  'email': user['email']?.toString() ?? email,
-                  'name': user['name']?.toString() ?? name,
-                  'phone': user['phone']?.toString() ?? phoneNumber,
-                  'user_type': user['user_type']?.toString() ?? 'buyer',
-                },
-              };
-            } catch (e) {
-              // User not found in list
-              print('❌ Google Sign-In: User not found in users list: $e');
-              return {
-                'success': false,
-                'error': 'User exists but could not be retrieved: $e',
-              };
+          while (!found && pageCount < maxPages) {
+            pageCount++;
+            final usersResponse = await http.get(
+              Uri.parse('$baseUrl/api/users/?skip=$skip&limit=$limit'),
+              headers: {'Content-Type': 'application/json'},
+            );
+            
+            print('📥 Google Sign-In Users Query Response: ${usersResponse.statusCode} (skip=$skip, limit=$limit, page=$pageCount)');
+            
+            if (usersResponse.statusCode == 200) {
+              try {
+                final List<dynamic> users = jsonDecode(usersResponse.body);
+                print('📊 Google Sign-In: Found ${users.length} users in this batch');
+                
+                if (users.isEmpty) {
+                  // No more users to check
+                  print('📊 Google Sign-In: No more users to check');
+                  break;
+                }
+                
+                // Search for user with matching email
+                try {
+                  final user = users.firstWhere(
+                    (u) => u['email']?.toString().toLowerCase() == email.toLowerCase(),
+                  );
+                  
+                  foundUser = user as Map<String, dynamic>;
+                  found = true;
+                  print('✅ Google Sign-In: Found existing user in batch (page $pageCount)');
+                  break;
+                } catch (_) {
+                  // User not in this batch, continue to next page
+                  if (users.length < limit) {
+                    // Last page, user not found
+                    print('📊 Google Sign-In: Reached last page, user not found');
+                    break;
+                  }
+                  skip += limit;
+                }
+              } catch (e) {
+                print('❌ Google Sign-In: Error parsing users response: $e');
+                break;
+              }
+            } else {
+              print('❌ Google Sign-In: Failed to query users: ${usersResponse.statusCode}');
+              print('   Response body: ${usersResponse.body}');
+              break;
             }
+          }
+          
+          if (pageCount >= maxPages) {
+            print('⚠️ Google Sign-In: Reached max pages limit ($maxPages), stopping search');
+          }
+          
+          if (found && foundUser != null) {
+            final userId = foundUser['_id']?.toString() ?? foundUser['id']?.toString();
+            print('✅ Google Sign-In: Found existing user with ID: $userId');
+            
+            return {
+              'success': true,
+              'data': {
+                'user_id': userId,
+                'email': foundUser['email']?.toString() ?? email,
+                'name': foundUser['name']?.toString() ?? name,
+                'phone': foundUser['phone']?.toString() ?? phoneNumber,
+                'user_type': foundUser['user_type']?.toString() ?? 'buyer',
+              },
+            };
           } else {
-            print('❌ Google Sign-In: Failed to query users: ${usersResponse.statusCode}');
+            print('❌ Google Sign-In: User not found in users list after searching');
             return {
               'success': false,
-              'error': 'Failed to query users list',
+              'error': 'User exists but could not be retrieved from database',
             };
           }
         }
