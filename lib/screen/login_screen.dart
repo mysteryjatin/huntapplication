@@ -1,13 +1,18 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:crypto/crypto.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hunt_property/cubit/auth_cubit.dart';
-import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/services/auth_service.dart';
+import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _input = TextEditingController();
   final FocusNode _phoneFocus = FocusNode(debugLabel: 'phone_input');
   bool _isGoogleLoading = false;
+  bool _isAppleLoading = false;
 
   @override
   void dispose() {
@@ -31,6 +37,25 @@ class _LoginScreenState extends State<LoginScreen> {
   String _formatPhoneNumber(String phone) {
     final cleaned = phone.replaceAll(RegExp(r'[^\d]'), '');
     return '+91$cleaned';
+  }
+
+  /// Generates a cryptographically secure random nonce, to be included in a
+  /// credential request.
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
+  }
+
+  /// Returns the sha256 hash of [input] in hex notation.
+  String _sha256OfString(String input) {
+    final bytes = utf8.encode(input);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
   }
 
   Future<void> _signInWithGoogle() async {
@@ -120,6 +145,102 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) {
         setState(() => _isGoogleLoading = false);
+      }
+    }
+  }
+
+  Future<void> _signInWithApple() async {
+    if (_isAppleLoading) return;
+    setState(() => _isAppleLoading = true);
+
+    try {
+      final rawNonce = _generateNonce();
+      final nonce = _sha256OfString(rawNonce);
+
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: nonce,
+      );
+
+      final oauthCredential = OAuthProvider('apple.com').credential(
+        idToken: appleCredential.identityToken,
+        rawNonce: rawNonce,
+      );
+
+      final userCred =
+          await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+      final user = userCred.user;
+
+      // Apple may only provide email on first sign-in
+      final email = user?.email ?? appleCredential.email ?? '';
+      String name = user?.displayName ??
+          [
+            appleCredential.givenName,
+            appleCredential.familyName,
+          ].where((e) => e != null && e.isNotEmpty).join(' ');
+
+      if (name.trim().isEmpty) {
+        name = 'User';
+      }
+
+      if (email.isEmpty) {
+        throw Exception('Email not available from Apple account');
+      }
+
+      // Reuse existing backend flow (creates/finds user)
+      final authService = AuthService();
+      final result = await authService.googleSignIn(
+        email: email,
+        name: name,
+      );
+
+      if (!result['success']) {
+        throw Exception(result['error'] ?? 'Failed to authenticate with backend');
+      }
+
+      final userData = result['data'];
+      final userId = userData['user_id']?.toString();
+      final userType = userData['user_type']?.toString() ?? 'buyer';
+      final phone = userData['phone']?.toString() ?? email;
+
+      if (userId == null || userId.isEmpty) {
+        throw Exception('User ID not received from backend');
+      }
+
+      await StorageService.saveUserId(userId);
+      await StorageService.saveUserPhone(phone);
+      await StorageService.saveUserType(userType);
+      await StorageService.setLoggedIn(true);
+
+      print('✅ Apple Sign-In: User authenticated successfully');
+      print('   User ID: $userId');
+      print('   Email: $email');
+      print('   Name: $name');
+      print('   User Type: $userType');
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Apple sign-in successful'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.of(context).pushReplacementNamed('/home');
+    } catch (e) {
+      print('❌ Apple Sign-In Error: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Apple sign-in failed: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isAppleLoading = false);
       }
     }
   }
@@ -339,7 +460,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       _SocialButton(
                         icon: 'assets/icons/appleicon.svg',
                         label: 'Sign in with Apple',
-                        onTap: () {},
+                        loading: _isAppleLoading,
+                        onTap: _signInWithApple,
                       ),
 
                       const SizedBox(height: 40),
