@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hunt_property/cubit/filter_cubit.dart';
+import 'package:hunt_property/models/filter_models.dart';
 
 class FilterScreen extends StatefulWidget {
   final ScrollController? scrollController;
@@ -25,64 +28,91 @@ class _FilterScreenState extends State<FilterScreen> {
   static const Color kGreen = Color(0xFF2FED9A);
   static const Color kBorderGrey = Color(0xFFD1D1D1);
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadFilters();
+    });
+  }
+
+  String _txnTypeFromCategory(String category) {
+    // BUY => sale, RENT => rent
+    return category == 'RENT' ? 'rent' : 'sale';
+  }
+
+  void _loadFilters() {
+    // Response print FilterService me ho raha hai (console/terminal).
+    context.read<FilterCubit>().load(
+          transactionType: _txnTypeFromCategory(_selectedCategory),
+        );
+  }
+
   // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          _dragHandle(),
-          const Text("Filter",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
+    // UI same rahegi; BlocListener se sirf state log ho jaayega.
+    return BlocListener<FilterCubit, FilterState>(
+      listener: (context, state) {
+        // ignore: avoid_print
+        print('🔎 FilterCubit state: $state');
+      },
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            _dragHandle(),
+            const Text("Filter",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
 
-          Expanded(
-            child: SingleChildScrollView(
-              controller: widget.scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _title("Category"),
-                  _categoryButtons(),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: widget.scrollController,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _title("Category"),
+                    _categoryButtons(),
 
-                  _gap(),
-                  _title("Budget"),
-                  _budgetUI(),
+                    _gap(),
+                    _title("Budget"),
+                    _budgetUI(),
 
-                  _gap(),
-                  _title("Bedroom"),
-                  _bedroomSelector(),
+                    _gap(),
+                    _title("Bedroom"),
+                    _bedroomSelector(),
 
-                  _gap(),
-                  _title("Availability"),
-                  _availabilityRow(),
+                    _gap(),
+                    _title("Availability"),
+                    _availabilityRow(),
 
-                  _gap(),
-                  _title("Possession Status"),
-                  _possessionRow(),
+                    _gap(),
+                    _title("Possession Status"),
+                    _possessionRow(),
 
-                  _gap(),
-                  _title("Age of construction"),
-                  _ageConstructionGrid(),
+                    _gap(),
+                    _title("Age of construction"),
+                    _ageConstructionGrid(),
 
-                  _gap(),
-                  _title("Area (Sq.ft.)"),
-                  _areaSelector(),
+                    _gap(),
+                    _title("Area (Sq.ft.)"),
+                    _areaSelector(),
 
-                  const SizedBox(height: 30),
-                ],
+                    const SizedBox(height: 30),
+                  ],
+                ),
               ),
             ),
-          ),
 
-          _footerButtons(),
-        ],
+            _footerButtons(),
+          ],
+        ),
       ),
     );
   }
@@ -90,25 +120,25 @@ class _FilterScreenState extends State<FilterScreen> {
   // ---------------- SMALL WIDGETS ----------------
 
   Widget _dragHandle() => Padding(
-    padding: const EdgeInsets.only(top: 10, bottom: 12),
-    child: Container(
-      width: 60,
-      height: 6,
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.2),
-        borderRadius: BorderRadius.circular(10),
-      ),
-    ),
-  );
+        padding: const EdgeInsets.only(top: 10, bottom: 12),
+        child: Container(
+          width: 60,
+          height: 6,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(.2),
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
 
   Widget _title(String t) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Text(
-      t,
-      style: const TextStyle(
-          fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black),
-    ),
-  );
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(
+          t,
+          style: const TextStyle(
+              fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black),
+        ),
+      );
 
   Widget _gap() => const SizedBox(height: 20);
 
@@ -117,11 +147,15 @@ class _FilterScreenState extends State<FilterScreen> {
   Widget _categoryButtons() {
     return Row(
       children: [
-        _pill("BUY", _selectedCategory == "BUY",
-                () => setState(() => _selectedCategory = "BUY")),
+        _pill("BUY", _selectedCategory == "BUY", () {
+          setState(() => _selectedCategory = "BUY");
+          _loadFilters();
+        }),
         const SizedBox(width: 12),
-        _pill("RENT", _selectedCategory == "RENT",
-                () => setState(() => _selectedCategory = "RENT")),
+        _pill("RENT", _selectedCategory == "RENT", () {
+          setState(() => _selectedCategory = "RENT");
+          _loadFilters();
+        }),
       ],
     );
   }
@@ -170,24 +204,23 @@ class _FilterScreenState extends State<FilterScreen> {
   }
 
   Widget _chip(String text) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(.08),
-          blurRadius: 6,
-          offset: const Offset(0, 3),
-        )
-      ],
-    ),
-    child: Text(
-      text,
-      style:
-      const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-    ),
-  );
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(.08),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            )
+          ],
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        ),
+      );
 
   // ---------------- BEDROOM ----------------
 
@@ -199,8 +232,7 @@ class _FilterScreenState extends State<FilterScreen> {
       children: rooms.map((room) {
         final sel = _selectedBedroom == room;
         return GestureDetector(
-          onTap: () =>
-              setState(() => _selectedBedroom = sel ? null : room),
+          onTap: () => setState(() => _selectedBedroom = sel ? null : room),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
             decoration: BoxDecoration(
@@ -247,8 +279,7 @@ class _FilterScreenState extends State<FilterScreen> {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: sel
-                    ? const Icon(Icons.check,
-                    size: 14, color: Colors.white)
+                    ? const Icon(Icons.check, size: 14, color: Colors.white)
                     : null,
               ),
               const SizedBox(width: 8),
@@ -272,8 +303,8 @@ class _FilterScreenState extends State<FilterScreen> {
                 _selectedPossessionStatus == "Under Construction")),
         const SizedBox(width: 12),
         Expanded(
-            child: _pill2("Ready to move",
-                _selectedPossessionStatus == "Ready to move")),
+            child: _pill2(
+                "Ready to move", _selectedPossessionStatus == "Ready to move")),
       ],
     );
   }
@@ -332,14 +363,13 @@ class _FilterScreenState extends State<FilterScreen> {
             decoration: BoxDecoration(
               color: selected ? kGreen.withOpacity(.15) : Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border:
-              Border.all(color: selected ? kGreen : kBorderGrey, width: 1.5),
+              border: Border.all(
+                  color: selected ? kGreen : kBorderGrey, width: 1.5),
             ),
             child: Row(
               children: [
                 Icon(Icons.apartment,
-                    size: 18,
-                    color: selected ? kGreen : Colors.black54),
+                    size: 18, color: selected ? kGreen : Colors.black54),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -353,8 +383,7 @@ class _FilterScreenState extends State<FilterScreen> {
                   ),
                 ),
                 if (selected)
-                  const Icon(Icons.check_circle,
-                      size: 16, color: kGreen),
+                  const Icon(Icons.check_circle, size: 16, color: kGreen),
               ],
             ),
           ),
@@ -422,7 +451,27 @@ class _FilterScreenState extends State<FilterScreen> {
                       borderRadius: BorderRadius.circular(30)),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                onPressed: () {},
+                onPressed: () {
+                  // FilterSelection banake SearchScreen ko wapas bhej do
+                  int? bedroomCount;
+                  if (_selectedBedroom != null &&
+                      _selectedBedroom!.trim().isNotEmpty) {
+                    // "1 BHK" => 1, "2 BHK" => 2 ...
+                    final first = _selectedBedroom!.trim().split(' ').first;
+                    bedroomCount = int.tryParse(first);
+                  }
+
+                  final selection = FilterSelection(
+                    category: _selectedCategory,
+                    budgetMin: _budgetRange.start,
+                    budgetMax: _budgetRange.end,
+                    areaMin: _areaRange.start,
+                    areaMax: _areaRange.end,
+                    bedrooms: bedroomCount,
+                  );
+
+                  Navigator.of(context).pop(selection);
+                },
                 child: const Text("Apply",
                     style: TextStyle(
                         fontWeight: FontWeight.w700, color: Colors.black)),
@@ -444,5 +493,7 @@ class _FilterScreenState extends State<FilterScreen> {
       _selectedConstruction.clear();
       _selectedPossessionStatus = "Under Construction";
     });
+    _loadFilters();
   }
 }
+

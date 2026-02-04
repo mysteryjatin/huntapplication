@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hunt_property/cubit/my_listings_cubit.dart';
+import 'package:hunt_property/models/my_listings_models.dart';
+import 'package:hunt_property/services/my_listings_service.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:intl/intl.dart';
 import 'package:hunt_property/screen/widget/custombottomnavbar.dart';
 
 class MyListingScreen extends StatefulWidget {
@@ -14,176 +19,234 @@ class _MyListingScreenState extends State<MyListingScreen> {
   int _selectedNavIndex = 4; // Profile tab selected by default
 
   final List<String> _tabs = ['All', 'Active', 'Pending', 'Rejected'];
+  late final MyListingsCubit _cubit;
+  final ScrollController _scrollController = ScrollController();
 
-  // Sample property data
-  final List<PropertyData> _properties = [
-    PropertyData(
-      id: '1',
-      name: 'Mithilanchal Appartment',
-      address: '45 Green Street, Glenroe',
-      locality: 'Roli',
-      price: '₹ 35 Lac',
-      views: 1520,
-      saves: 15,
-      status: 'Active',
-      image: 'assets/images/property1.png',
-      postedDate: '17-11-2025',
-    ),
-    PropertyData(
-      id: '2',
-      name: 'Express Apartment',
-      address: 'Gautam Buddh Nagar',
-      locality: '',
-      price: '₹ 11 Crs',
-      views: 425,
-      saves: 2,
-      status: 'Pending',
-      image: 'assets/images/property2.png',
-      postedDate: '17-11-2025',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _cubit = MyListingsCubit(MyListingsService());
+    _cubit.load(status: _statusForIndex(_selectedTabIndex));
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    _cubit.close();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.position.pixels;
+    if (currentScroll >= maxScroll - 200) {
+      _cubit.loadMore();
+    }
+  }
+
+  String _statusForIndex(int index) {
+    switch (index) {
+      case 1:
+        return 'active';
+      case 2:
+        return 'pending';
+      case 3:
+        return 'rejected';
+      case 0:
+      default:
+        return 'all';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      body: Column(
-        children: [
-          // Custom App Bar
-          Container(
-            decoration: const BoxDecoration(
-              color: AppColors.primaryColor,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
+    return BlocProvider.value(
+      value: _cubit,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F5F5),
+        body: Column(
+          children: [
+            // Custom App Bar
+            Container(
+              decoration: const BoxDecoration(
+                color: AppColors.primaryColor,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
+                ),
               ),
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                    const Expanded(
-                      child: Center(
-                        child: Text(
-                          'My Listing',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      const Expanded(
+                        child: Center(
+                          child: Text(
+                            'My Listing',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 40),
-                  ],
+                      const SizedBox(width: 40),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // 🔥 Scrollable Tabs (No Overflow)
-          Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: SizedBox(
-              height: 42,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: List.generate(_tabs.length, (index) {
-                    final isSelected = _selectedTabIndex == index;
-                    return GestureDetector(
-                      onTap: () => setState(() => _selectedTabIndex = index),
-                      child: Container(
-                        margin: const EdgeInsets.only(left: 16, right: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isSelected ? AppColors.primaryColor : Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isSelected ? AppColors.primaryColor : const Color(0xFFE5E7EB),
-                            width: 1,
+            // 🔥 Scrollable Tabs (No Overflow)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: SizedBox(
+                height: 42,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: List.generate(_tabs.length, (index) {
+                      final isSelected = _selectedTabIndex == index;
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() => _selectedTabIndex = index);
+                          _cubit.load(status: _statusForIndex(index));
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(left: 16, right: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.primaryColor : Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isSelected ? AppColors.primaryColor : const Color(0xFFE5E7EB),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            _tabs[index],
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                              color: Colors.black,
+                            ),
                           ),
                         ),
+                      );
+                    }),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Property List
+            Expanded(
+              child: BlocBuilder<MyListingsCubit, MyListingsState>(
+                builder: (context, state) {
+                  if (state is MyListingsLoading || state is MyListingsInitial) {
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.primaryColor,
+                      ),
+                    );
+                  }
+
+                  if (state is MyListingsError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
                         child: Text(
-                          _tabs[index],
-                          style: TextStyle(
+                          state.message,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
                             fontSize: 14,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                            color: Colors.black,
+                            color: Colors.redAccent,
                           ),
                         ),
                       ),
                     );
-                  }),
-                ),
+                  }
+
+                  if (state is MyListingsLoaded && state.properties.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(
+                            Icons.home_work_outlined,
+                            size: 80,
+                            color: Colors.grey,
+                          ),
+                          SizedBox(height: 12),
+                          Text(
+                            'No listings found',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  if (state is MyListingsLoaded) {
+                    final items = state.properties;
+                    return ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: items.length + (state.isLoadingMore ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index >= items.length) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: AppColors.primaryColor,
+                              ),
+                            ),
+                          );
+                        }
+                        return PropertyCard(property: items[index]);
+                      },
+                    );
+                  }
+
+                  return const SizedBox.shrink();
+                },
               ),
             ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Property List
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _properties.length,
-              itemBuilder: (context, index) {
-                return PropertyCard(property: _properties[index]);
-              },
-            ),
-          ),
-        ],
+          ],
+        ),
+        // bottomNavigationBar: CustomBottomNavBar(
+        //   selectedIndex: _selectedNavIndex,
+        //   onItemSelected: (index) {
+        //     setState(() => _selectedNavIndex = index);
+        //   },
+        // ),
       ),
-      // bottomNavigationBar: CustomBottomNavBar(
-      //   selectedIndex: _selectedNavIndex,
-      //   onItemSelected: (index) {
-      //     setState(() => _selectedNavIndex = index);
-      //   },
-      // ),
     );
   }
-}
-
-//************* DATA MODEL ****************//
-
-class PropertyData {
-  final String id;
-  final String name;
-  final String address;
-  final String locality;
-  final String price;
-  final int views;
-  final int saves;
-  final String status;
-  final String image;
-  final String postedDate;
-
-  PropertyData({
-    required this.id,
-    required this.name,
-    required this.address,
-    required this.locality,
-    required this.price,
-    required this.views,
-    required this.saves,
-    required this.status,
-    required this.image,
-    required this.postedDate,
-  });
 }
 
 //************* CARD UI ****************//
 
 class PropertyCard extends StatelessWidget {
-  final PropertyData property;
+  final MyListingItem property;
 
   const PropertyCard({super.key, required this.property});
 
@@ -244,8 +307,8 @@ class PropertyCard extends StatelessWidget {
                         color: AppColors.primaryColor, // bright green
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(
-                        property.status,
+                  child: Text(
+                    _formatStatus(property.listingStatus),
                         style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
@@ -265,7 +328,7 @@ class PropertyCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      property.name,
+                      property.title,
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -290,7 +353,7 @@ class PropertyCard extends StatelessWidget {
                     const SizedBox(height: 6),
 
                     Text(
-                      property.price,
+                      _formatPrice(property.price),
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -308,7 +371,7 @@ class PropertyCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              'Posted on ${property.postedDate}',
+              'Posted on ${_formatPostedDate(property.postedAt)}',
               style: TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.w400,
@@ -319,7 +382,7 @@ class PropertyCard extends StatelessWidget {
 
           const SizedBox(height: 8),
 
-          _viewsSavesBar(property.views, property.saves),
+          _viewsSavesBar(property.viewCount, property.saves),
 
           const SizedBox(height: 10),
 
@@ -365,6 +428,23 @@ class PropertyCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatPrice(num price) {
+  if (price <= 0) return 'Price on request';
+  final formatter = NumberFormat('#,##,##0');
+  return '₹ ${formatter.format(price)}';
+}
+
+String _formatPostedDate(DateTime? date) {
+  if (date == null) return '';
+  return DateFormat('dd-MM-yyyy').format(date);
+}
+
+String _formatStatus(String status) {
+  if (status.isEmpty) return '';
+  final lower = status.toLowerCase();
+  return lower[0].toUpperCase() + lower.substring(1);
 }
 
 

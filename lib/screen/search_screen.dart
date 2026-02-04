@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hunt_property/cubit/filter_cubit.dart';
 import 'package:hunt_property/screen/filter_screen.dart';
-import 'package:hunt_property/theme/app_theme.dart';
+import 'package:hunt_property/services/filter_service.dart';
 import 'package:hunt_property/services/property_service.dart';
 import 'package:hunt_property/models/property_models.dart';
+import 'package:hunt_property/models/filter_models.dart';
 import 'package:intl/intl.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -20,6 +23,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final FocusNode _searchFocusNode = FocusNode();
 
   String _selectedType = "BUY";
+  FilterSelection? _activeFilters;
   bool _isSearching = false;
   bool _isSearchFocused = false;
   bool _isLoadingProperties = false;
@@ -51,7 +55,8 @@ class _SearchScreenState extends State<SearchScreen> {
   void _performSearch(String query) {
     _searchTimer?.cancel();
 
-    if (query.trim().isEmpty) {
+    final hasFilters = (_activeFilters?.hasAnyFilter ?? false);
+    if (query.trim().isEmpty && !hasFilters) {
       setState(() {
         _searchResults.clear();
         _isSearching = false;
@@ -67,10 +72,20 @@ class _SearchScreenState extends State<SearchScreen> {
       final filtered = _allProperties.where((p) {
         final typeMatch = _selectedType == "BUY"
             ? p.transactionType.toLowerCase().contains('buy') ||
-            p.transactionType.toLowerCase().contains('sell')
+                p.transactionType.toLowerCase().contains('sell')
             : p.transactionType.toLowerCase().contains('rent');
 
         if (!typeMatch) return false;
+
+        // Filters apply karo
+        final f = _activeFilters;
+        if (f != null) {
+          if (f.bedrooms != null && p.bedrooms != f.bedrooms) return false;
+          if (f.budgetMin != null && p.price < f.budgetMin!) return false;
+          if (f.budgetMax != null && p.price > f.budgetMax!) return false;
+          if (f.areaMin != null && p.areaSqft < f.areaMin!) return false;
+          if (f.areaMax != null && p.areaSqft > f.areaMax!) return false;
+        }
 
         final searchable = [
           p.title,
@@ -81,6 +96,10 @@ class _SearchScreenState extends State<SearchScreen> {
           p.propertyCategory,
         ].where((e) => e.isNotEmpty).join(' ').toLowerCase();
 
+        if (query.trim().isEmpty) {
+          // Agar sirf filters lagaye hain (search box blank)
+          return true;
+        }
         return searchable.contains(q);
       }).toList();
 
@@ -189,7 +208,7 @@ class _SearchScreenState extends State<SearchScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                /// 🔥 TITLE + HEART (SAME ROW)
+                /// TITLE + HEART
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -227,7 +246,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
                 const SizedBox(height: 4),
 
-                // SIZE / TYPE
+                // SIZE / TYPE (static in current UI)
                 const Text(
                   '360 Sq Ft • Freehold',
                   style: TextStyle(
@@ -238,7 +257,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
                 const SizedBox(height: 6),
 
-                /// 🔥 DATE (LEFT) + PRICE (RIGHT) — SAME ROW
+                /// DATE + PRICE
                 Row(
                   children: [
                     Expanded(
@@ -275,11 +294,11 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.asset("assets/images/not found.png", width: 220),
+          Image.asset("assets/images/no_proerty_found.png", width: 220),
           const SizedBox(height: 10),
           const Text(
             "No property found",
-            style: TextStyle(color: Colors.grey, fontSize: 16),
+            style: TextStyle(color: Colors.black, fontSize: 16,),
           ),
         ],
       ),
@@ -299,10 +318,10 @@ class _SearchScreenState extends State<SearchScreen> {
           hintText: "Search your area, project",
           prefixIcon: const Icon(Icons.search),
 
-          // 🔥 FIXED FILTER ICON
+          // FILTER ICON (UI same)
           suffixIcon: GestureDetector(
-            onTap: () {
-              showModalBottomSheet(
+            onTap: () async {
+              final result = await showModalBottomSheet<FilterSelection>(
                 context: context,
                 isScrollControlled: true,
                 backgroundColor: Colors.black.withOpacity(0.4),
@@ -311,12 +330,23 @@ class _SearchScreenState extends State<SearchScreen> {
                   minChildSize: 0.5,
                   maxChildSize: 0.95,
                   builder: (context, scrollController) {
-                    return FilterScreen(
-                      scrollController: scrollController,
+                    return BlocProvider(
+                      create: (_) => FilterCubit(FilterService()),
+                      child: FilterScreen(
+                        scrollController: scrollController,
+                      ),
                     );
                   },
                 ),
               );
+
+              if (result != null) {
+                setState(() {
+                  _activeFilters = result;
+                  _selectedType = result.category;
+                });
+                _performSearch(_searchController.text);
+              }
             },
             child: const Icon(Icons.tune),
           ),
@@ -363,3 +393,4 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 }
+

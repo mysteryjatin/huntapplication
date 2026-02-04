@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:hunt_property/theme/app_theme.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hunt_property/cubit/shortlist_cubit.dart';
+import 'package:hunt_property/models/property_models.dart';
 
 class RentPropertiesScreen extends StatefulWidget {
   const RentPropertiesScreen({super.key});
@@ -9,57 +11,32 @@ class RentPropertiesScreen extends StatefulWidget {
 }
 
 class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
-  // Sample rent properties data
-  List<Map<String, dynamic>> rentProperties = [
-    {
-      'image': 'assets/images/onboarding1.png',
-      'title': 'Flat In best offer for Navratra',
-      'location': 'Uttam Nagar',
-      'type': 'Freehold',
-      'area': '360 Sq Ft',
-      'bedrooms': 2,
-      'bathrooms': 1,
-      'hasOpenKitchen': true,
-      'hasLoungeArea': true,
-      'hasBalcony': true,
-      'hasGymAccess': true,
-      'price': '2,200',
-      'date': '23 October 2019',
-      'isFavorite': true,
-    },
-    {
-      'image': 'assets/images/onboarding2.png',
-      'title': 'Modern Apartment in Prime Location',
-      'location': 'Anna Nagar',
-      'type': 'Freehold',
-      'area': '450 Sq Ft',
-      'bedrooms': 3,
-      'bathrooms': 2,
-      'hasOpenKitchen': true,
-      'hasLoungeArea': false,
-      'hasBalcony': true,
-      'hasGymAccess': true,
-      'price': '3,500',
-      'date': '15 November 2024',
-      'isFavorite': true,
-    },
-    {
-      'image': 'assets/images/onboarding3.png',
-      'title': 'Cozy Studio with Great View',
-      'location': 'T Nagar',
-      'type': 'Leasehold',
-      'area': '280 Sq Ft',
-      'bedrooms': 1,
-      'bathrooms': 1,
-      'hasOpenKitchen': false,
-      'hasLoungeArea': false,
-      'hasBalcony': true,
-      'hasGymAccess': false,
-      'price': '1,800',
-      'date': '10 November 2024',
-      'isFavorite': true,
-    },
-  ];
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.position.pixels;
+
+    // Trigger pagination when user is close to bottom
+    if (currentScroll >= maxScroll - 200) {
+      context.read<ShortlistCubit>().loadMore();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,11 +93,80 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
 
           // Property List
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: rentProperties.length,
-              itemBuilder: (context, index) {
-                return _buildPropertyCard(rentProperties[index]);
+            child: BlocBuilder<ShortlistCubit, ShortlistState>(
+              builder: (context, state) {
+                if (state is ShortlistLoading || state is ShortlistInitial) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF2FED9A),
+                    ),
+                  );
+                }
+
+                if (state is ShortlistError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        state.message,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                if (state is ShortlistLoaded &&
+                    state.properties.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Image.asset(
+                          "assets/images/no_proerty_found.png",
+                          width: 220,
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          "No shortlisted rent properties",
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (state is ShortlistLoaded) {
+                  final items = state.properties;
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount:
+                        items.length + (state.isLoadingMore ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index >= items.length) {
+                        // Load-more indicator
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF2FED9A),
+                            ),
+                          ),
+                        );
+                      }
+                      return _buildPropertyCard(items[index]);
+                    },
+                  );
+                }
+
+                return const SizedBox.shrink();
               },
             ),
           ),
@@ -129,7 +175,16 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
     );
   }
 
-  Widget _buildPropertyCard(Map<String, dynamic> property) {
+  Widget _buildPropertyCard(Property property) {
+    final imageUrl = property.images.isNotEmpty
+        ? property.images.first
+        : 'assets/images/onboarding1.png';
+
+    final priceText = property.price > 0 ? '₹ ${property.price}' : 'Price on request';
+
+    final location =
+        '${property.locality}${property.city.isNotEmpty ? ', ${property.city}' : ''}';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
@@ -154,7 +209,7 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
               width: double.infinity,
               color: const Color(0xFFF5F5F5),
               child: Image.asset(
-                property['image'],
+                imageUrl,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   return Container(
@@ -183,7 +238,7 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        property['title'],
+                        property.title,
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -191,24 +246,17 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                         ),
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () {
-                        if (property['isFavorite']) {
-                          _showRemoveDialog(property);
-                        }
-                      },
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2FED9A),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.favorite,
-                          size: 18,
-                          color: Colors.white,
-                        ),
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF2FED9A),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.favorite,
+                        size: 18,
+                        color: Colors.white,
                       ),
                     ),
                   ],
@@ -221,39 +269,19 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                   children: [
                     Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
                     const SizedBox(width: 4),
-                    Text(
-                      property['location'],
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
+                    Expanded(
+                      child: Text(
+                        location,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: Colors.grey[400]!,
-                          width: 1,
-                        ),
-                      ),
-                      child: Text(
-                        property['type'],
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey[700],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
                     Text(
-                      property['area'],
+                      '${property.areaSqft} Sq Ft',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[600],
@@ -272,70 +300,40 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                   children: [
                     _buildAmenityChip(
                       Icons.bed_outlined,
-                      '${property['bedrooms']} Bedrooms',
+                      '${property.bedrooms} Bedrooms',
                     ),
                     _buildAmenityChip(
                       Icons.bathtub_outlined,
-                      '${property['bathrooms']} Bathroom',
+                      '${property.bathrooms} Bathroom',
                     ),
-                    if (property['hasOpenKitchen'])
-                      _buildAmenityChip(
-                        Icons.kitchen_outlined,
-                        'Open Kitchen',
-                      ),
-                    if (property['hasLoungeArea'])
-                      _buildAmenityChip(
-                        Icons.chair_outlined,
-                        'Lounge Area',
-                      ),
-                    if (property['hasBalcony'])
+                    if (property.attachedBalcony)
                       _buildAmenityChip(
                         Icons.balcony_outlined,
                         'Balcony',
                       ),
-                    if (property['hasGymAccess'])
+                    if (property.storeRoom)
                       _buildAmenityChip(
-                        Icons.fitness_center_outlined,
-                        'Gym Access',
+                        Icons.store_mall_directory_outlined,
+                        'Store Room',
+                      ),
+                    if (property.servantRoom)
+                      _buildAmenityChip(
+                        Icons.meeting_room_outlined,
+                        'Servant Room',
                       ),
                   ],
                 ),
 
                 const SizedBox(height: 12),
 
-                // Price and Date
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '₹ ${property['price']}',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                          TextSpan(
-                            text: '/month',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      property['date'],
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
+                // Price
+                Text(
+                  priceText,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
                 ),
               ],
             ),
@@ -579,9 +577,9 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                         isPrimary: true,
                         onTap: () {
                           setState(() {
-                            rentProperties.removeWhere(
-                                  (e) => e['title'] == property['title'],
-                            );
+                            // rentProperties.removeWhere(
+                            //       (e) => e['title'] == property['title'],
+                            // );
                           });
                           Navigator.pop(context);
                         },

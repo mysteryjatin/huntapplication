@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hunt_property/cubit/shortlist_cubit.dart';
 import 'package:hunt_property/screen/rent_properties_screen.dart';
 import 'package:hunt_property/screen/buy_properties_screen.dart';
+import 'package:hunt_property/services/shortlist_service.dart';
 
 class ShortlistScreen extends StatefulWidget {
   const ShortlistScreen({super.key});
@@ -90,34 +93,34 @@ class _ShortlistScreenState extends State<ShortlistScreen> {
           ),
 
           // Search Bar
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: 'Search your shortlist',
-                  hintStyle: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 14,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: Colors.grey[400],
-                    size: 22,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                ),
-              ),
-            ),
-          ),
+          // Padding(
+          //   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          //   child: Container(
+          //     decoration: BoxDecoration(
+          //       color: const Color(0xFFF5F5F5),
+          //       borderRadius: BorderRadius.circular(12),
+          //     ),
+          //     child: TextField(
+          //       decoration: InputDecoration(
+          //         hintText: 'Search your shortlist',
+          //         hintStyle: TextStyle(
+          //           color: Colors.grey[400],
+          //           fontSize: 14,
+          //         ),
+          //         prefixIcon: Icon(
+          //           Icons.search,
+          //           color: Colors.grey[400],
+          //           size: 22,
+          //         ),
+          //         border: InputBorder.none,
+          //         contentPadding: const EdgeInsets.symmetric(
+          //           horizontal: 16,
+          //           vertical: 14,
+          //         ),
+          //       ),
+          //     ),
+          //   ),
+          // ),
 
           // Content area with RENT and BUY sections SIDE BY SIDE
           Expanded(
@@ -175,14 +178,26 @@ class _ShortlistScreenState extends State<ShortlistScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const RentPropertiesScreen(),
+              builder: (context) => BlocProvider(
+                create: (_) => ShortlistCubit(
+                  ShortlistService(),
+                  transactionType: 'rent',
+                )..load(),
+                child: const RentPropertiesScreen(),
+              ),
             ),
           );
         } else if (title == 'BUY') {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const BuyPropertiesScreen(),
+              builder: (context) => BlocProvider(
+                create: (_) => ShortlistCubit(
+                  ShortlistService(),
+                  transactionType: 'sale',
+                )..load(),
+                child: const BuyPropertiesScreen(),
+              ),
             ),
           );
         }
