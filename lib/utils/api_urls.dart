@@ -64,6 +64,33 @@ class ApiUrls {
     return Uri.parse(base).replace(queryParameters: query);
   }
 
+  /// Order history for a user.
+  ///
+  /// Base: GET /api/orders/user/{user_id}
+  /// Filter: ?status=pending|success|invalid
+  /// Pagination: ?page=1&limit=20
+  static Uri orderHistory({
+    required String userId,
+    String? status,
+    int page = 1,
+    int limit = 20,
+  }) {
+    final query = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+    if (status != null && status.isNotEmpty && status != 'all') {
+      query['status'] = status;
+    }
+    final base = '$baseUrl/api/orders/user/$userId';
+    return Uri.parse(base).replace(queryParameters: query);
+  }
+
+  /// Single order by ID.
+  static Uri orderById(String orderId) {
+    return Uri.parse('$baseUrl/api/orders/$orderId');
+  }
+
   /// Subscription plans endpoint.
   ///
   /// Base (all plans, no user):

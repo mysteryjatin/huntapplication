@@ -9,6 +9,8 @@ import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/profile_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 
+import 'notification_screen.dart';
+
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onBackPressed;
 
@@ -168,24 +170,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const NotificationPreferenceScreen(),
+                            builder: (context) => const NotificationScreen(),
                           ),
                         );
                       },
                     ),
-                    _buildMenuItem(
-                      context: context,
-                      icon: Icons.lock_outline,
-                      title: 'Change Password',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ChangePasswordScreen(),
-                          ),
-                        );
-                      },
-                    ),
+                    // _buildMenuItem(
+                    //   context: context,
+                    //   icon: Icons.lock_outline,
+                    //   title: 'Change Password',
+                    //   onTap: () {
+                    //     Navigator.push(
+                    //       context,
+                    //       MaterialPageRoute(
+                    //         builder: (context) => const ChangePasswordScreen(),
+                    //       ),
+                    //     );
+                    //   },
+                    // ),
                     _buildMenuItem(
                       context: context,
                       icon: Icons.logout,

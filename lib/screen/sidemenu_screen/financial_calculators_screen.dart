@@ -24,9 +24,9 @@ class _FinancialCalculatorsScreenState extends State<FinancialCalculatorsScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F7),
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: const BackButton(color: Colors.black),
         title: Row(
       children: [
       GestureDetector(
