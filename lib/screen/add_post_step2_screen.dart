@@ -1,11 +1,15 @@
 // add_post_step2_screen.dart
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/screen/add_post_step3_screen.dart';
 import 'package:hunt_property/models/property_models.dart';
 import 'package:hunt_property/models/property_field_config.dart';
+import 'package:url_launcher/url_launcher.dart';
 class AddPostStep2Screen extends StatefulWidget {
   final VoidCallback? onBackPressed;
   final PropertyDraft draft;
@@ -119,6 +123,11 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   final _openSidesController = TextEditingController(); // ★ Open Sides text-field
 
   String _selectedFacing = "East";
+
+  // Map related state
+  LatLng? _mapPosition;
+  GoogleMapController? _mapController;
+  bool _mapLoading = false;
 
   bool _storeRoom = true;
   bool _servantRoom = true;
@@ -237,6 +246,15 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     if (!config.showBedrooms) {
       _bedrooms = 0;
     }
+    // If draft already has address/locality/city, attempt to load map preview
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final hasAddress = widget.draft.address.isNotEmpty ||
+          widget.draft.locality.isNotEmpty ||
+          widget.draft.city.isNotEmpty;
+      if (hasAddress) {
+        _loadMapForAddress();
+      }
+    });
   }
 
   @override
@@ -1208,15 +1226,180 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   }
 
   Widget _mapBox() {
+    // If position is not available yet, show a placeholder with option to load preview
+    if (_mapPosition == null) {
+      return Container(
+        height: 140,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Center(
+          child: _mapLoading
+              ? const CircularProgressIndicator()
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.map, size: 36, color: Colors.grey),
+                    const SizedBox(height: 8),
+                    const Text("Tap to load map preview",
+                        style: TextStyle(color: Colors.grey, fontSize: 13)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        ElevatedButton(
+                          onPressed: _loadMapForAddress,
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(100, 40),
+                          ),
+                          child: const Text("Load Preview"),
+                        ),
+                        OutlinedButton(
+                          onPressed: _openMapsApp,
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(100, 40),
+                          ),
+                          child: const Text("Open in Maps"),
+                        ),
+                      ],
+                    )
+                  ],
+                ),
+        ),
+      );
+    }
+
+    // When we have coordinates, show embedded Google Map
     return Container(
       height: 140,
       decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300)),
-      child: const Center(
-          child: Icon(Icons.map, size: 36, color: Colors.grey)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: GoogleMap(
+          initialCameraPosition: CameraPosition(target: _mapPosition!, zoom: 15),
+          markers: {Marker(markerId: const MarkerId('prop'), position: _mapPosition!)},
+          myLocationButtonEnabled: false,
+          zoomControlsEnabled: false,
+          onMapCreated: (controller) {
+            _mapController = controller;
+          },
+          onTap: (pos) {
+            // open external maps when user taps map for full navigation
+            _openMapsApp();
+          },
+        ),
+      ),
     );
+  }
+
+  Future<void> _loadMapForAddress() async {
+    final address = _addressController.text.trim();
+    final locality = _localityController.text.trim();
+    final city = _selectedCity ?? widget.draft.city;
+
+    final parts = <String>[];
+    if (address.isNotEmpty) parts.add(address);
+    if (locality.isNotEmpty) parts.add(locality);
+    if (city.isNotEmpty) parts.add(city);
+
+    if (parts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter address, locality or city')),
+      );
+      return;
+    }
+
+    final query = parts.join(', ');
+    setState(() => _mapLoading = true);
+
+    try {
+      final locations = await locationFromAddress(query);
+      if (locations.isNotEmpty) {
+        final loc = locations.first;
+        setState(() {
+          _mapPosition = LatLng(loc.latitude, loc.longitude);
+        });
+        // animate camera if map already created
+        if (_mapController != null) {
+          _mapController!.animateCamera(CameraUpdate.newLatLngZoom(_mapPosition!, 15));
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to find location')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Geocoding failed: $e')),
+      );
+    } finally {
+      setState(() => _mapLoading = false);
+    }
+  }
+
+  Future<void> _openMapsApp() async {
+    final address = _addressController.text.trim();
+    final locality = _localityController.text.trim();
+    final city = _selectedCity ?? widget.draft.city;
+
+    final parts = <String>[];
+    if (address.isNotEmpty) parts.add(address);
+    if (locality.isNotEmpty) parts.add(locality);
+    if (city.isNotEmpty) parts.add(city);
+
+    if (parts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter address, locality or city')),
+      );
+      return;
+    }
+
+    final query = parts.join(', ');
+    final encoded = Uri.encodeComponent(query);
+
+    final Uri googleIos = Uri.parse('comgooglemaps://?q=$encoded');
+    final Uri appleMaps = Uri.parse('https://maps.apple.com/?q=$encoded');
+    final Uri geoAndroid = Uri.parse('geo:0,0?q=$encoded');
+    final Uri googleWeb =
+        Uri.parse('https://www.google.com/maps/search/?api=1&query=$encoded');
+
+    try {
+      if (Platform.isIOS) {
+        if (await canLaunchUrl(googleIos)) {
+          await launchUrl(googleIos);
+          return;
+        }
+        if (await canLaunchUrl(appleMaps)) {
+          await launchUrl(appleMaps);
+          return;
+        }
+        await launchUrl(googleWeb);
+      } else {
+        // Android: prefer geo intent, fallback to Google web URL
+        if (await canLaunchUrl(geoAndroid)) {
+          await launchUrl(geoAndroid);
+          return;
+        }
+        if (await canLaunchUrl(googleWeb)) {
+          await launchUrl(googleWeb);
+        }
+      }
+    } catch (e) {
+      // Fallback to web Google Maps in case of any error
+      if (await canLaunchUrl(googleWeb)) {
+        await launchUrl(googleWeb);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open maps')),
+        );
+      }
+    }
   }
 
   Widget _chip(String text, bool active, VoidCallback onTap) {

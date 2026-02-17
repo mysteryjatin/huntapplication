@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hunt_property/screen/sidemenu_screen/faq_screen.dart';
+import '../../cubit/home_loan_cubit.dart';
+import '../../cubit/home_loan_state.dart';
+import '../../data/repository/home_loan_repository.dart';
 
 class HomeLoanScreen extends StatefulWidget {
   const HomeLoanScreen({super.key});
@@ -17,10 +21,26 @@ class _HomeLoanScreenState extends State<HomeLoanScreen> {
     "Commercial Loan",
     "Residential Loan"
   ];
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
+  // replace with actual user id from auth/session
+  final String _userId = '507f1f77bcf86cd799439012';
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BlocProvider(
+      create: (_) => HomeLoanCubit(repository: HomeLoanRepository()),
+      child: Scaffold(
       backgroundColor: Colors.white,
 
       // ---------------- APP BAR ----------------
@@ -153,13 +173,13 @@ class _HomeLoanScreenState extends State<HomeLoanScreen> {
                   const SizedBox(height: 20),
 
                   /// ---------------- FORM ----------------
-                  _inputField("Name (required)"),
+                  _inputField("Name (required)", controller: _nameController),
                   const SizedBox(height: 14),
-                  _inputField("Email (required)"),
+                  _inputField("Email (required)", controller: _emailController),
                   const SizedBox(height: 14),
-                  _inputField("Phone number (required)"),
+                  _inputField("Phone number (required)", controller: _phoneController),
                   const SizedBox(height: 14),
-                  _inputField("Address (required)", maxLines: 2),
+                  _inputField("Address (required)", controller: _addressController, maxLines: 2),
 
                   const SizedBox(height: 10),
 
@@ -188,24 +208,87 @@ class _HomeLoanScreenState extends State<HomeLoanScreen> {
                   const SizedBox(height: 16),
 
                   /// ---------------- SUBMIT BUTTON ----------------
-                  Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF07E298),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: MaterialButton(
-                      onPressed: () {},
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      child: const Text(
-                        "Submit",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black,
+                  BlocConsumer<HomeLoanCubit, HomeLoanState>(
+                    listener: (context, state) {
+                      if (state.status == HomeLoanStatus.success) {
+                        // clear inputs on success
+                        _nameController.clear();
+                        _emailController.clear();
+                        _phoneController.clear();
+                        _addressController.clear();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Application submitted successfully')),
+                        );
+                      } else if (state.status == HomeLoanStatus.failure) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Submission failed: ${state.error}')),
+                        );
+                      }
+                    },
+                    builder: (context, state) {
+                      final submitting = state.status == HomeLoanStatus.submitting;
+                      return Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF07E298),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                      ),
-                    ),
+                        child: MaterialButton(
+                          onPressed: submitting
+                              ? null
+                              : () {
+                                  final name = _nameController.text.trim();
+                                  final email = _emailController.text.trim();
+                                  final phone = _phoneController.text.trim();
+                                  final address = _addressController.text.trim();
+
+                                  String? error;
+                                  bool isValidEmail(String e) {
+                                    final regex = RegExp(r"^[^\s@]+@[^\s@]+\.[^\s@]+$");
+                                    return regex.hasMatch(e);
+                                  }
+
+                                  if (name.isEmpty) {
+                                    error = 'Please enter name';
+                                  } else if (email.isEmpty) {
+                                    error = 'Please enter email';
+                                  } else if (!isValidEmail(email)) {
+                                    error = 'Please enter a valid email';
+                                  } else if (phone.isEmpty) {
+                                    error = 'Please enter phone number';
+                                  } else if (address.isEmpty) {
+                                    error = 'Please enter address';
+                                  }
+
+                                  if (error != null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+                                    return;
+                                  }
+
+                                  final cubit = context.read<HomeLoanCubit>();
+                                  cubit.submit(
+                                    loanType: loanTypes[selectedIndex],
+                                    name: name,
+                                    email: email,
+                                    phone: phone,
+                                    address: address,
+                                    userId: _userId,
+                                  );
+                                },
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          child: submitting
+                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Text(
+                                  "Submit",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -234,11 +317,11 @@ class _HomeLoanScreenState extends State<HomeLoanScreen> {
           ],
         ),
       ),
-    );
+    ));
   }
 
   // ================= INPUT FIELD (SAME AS IMAGE) =================
-  Widget _inputField(String label, {int maxLines = 1}) {
+  Widget _inputField(String label, {int maxLines = 1, TextEditingController? controller}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -258,6 +341,7 @@ class _HomeLoanScreenState extends State<HomeLoanScreen> {
             border: Border.all(color: Colors.grey.shade300),
           ),
           child: TextField(
+            controller: controller,
             maxLines: maxLines,
             decoration: const InputDecoration(
               border: InputBorder.none,

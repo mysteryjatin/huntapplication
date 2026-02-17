@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../data/repository/financial_calculators_repository.dart';
+import '../../cubit/financial_calculators_cubit.dart';
+import '../../cubit/financial_calculators_state.dart';
 
 class FinancialCalculatorsScreen extends StatefulWidget {
   const FinancialCalculatorsScreen({super.key});
@@ -21,7 +25,9 @@ class _FinancialCalculatorsScreenState extends State<FinancialCalculatorsScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BlocProvider(
+      create: (_) => FinancialCalculatorsCubit(repository: FinancialCalculatorsRepository()),
+      child: Scaffold(
       backgroundColor: const Color(0xFFF7F7F7),
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -102,7 +108,7 @@ class _FinancialCalculatorsScreenState extends State<FinancialCalculatorsScreen>
           EmiTab(),
         ],
       ),
-    );
+      )    );
   }
 }
 
@@ -110,7 +116,10 @@ class _FinancialCalculatorsScreenState extends State<FinancialCalculatorsScreen>
 
 class AppInput extends StatelessWidget {
   final String label;
-  const AppInput(this.label, {super.key});
+  final TextEditingController controller;
+  final TextInputType keyboardType;
+
+  const AppInput(this.label, {required this.controller, this.keyboardType = TextInputType.number, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +128,6 @@ class AppInput extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // LABEL
           Text(
             label,
             style: const TextStyle(
@@ -129,8 +137,6 @@ class AppInput extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-
-          // INPUT BOX
           Container(
             height: 48,
             decoration: BoxDecoration(
@@ -138,11 +144,12 @@ class AppInput extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFFE3E3E3)),
             ),
-            child: const TextField(
-              decoration: InputDecoration(
+            child: TextField(
+              controller: controller,
+              keyboardType: keyboardType,
+              decoration: const InputDecoration(
                 border: InputBorder.none,
-                contentPadding:
-                EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               ),
             ),
           ),
@@ -199,74 +206,160 @@ Widget resultCard({required Widget child}) {
 
 // ================= LOAN ELIGIBILITY =================
 
-class LoanEligibilityTab extends StatelessWidget {
+class LoanEligibilityTab extends StatefulWidget {
   const LoanEligibilityTab({super.key});
 
   @override
+  State<LoanEligibilityTab> createState() => _LoanEligibilityTabState();
+}
+
+class _LoanEligibilityTabState extends State<LoanEligibilityTab> {
+  final _loanRequired = TextEditingController();
+  final _netIncome = TextEditingController();
+  final _existingCommitments = TextEditingController();
+  final _tenure = TextEditingController();
+  final _rate = TextEditingController();
+
+  @override
+  void dispose() {
+    _loanRequired.dispose();
+    _netIncome.dispose();
+    _existingCommitments.dispose();
+    _tenure.dispose();
+    _rate.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final cubit = context.read<FinancialCalculatorsCubit>();
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          const AppInput('Loan Required (₹)'),
-          const AppInput('Net income per month (₹)'),
-          const AppInput('Existing loan commitments (₹)'),
-          const AppInput('Loan Tenure (years)'),
-          const AppInput('Rate of Interest (%)'),
+          AppInput('Loan Required (₹)', controller: _loanRequired),
+          AppInput('Net income per month (₹)', controller: _netIncome),
+          AppInput('Existing loan commitments (₹)', controller: _existingCommitments),
+          AppInput('Loan Tenure (years)', controller: _tenure),
+          AppInput('Rate of Interest (%)', controller: _rate, keyboardType: TextInputType.number),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              GreenButton('Check Eligibility'),
-              Text('Reset all',
-                  style: TextStyle(fontSize: 12, color: Colors.black)),
+            children: [
+              GestureDetector(
+                onTap: () {
+                  final loanRequired = int.tryParse(_loanRequired.text) ?? 0;
+                  final netIncome = int.tryParse(_netIncome.text) ?? 0;
+                  final existing = int.tryParse(_existingCommitments.text) ?? 0;
+                  final tenure = int.tryParse(_tenure.text) ?? 0;
+                  final rate = num.tryParse(_rate.text) ?? 0;
+                  cubit.checkLoanEligibility(
+                    loanRequired: loanRequired,
+                    netIncomePerMonth: netIncome,
+                    existingLoanCommitments: existing,
+                    loanTenureYears: tenure,
+                    rateOfInterest: rate,
+                  );
+                },
+                child: const GreenButton('Check Eligibility'),
+              ),
+              GestureDetector(
+                onTap: () {
+                  _loanRequired.clear();
+                  _netIncome.clear();
+                  _existingCommitments.clear();
+                  _tenure.clear();
+                  _rate.clear();
+                },
+                child: const Text('Reset all', style: TextStyle(fontSize: 12, color: Colors.black)),
+              ),
             ],
           ),
 
-      resultCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: const [
-            // Icon
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Color(0xFFFFE5E5),
-              child: Icon(
-                Icons.info_outline,
-                color: Colors.red,
-                size: 22,
-              ),
-            ),
+          BlocBuilder<FinancialCalculatorsCubit, FinancialCalculatorsState>(
+            builder: (context, state) {
+              if (state.status == CalcStatus.loading) {
+                return const Padding(
+                  padding: EdgeInsets.only(top: 20),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (state.loanEligibility == null) {
+                return resultCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: const [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Color(0xFFFFE5E5),
+                        child: Icon(
+                          Icons.info_outline,
+                          color: Colors.red,
+                          size: 22,
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        'Eligibility Check Failed',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        'Maximum eligible amount: ₹0',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
 
-            SizedBox(height: 12),
-
-            // Title
-            Text(
-              'Eligibility Check Failed',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.black,
-              ),
-            ),
-
-            SizedBox(height: 6),
-
-            // Subtitle
-            Text(
-              'Maximum eligible amount: ₹0',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
-            ),
-          ],
-        ),
-      )
-
-      ],
+              final d = state.loanEligibility!;
+              return resultCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: d.eligible ? const Color(0xFFE8FFF0) : const Color(0xFFFFE5E5),
+                      child: Icon(
+                        d.eligible ? Icons.check : Icons.info_outline,
+                        color: d.eligible ? Colors.green : Colors.red,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      d.message,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Maximum eligible amount: ₹${d.maximumEligibleAmount}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Maximum EMI: ₹${d.maximumEmi}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              );
+            },
+          )
+        ],
       ),
     );
   }
@@ -274,57 +367,108 @@ class LoanEligibilityTab extends StatelessWidget {
 
 // ================= RENTAL VALUE =================
 
-class RentalValueTab extends StatelessWidget {
+class RentalValueTab extends StatefulWidget {
   const RentalValueTab({super.key});
 
   @override
+  State<RentalValueTab> createState() => _RentalValueTabState();
+}
+
+class _RentalValueTabState extends State<RentalValueTab> {
+  final _propertyValue = TextEditingController();
+  final _years = TextEditingController();
+  final _rate = TextEditingController();
+
+  @override
+  void dispose() {
+    _propertyValue.dispose();
+    _years.dispose();
+    _rate.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final cubit = context.read<FinancialCalculatorsCubit>();
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          const AppInput('Property Value (₹)'),
-          const AppInput('Year (per month)'),
-          const AppInput('Rate of Rent (%)'),
+          AppInput('Property Value (₹)', controller: _propertyValue),
+          AppInput('Year (per month)', controller: _years),
+          AppInput('Rate of Rent (%)', controller: _rate),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              GreenButton('Check Value'),
-              Text('Reset all',
-                  style: TextStyle(fontSize: 12, color: Colors.black)),
-            ],
-          ),
-
-      resultCard(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: const [
-              Text(
-                'Your rental value is',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.black,
-                  fontWeight: FontWeight.w500,
-                ),
+            children: [
+              GestureDetector(
+                onTap: () {
+                  final propertyValue = int.tryParse(_propertyValue.text) ?? 0;
+                  final years = int.tryParse(_years.text) ?? 1;
+                  final rate = num.tryParse(_rate.text) ?? 0;
+                  cubit.checkRentalValue(propertyValue: propertyValue, rateOfRent: rate, years: years);
+                },
+                child: const GreenButton('Check Value'),
               ),
-              SizedBox(height: 10),
-              Text(
-                '₹0',
-                style: TextStyle(
-                  fontSize: 22, // 👈 BIGGER AMOUNT
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
-                ),
+              GestureDetector(
+                onTap: () {
+                  _propertyValue.clear();
+                  _years.clear();
+                  _rate.clear();
+                },
+                child: const Text('Reset all', style: TextStyle(fontSize: 12, color: Colors.black)),
               ),
             ],
           ),
-        ),
-      )
 
-      ],
+          BlocBuilder<FinancialCalculatorsCubit, FinancialCalculatorsState>(
+            builder: (context, state) {
+              if (state.status == CalcStatus.loading) {
+                return const Padding(
+                  padding: EdgeInsets.only(top: 20),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (state.rentalValue == null) {
+                return resultCard(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: const [
+                        Text(
+                          'Your rental value is',
+                          style: TextStyle(fontSize: 13, color: Colors.black, fontWeight: FontWeight.w500),
+                        ),
+                        SizedBox(height: 10),
+                        Text(
+                          '₹0',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.black),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              final d = state.rentalValue!;
+              return resultCard(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text('Your rental value is', style: TextStyle(fontSize: 13, color: Colors.black, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 10),
+                      Text('₹${d.rentalValueAnnual}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.black)),
+                      const SizedBox(height: 6),
+                      Text('Monthly: ₹${d.rentalValueMonthly}', style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                    ],
+                  ),
+                ),
+              );
+            },
+          )
+        ],
       ),
     );
   }
@@ -332,42 +476,95 @@ class RentalValueTab extends StatelessWidget {
 
 // ================= FUTURE VALUE =================
 
-class FutureValueTab extends StatelessWidget {
+class FutureValueTab extends StatefulWidget {
   const FutureValueTab({super.key});
 
   @override
+  State<FutureValueTab> createState() => _FutureValueTabState();
+}
+
+class _FutureValueTabState extends State<FutureValueTab> {
+  final _currentValue = TextEditingController();
+  final _years = TextEditingController();
+  final _appreciation = TextEditingController();
+
+  @override
+  void dispose() {
+    _currentValue.dispose();
+    _years.dispose();
+    _appreciation.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final cubit = context.read<FinancialCalculatorsCubit>();
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          const AppInput('Current property value (₹)'),
-          const AppInput('No. of year'),
-          const AppInput('Average appreciation (%)'),
+          AppInput('Current property value (₹)', controller: _currentValue),
+          AppInput('No. of year', controller: _years),
+          AppInput('Average appreciation (%)', controller: _appreciation),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              GreenButton('Check Value'),
-              Text('Reset all',
-                  style: TextStyle(fontSize: 12, color: Colors.black)),
+            children: [
+              GestureDetector(
+                onTap: () {
+                  final payload = {
+                    'property_value': int.tryParse(_currentValue.text) ?? 0,
+                    'years': int.tryParse(_years.text) ?? 1,
+                    'average_appreciation': num.tryParse(_appreciation.text) ?? 0,
+                  };
+                  cubit.checkFutureValue(payload);
+                },
+                child: const GreenButton('Check Value'),
+              ),
+              GestureDetector(
+                onTap: () {
+                  _currentValue.clear();
+                  _years.clear();
+                  _appreciation.clear();
+                },
+                child: const Text('Reset all', style: TextStyle(fontSize: 12, color: Colors.black)),
+              ),
             ],
           ),
 
-          resultCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: const [
-                Text('Your rental value is',
-                    style: TextStyle(fontSize: 12, color: Colors.black)),
-                SizedBox(height: 6),
-                Text(
-                  '₹0',
-                  style:
-                  TextStyle(fontSize: 18, fontWeight: FontWeight.w700,color: Colors.black),
+          BlocBuilder<FinancialCalculatorsCubit, FinancialCalculatorsState>(
+            builder: (context, state) {
+              if (state.status == CalcStatus.loading) {
+                return const Padding(
+                  padding: EdgeInsets.only(top: 20),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (state.futureValue == null) {
+                return resultCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: const [
+                      Text('Your rental value is', style: TextStyle(fontSize: 12, color: Colors.black)),
+                      SizedBox(height: 6),
+                      Text('₹0', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black)),
+                    ],
+                  ),
+                );
+              }
+              final d = state.futureValue!;
+              final display = d['future_value'] ?? d;
+              return resultCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Text('Future value', style: TextStyle(fontSize: 12, color: Colors.black)),
+                    const SizedBox(height: 6),
+                    Text('₹$display', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black)),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
         ],
       ),
@@ -377,59 +574,106 @@ class FutureValueTab extends StatelessWidget {
 
 // ================= EMI =================
 
-class EmiTab extends StatelessWidget {
+class EmiTab extends StatefulWidget {
   const EmiTab({super.key});
 
   @override
+  State<EmiTab> createState() => _EmiTabState();
+}
+
+class _EmiTabState extends State<EmiTab> {
+  final _loanAmount = TextEditingController();
+  final _tenure = TextEditingController();
+  final _rate = TextEditingController();
+
+  @override
+  void dispose() {
+    _loanAmount.dispose();
+    _tenure.dispose();
+    _rate.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final cubit = context.read<FinancialCalculatorsCubit>();
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          const AppInput('Loan Amount (₹)'),
-          const AppInput('Loan Tenure (years)'),
-          const AppInput('Rate of Interest (%)'),
+          AppInput('Loan Amount (₹)', controller: _loanAmount),
+          AppInput('Loan Tenure (years)', controller: _tenure),
+          AppInput('Rate of Interest (%)', controller: _rate),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              GreenButton('Check Eligibility'),
-              Text('Reset all',
-                  style: TextStyle(fontSize: 12, color: Colors.black)),
+            children: [
+              GestureDetector(
+                onTap: () {
+                  final loanAmount = int.tryParse(_loanAmount.text) ?? 0;
+                  final tenure = int.tryParse(_tenure.text) ?? 0;
+                  final rate = num.tryParse(_rate.text) ?? 0;
+                  cubit.checkEmi(loanAmount: loanAmount, loanTenureYears: tenure, rateOfInterest: rate);
+                },
+                child: const GreenButton('Check EMI'),
+              ),
+              GestureDetector(
+                onTap: () {
+                  _loanAmount.clear();
+                  _tenure.clear();
+                  _rate.clear();
+                },
+                child: const Text('Reset all', style: TextStyle(fontSize: 12, color: Colors.black)),
+              ),
             ],
           ),
 
-          resultCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                const Text('Monthly EMI',
-                    style: TextStyle(fontSize: 12, color: Colors.grey)),
-                const SizedBox(height: 6),
-                const Text(
-                  '₹33,038',
-                  style:
-                  TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 14),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: OutlinedButton(
-                    onPressed: () {},
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFF28E29A)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      'Apply for Loan',
-                      style: TextStyle(color: Colors.black),
-                    ),
+          BlocBuilder<FinancialCalculatorsCubit, FinancialCalculatorsState>(
+            builder: (context, state) {
+              if (state.status == CalcStatus.loading) {
+                return const Padding(
+                  padding: EdgeInsets.only(top: 20),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (state.emi == null) {
+                return resultCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text('Monthly EMI', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      const SizedBox(height: 6),
+                      const Text('₹0', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                    ],
                   ),
-                )
-              ],
-            ),
+                );
+              }
+              final d = state.emi!;
+              return resultCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('Monthly EMI', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    const SizedBox(height: 6),
+                    Text('₹${d.monthlyEmi}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 14),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: OutlinedButton(
+                        onPressed: () {},
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFF28E29A)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text('Apply for Loan', style: TextStyle(color: Colors.black)),
+                      ),
+                    )
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),

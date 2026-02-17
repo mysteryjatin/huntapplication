@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../cubit/nri_cubit.dart';
+import '../../cubit/nri_state.dart';
+import '../../data/repository/nri_repository.dart';
 
 class NRICenterScreen extends StatefulWidget {
   const NRICenterScreen({super.key});
@@ -39,9 +43,32 @@ class _NRICenterScreenState extends State<NRICenterScreen> {
     },
   ];
 
+  // controllers for NRI form
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _stateController = TextEditingController();
+  final _countryController = TextEditingController();
+  final _messageController = TextEditingController();
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _stateController.dispose();
+    _countryController.dispose();
+    _messageController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BlocProvider(
+      create: (_) => NriCubit(repository: NriRepository()),
+      child: Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
         child: SingleChildScrollView(
@@ -107,13 +134,14 @@ class _NRICenterScreenState extends State<NRICenterScreen> {
 
                     const SizedBox(height: 20),
 
-                    _input("First Name *"),
-                    _input("Last Name"),
-                    _input("Email"),
-                    _input("Phone number *"),
-                    _input("State *"),
-                    _input("Country *"),
-                    _messageInput("Message *"),
+                    // inputs wired with controllers
+                    _input("First Name *", controller: _firstNameController),
+                    _input("Last Name", controller: _lastNameController),
+                    _input("Email", controller: _emailController),
+                    _input("Phone number *", controller: _phoneController),
+                    _input("State *", controller: _stateController),
+                    _input("Country *", controller: _countryController),
+                    _messageInput("Message *", controller: _messageController),
 
                     const SizedBox(height: 18),
                     _submitButton(),
@@ -124,7 +152,7 @@ class _NRICenterScreenState extends State<NRICenterScreen> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   // ================= APP BAR =================
@@ -305,7 +333,7 @@ class _NRICenterScreenState extends State<NRICenterScreen> {
 
   // ================= INPUTS =================
 
-  Widget _input(String label) {
+  Widget _input(String label, {TextEditingController? controller}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -321,8 +349,9 @@ class _NRICenterScreenState extends State<NRICenterScreen> {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: kBorder),
             ),
-            child: const TextField(
-              decoration: InputDecoration(
+            child: TextField(
+              controller: controller,
+              decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding:
                 EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -334,7 +363,7 @@ class _NRICenterScreenState extends State<NRICenterScreen> {
     );
   }
 
-  Widget _messageInput(String label) {
+  Widget _messageInput(String label, {TextEditingController? controller}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -348,9 +377,10 @@ class _NRICenterScreenState extends State<NRICenterScreen> {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: kBorder),
           ),
-          child: const TextField(
+          child: TextField(
+            controller: controller,
             maxLines: 4,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding:
               EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -364,20 +394,92 @@ class _NRICenterScreenState extends State<NRICenterScreen> {
   // ================= SUBMIT =================
 
   Widget _submitButton() {
-    return Container(
-      height: 52,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: kGreen,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Center(
-        child: Text(
-          "Submit",
-          style: GoogleFonts.poppins(
-              fontSize: 16, fontWeight: FontWeight.w700,color: Colors.black),
-        ),
-      ),
+    return BlocConsumer<NriCubit, NriState>(
+      listener: (context, state) {
+        if (state.status == NriStatus.success) {
+          // clear fields
+          _firstNameController.clear();
+          _lastNameController.clear();
+          _emailController.clear();
+          _phoneController.clear();
+          _stateController.clear();
+          _countryController.clear();
+          _messageController.clear();
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Query submitted')));
+        } else if (state.status == NriStatus.failure) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Submission failed: ${state.error}')));
+        }
+      },
+      builder: (context, state) {
+        final submitting = state.status == NriStatus.submitting;
+        return Container(
+          height: 52,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: kGreen,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: MaterialButton(
+            onPressed: submitting
+                ? null
+                : () {
+                    final firstName = _firstNameController.text.trim();
+                    final lastName = _lastNameController.text.trim();
+                    final email = _emailController.text.trim();
+                    final phone = _phoneController.text.trim();
+                    final stateName = _stateController.text.trim();
+                    final country = _countryController.text.trim();
+                    final message = _messageController.text.trim();
+
+                    String? error;
+                    bool isValidEmail(String e) {
+                      final regex = RegExp(r"^[^\s@]+@[^\s@]+\.[^\s@]+$");
+                      return regex.hasMatch(e);
+                    }
+
+                    if (firstName.isEmpty) {
+                      error = 'Please enter first name';
+                    } else if (email.isEmpty) {
+                      error = 'Please enter email';
+                    } else if (!isValidEmail(email)) {
+                      error = 'Please enter a valid email';
+                    } else if (phone.isEmpty) {
+                      error = 'Please enter phone number';
+                    } else if (stateName.isEmpty) {
+                      error = 'Please enter state';
+                    } else if (country.isEmpty) {
+                      error = 'Please enter country';
+                    } else if (message.isEmpty) {
+                      error = 'Please enter message';
+                    }
+
+                    if (error != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+                      return;
+                    }
+
+                    final cubit = context.read<NriCubit>();
+                    cubit.submit(
+                      firstName: firstName,
+                      lastName: lastName,
+                      email: email,
+                      phone: phone,
+                      stateName: stateName,
+                      country: country,
+                      message: message,
+                      userId: null,
+                    );
+                  },
+            child: submitting
+                ? const CircularProgressIndicator()
+                : Text(
+                    "Submit",
+                    style: GoogleFonts.poppins(
+                        fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black),
+                  ),
+          ),
+        );
+      },
     );
   }
 }
