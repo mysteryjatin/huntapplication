@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:hunt_property/services/auth_service.dart';
@@ -8,6 +9,58 @@ import 'package:hunt_property/models/property_models.dart';
 class PropertyService {
   // Re‑use the same base URL as auth
   static const String baseUrl = AuthService.baseUrl;
+ 
+  /// Delete a property by id.
+  /// Returns true on success, false otherwise.
+  Future<bool> deleteProperty(String propertyId) async {
+    try {
+      if (propertyId.isEmpty) return false;
+      final uri = Uri.parse('$baseUrl/api/properties/$propertyId/');
+
+      // Initial DELETE attempt
+      var response = await http.delete(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      // ignore: avoid_print
+      print('📤 DELETE PROPERTY [$propertyId] -> ${response.statusCode} ${response.body}');
+
+      // Some servers respond with 301/302/307 redirect for non-GET methods.
+      // The http package does not auto-follow redirects for DELETE, so handle common redirect statuses.
+      if (response.statusCode == 301 ||
+          response.statusCode == 302 ||
+          response.statusCode == 307 ||
+          response.statusCode == 308) {
+        final location = response.headers['location'];
+        if (location != null && location.isNotEmpty) {
+          try {
+            final redirectUri = Uri.parse(location);
+            response = await http.delete(
+              redirectUri,
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            );
+            // ignore: avoid_print
+            print('📤 DELETE PROPERTY (redirect) [$propertyId] -> ${response.statusCode} ${response.body}');
+          } catch (e) {
+            // ignore: avoid_print
+            print('❌ DELETE PROPERTY REDIRECT ERROR: $e');
+            return false;
+          }
+        }
+      }
+
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      // ignore: avoid_print
+      print('❌ DELETE PROPERTY ERROR: $e');
+      return false;
+    }
+  }
 
   Future<Map<String, dynamic>> createProperty(
       Map<String, dynamic> payload) async {
@@ -67,10 +120,55 @@ class PropertyService {
     }
   }
 
+  /// Upload a single image file to the backend upload endpoint.
+  /// Returns the full HTTP URL on success, or null on failure.
+  Future<String?> uploadImage(File file) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/upload/image');
+
+      final request = http.MultipartRequest('POST', uri);
+      // Attach file under field name 'file'
+      request.files.add(await http.MultipartFile.fromPath('file', file.path));
+
+      // Send request
+      final streamed = await request.send();
+      final body = await streamed.stream.bytesToString();
+
+      // Debug
+      // ignore: avoid_print
+      print('📤 UPLOAD IMAGE RESPONSE: ${streamed.statusCode} $body');
+
+      if (streamed.statusCode == 200 || streamed.statusCode == 201) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map && decoded['url'] != null) {
+          final String path = decoded['url'].toString();
+          if (path.startsWith('http')) {
+            return path;
+          } else {
+            return '$baseUrl$path';
+          }
+        }
+      }
+
+      return null;
+    } catch (e) {
+      // ignore: avoid_print
+      print('❌ UPLOAD IMAGE ERROR: $e');
+      return null;
+    }
+  }
+
   Future<List<Property>> getProperties() async {
+    // Default to a wider page size so newly created properties appear.
+    return getPropertiesPaged(page: 1, limit: 50);
+  }
+
+  /// Fetch properties with pagination support.
+  /// Defaults to page=1 and limit=50 to ensure newly created properties appear.
+  Future<List<Property>> getPropertiesPaged({int page = 1, int limit = 50}) async {
     try {
       // Matching the backend route with trailing slash: GET /api/properties/
-      final uri = Uri.parse('$baseUrl/api/properties/');
+      final uri = Uri.parse('$baseUrl/api/properties/?page=$page&limit=$limit');
 
       final response = await http.get(
         uri,

@@ -27,20 +27,27 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   String? _selectedState;
   String? _selectedCity;
 
-  // Indian states and major cities (can be extended from backend later)
+  // Indian states and union territories (alphabetical)
   final List<String> _states = const [
+    'Andaman and Nicobar Islands',
     'Andhra Pradesh',
     'Arunachal Pradesh',
     'Assam',
     'Bihar',
+    'Chandigarh',
     'Chhattisgarh',
+    'Dadra and Nagar Haveli and Daman and Diu',
+    'Delhi',
     'Goa',
     'Gujarat',
     'Haryana',
     'Himachal Pradesh',
+    'Jammu and Kashmir',
     'Jharkhand',
     'Karnataka',
     'Kerala',
+    'Ladakh',
+    'Lakshadweep',
     'Madhya Pradesh',
     'Maharashtra',
     'Manipur',
@@ -48,6 +55,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     'Mizoram',
     'Nagaland',
     'Odisha',
+    'Puducherry',
     'Punjab',
     'Rajasthan',
     'Sikkim',
@@ -57,14 +65,6 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     'Uttar Pradesh',
     'Uttarakhand',
     'West Bengal',
-    'Andaman and Nicobar Islands',
-    'Chandigarh',
-    'Dadra and Nagar Haveli and Daman and Diu',
-    'Delhi',
-    'Jammu and Kashmir',
-    'Ladakh',
-    'Lakshadweep',
-    'Puducherry',
   ];
 
   final Map<String, List<String>> _citiesByState = const {
@@ -93,7 +93,78 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     'Tamil Nadu': ['Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli'],
     'Telangana': ['Hyderabad', 'Warangal', 'Karimnagar'],
     'Tripura': ['Agartala'],
-    'Uttar Pradesh': ['Lucknow', 'Noida', 'Ghaziabad', 'Kanpur', 'Varanasi'],
+    'Uttar Pradesh': [
+      'Agra',
+      'Aligarh',
+      'Ambedkar Nagar',
+      'Amethi',
+      'Amroha',
+      'Auraiya',
+      'Azamgarh',
+      'Baghpat',
+      'Bahraich',
+      'Ballia',
+      'Balrampur',
+      'Banda',
+      'Barabanki',
+      'Bareilly',
+      'Basti',
+      'Bijnor',
+      'Budaun',
+      'Bulandshahr',
+      'Chandauli',
+      'Chitrakoot',
+      'Deoria',
+      'Etah',
+      'Etawah',
+      'Farrukhabad',
+      'Fatehpur',
+      'Firozabad',
+      'Noida',
+      'Greater Noida',
+      'Ghaziabad',
+      'Gonda',
+      'Gorakhpur',
+      'Hamirpur',
+      'Hardoi',
+      'Hathras',
+      'Jalaun',
+      'Jaunpur',
+      'Jhansi',
+      'Kannauj',
+      'Kanpur',
+      'Kasganj',
+      'Kaushambi',
+      'Kushinagar',
+      'Lakhimpur Kheri',
+      'Lalitpur',
+      'Lucknow',
+      'Maharajganj',
+      'Mahoba',
+      'Mainpuri',
+      'Mathura',
+      'Mau',
+      'Meerut',
+      'Mirzapur',
+      'Moradabad',
+      'Muzaffarnagar',
+      'Pilibhit',
+      'Pratapgarh',
+      'Prayagraj (Allahabad)',
+      'Rae Bareli',
+      'Rampur',
+      'Saharanpur',
+      'Sambhal',
+      'Sant Kabir Nagar',
+      'Shahjahanpur',
+      'Shamli',
+      'Shravasti',
+      'Sitapur',
+      'Sonbhadra',
+      'Sultanpur',
+      'Unnao',
+      'Varanasi'
+    ],
     'Uttarakhand': ['Dehradun', 'Haridwar', 'Rishikesh'],
     'West Bengal': ['Kolkata', 'Howrah', 'Durgapur', 'Siliguri'],
     'Andaman and Nicobar Islands': ['Port Blair'],
@@ -374,7 +445,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
         _dropdown(
           "Select State",
           _selectedState,
-          _states,
+          List<String>.from(_states)..sort(),
           (v) => setState(() {
             _selectedState = v;
             _selectedCity = null;
@@ -388,7 +459,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
           "Select City",
           _selectedCity,
           _selectedState != null
-              ? (_citiesByState[_selectedState] ?? [])
+              ? (List<String>.from(_citiesByState[_selectedState] ?? [])..sort())
               : <String>[],
           (v) => setState(() => _selectedCity = v),
         ),
@@ -1056,9 +1127,18 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
             style: GoogleFonts.poppins(
                 fontSize: 20, fontWeight: FontWeight.w600,color: Colors.black)),
         GestureDetector(
-          onTap: () {
+            onTap: () {
             final config = _fieldConfig;
             // Push latest values into draft
+            // Determine monthlyRent to save into draft:
+            // - Prefer explicit monthly rent field when present
+            // - If listing is Rent but monthly rent field is empty, fall back to Expected Price
+            //   so price is not lost for property types where monthly rent UI is hidden.
+            String rentVal = _monthlyRentController.text.trim();
+            if (rentVal.isEmpty && widget.draft.transactionType.toLowerCase() == 'rent') {
+              rentVal = _expectedPriceController.text.trim();
+            }
+
             widget.draft
               ..bedrooms = config.showBedrooms ? _bedrooms : 0
               ..bathrooms = config.showBathrooms ? _bathrooms : 0
@@ -1078,7 +1158,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
               ..attachedBathroom = config.showAttachedBathroom ? _attachedBathroom : false
               ..electricity = config.showElectricity ? _electricityController.text.trim() : ''
               ..anyConstructionDone = config.showAnyConstructionDone ? _anyConstructionDone : false
-              ..monthlyRent = config.showMonthlyRent ? _monthlyRentController.text.trim() : ''
+              ..monthlyRent = rentVal
               ..sharedOfficeSpace = config.showSharedOfficeSpace ? _sharedOfficeSpace : false
               ..personalWashroom = config.showPersonalWashroom ? _personalWashroom : false
               ..pantry = config.showPantry ? _pantry : false
@@ -1226,53 +1306,11 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   }
 
   Widget _mapBox() {
-    // If position is not available yet, show a placeholder with option to load preview
-    if (_mapPosition == null) {
-      return Container(
-        height: 140,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Center(
-          child: _mapLoading
-              ? const CircularProgressIndicator()
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.map, size: 36, color: Colors.grey),
-                    const SizedBox(height: 8),
-                    const Text("Tap to load map preview",
-                        style: TextStyle(color: Colors.grey, fontSize: 13)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        ElevatedButton(
-                          onPressed: _loadMapForAddress,
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(100, 40),
-                          ),
-                          child: const Text("Load Preview"),
-                        ),
-                        OutlinedButton(
-                          onPressed: _openMapsApp,
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size(100, 40),
-                          ),
-                          child: const Text("Open in Maps"),
-                        ),
-                      ],
-                    )
-                  ],
-                ),
-        ),
-      );
-    }
+    // Always show Google Map preview (no buttons). If we don't have a position yet,
+    // center on India as a sensible default. Tapping the map opens external maps.
+    const LatLng _defaultCenter = LatLng(20.5937, 78.9629);
+    final LatLng initial = _mapPosition ?? _defaultCenter;
 
-    // When we have coordinates, show embedded Google Map
     return Container(
       height: 140,
       decoration: BoxDecoration(
@@ -1282,12 +1320,19 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: GoogleMap(
-          initialCameraPosition: CameraPosition(target: _mapPosition!, zoom: 15),
-          markers: {Marker(markerId: const MarkerId('prop'), position: _mapPosition!)},
+          initialCameraPosition: CameraPosition(
+              target: initial, zoom: _mapPosition != null ? 15 : 5),
+          markers: _mapPosition != null
+              ? {Marker(markerId: const MarkerId('prop'), position: _mapPosition!)}
+              : {},
           myLocationButtonEnabled: false,
           zoomControlsEnabled: false,
           onMapCreated: (controller) {
             _mapController = controller;
+            // If a position was set after map creation, move camera to it
+            if (_mapPosition != null) {
+              _mapController!.animateCamera(CameraUpdate.newLatLngZoom(_mapPosition!, 15));
+            }
           },
           onTap: (pos) {
             // open external maps when user taps map for full navigation

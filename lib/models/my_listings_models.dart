@@ -4,6 +4,7 @@ class MyListingItem {
   final String address;
   final String locality;
   final String city;
+  final List<String> images;
   final num price;
   final int viewCount;
   final int saves;
@@ -16,6 +17,7 @@ class MyListingItem {
     required this.address,
     required this.locality,
     required this.city,
+    required this.images,
     required this.price,
     required this.viewCount,
     required this.saves,
@@ -54,6 +56,17 @@ class MyListingItem {
       address: location['address']?.toString() ?? '',
       locality: location['locality']?.toString() ?? '',
       city: location['city']?.toString() ?? '',
+      images: (json['images'] as List<dynamic>? ?? [])
+          .map<String>((e) {
+            if (e == null) return '';
+            if (e is Map && e['url'] != null) {
+              return e['url'].toString();
+            }
+            if (e is String) return e;
+            return e.toString();
+          })
+          .where((s) => s.isNotEmpty)
+          .toList(),
       price: _toNum(json['price']),
       viewCount: _toInt(json['view_count']),
       saves: _toInt(json['saves']),

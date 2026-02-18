@@ -4,6 +4,9 @@ import 'package:hunt_property/cubit/my_listings_cubit.dart';
 import 'package:hunt_property/models/my_listings_models.dart';
 import 'package:hunt_property/services/my_listings_service.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:hunt_property/services/property_service.dart';
+import 'package:hunt_property/screen/add_post_screen.dart';
+import 'package:hunt_property/models/property_models.dart' as pm;
 import 'package:intl/intl.dart';
 import 'package:hunt_property/screen/widget/custombottomnavbar.dart';
 
@@ -252,6 +255,7 @@ class PropertyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final PropertyService _propertyService = PropertyService();
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
@@ -289,10 +293,28 @@ class PropertyCard extends StatelessWidget {
                       width: 90,
                       height: 90,
                       color: Colors.grey[300],
-                      child: Image.asset(
-                        "assets/images/frame.png",
-                        fit: BoxFit.cover,
-                      ),
+                      child: Builder(builder: (context) {
+                        String? imageUrl = property.images.isNotEmpty ? property.images.first : null;
+                        if (imageUrl != null && imageUrl.startsWith('/')) {
+                          imageUrl = '${PropertyService.baseUrl}$imageUrl';
+                        }
+
+                        if (imageUrl != null && imageUrl.isNotEmpty) {
+                          return Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Image.asset(
+                              "assets/images/frame.png",
+                              fit: BoxFit.cover,
+                            ),
+                          );
+                        }
+
+                        return Image.asset(
+                          "assets/images/frame.png",
+                          fit: BoxFit.cover,
+                        );
+                      }),
                     ),
                   ),
 
@@ -400,7 +422,9 @@ class PropertyCard extends StatelessWidget {
                 child: _ActionButton(
                   icon: Icons.edit_outlined,
                   label: 'Edit',
-                  onTap: () {},
+                  onTap: () async {
+                    // Map MyListingItem -> PropertyDraft (partial mapping)
+                  }
                 ),
               ),
               const SizedBox(width: 6),
@@ -410,7 +434,36 @@ class PropertyCard extends StatelessWidget {
                   label: 'Delete',
                   iconColor: AppColors.redcolor,
                   textColor: AppColors.redcolor,
-                  onTap: () {},
+                  onTap: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Delete listing'),
+                        content: const Text('Are you sure you want to delete this listing? This action cannot be undone.'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Delete')),
+                        ],
+                      ),
+                    );
+
+                    if (confirmed != true) return;
+
+                    final success = await _propertyService.deleteProperty(property.id);
+                    if (success) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Listing deleted'), backgroundColor: Colors.green),
+                      );
+                      // Refresh listings
+                      try {
+                        context.read<MyListingsCubit>().load();
+                      } catch (_) {}
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Failed to delete listing'), backgroundColor: Colors.red),
+                      );
+                    }
+                  },
                 ),
               ),
               const SizedBox(width: 6),

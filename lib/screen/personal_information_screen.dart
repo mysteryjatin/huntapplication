@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+
+import 'package:image_picker/image_picker.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/profile_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
+import 'package:hunt_property/services/property_service.dart';
 
 class PersonalInformationScreen extends StatefulWidget {
   const PersonalInformationScreen({super.key});
@@ -12,6 +16,10 @@ class PersonalInformationScreen extends StatefulWidget {
 
 class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
   final ProfileService _profileService = ProfileService();
+  final PropertyService _propertyService = PropertyService();
+  final ImagePicker _picker = ImagePicker();
+  XFile? _pickedImage;
+  String? _uploadedProfileUrl;
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _mobileController = TextEditingController();
@@ -64,8 +72,24 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
           _mobileController.text = data['phone_number']?.toString() ?? 
                                    data['phone']?.toString() ?? '';
           _addressController.text = data['address']?.toString() ?? '';
+          // load profile picture if available
+          _uploadedProfileUrl = data['profile_picture']?.toString() ?? data['profilePicture']?.toString();
+          _pickedImage = null;
           _isLoading = false;
         });
+        // If backend didn't return a profile picture, but we have a temp saved one, use it
+        if ((_uploadedProfileUrl == null || _uploadedProfileUrl!.isEmpty) && _userId != null) {
+          final temp = await StorageService.getTempProfilePicture(_userId!);
+          if (temp != null && temp.isNotEmpty) {
+            setState(() {
+              _uploadedProfileUrl = temp;
+              _pickedImage = null;
+            });
+          }
+        } else if (_uploadedProfileUrl != null && _uploadedProfileUrl!.isNotEmpty && _userId != null) {
+          // backend has the picture saved; remove any temp cache
+          await StorageService.removeTempProfilePicture(_userId!);
+        }
       } else {
         setState(() {
           _isLoading = false;
@@ -106,6 +130,7 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
         'email': _emailController.text.trim(),
         'phone_number': _mobileController.text.trim(),
         'address': _addressController.text.trim(),
+        if (_uploadedProfileUrl != null) 'profile_picture': _uploadedProfileUrl,
       };
 
       final result = await _profileService.updateProfile(_userId!, profileData);
@@ -119,8 +144,31 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Information saved successfully!')),
           );
-          // Optionally refresh profile data
-          _loadProfile();
+          // Update local state from returned data when available, otherwise
+          // keep the current preview/uploaded image (so user doesn't lose the image).
+          final data = result['data'];
+          if (data is Map<String, dynamic>) {
+            setState(() {
+              _fullNameController.text = data['full_name']?.toString() ??
+                  data['name']?.toString() ??
+                  _fullNameController.text;
+              _emailController.text =
+                  data['email']?.toString() ?? _emailController.text;
+              _mobileController.text = data['phone_number']?.toString() ??
+                  data['phone']?.toString() ??
+                  _mobileController.text;
+              _addressController.text =
+                  data['address']?.toString() ?? _addressController.text;
+
+              // Only update uploaded profile URL if backend returned one.
+              final returnedPic = data['profile_picture']?.toString() ??
+                  data['profilePicture']?.toString();
+              if (returnedPic != null && returnedPic.isNotEmpty) {
+                _uploadedProfileUrl = returnedPic;
+                _pickedImage = null;
+              }
+            });
+          }
         }
       } else {
         if (mounted) {
@@ -137,6 +185,117 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
         );
+      }
+    }
+  }
+
+  Widget _buildProfileImageWidget() {
+    // Priority: picked local image -> uploaded URL -> placeholder asset
+    if (_pickedImage != null) {
+      return Image.file(
+        File(_pickedImage!.path),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _placeholderAvatar(),
+      );
+    }
+
+    if (_uploadedProfileUrl != null && _uploadedProfileUrl!.isNotEmpty) {
+      String imageUrl = _uploadedProfileUrl!;
+      if (imageUrl.startsWith('/')) {
+        imageUrl = '${PropertyService.baseUrl}$imageUrl';
+      }
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _placeholderAvatar(),
+      );
+    }
+
+    return _placeholderAvatar();
+  }
+
+  Widget _placeholderAvatar() {
+    return Container(
+      color: Colors.grey.shade300,
+      child: const Icon(
+        Icons.person,
+        size: 50,
+        color: Colors.grey,
+      ),
+    );
+  }
+
+  Future<void> _onEditPhotoTap() async {
+    final choice = await showModalBottomSheet<String?>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take Photo'),
+                onTap: () => Navigator.of(context).pop('camera'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () => Navigator.of(context).pop('gallery'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Cancel'),
+                onTap: () => Navigator.of(context).pop(null),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (choice == null) return;
+
+    XFile? picked;
+    try {
+      if (choice == 'camera') {
+        picked = await _picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+      } else {
+        picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Image pick error: $e')));
+      }
+      return;
+    }
+
+    if (picked == null) return;
+
+    setState(() {
+      _pickedImage = picked;
+      _uploadedProfileUrl = null; // reset until upload completes
+    });
+
+    // Upload immediately and save returned URL for profile update
+    try {
+      final file = File(picked.path);
+      final url = await _propertyService.uploadImage(file);
+      if (url != null && url.isNotEmpty) {
+        setState(() {
+          _uploadedProfileUrl = url;
+        });
+        // persist temp url so it survives navigation if backend hasn't saved it yet
+        if (_userId != null && _userId!.isNotEmpty) {
+          await StorageService.saveTempProfilePicture(_userId!, url);
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to upload image')));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload error: $e')));
       }
     }
   }
@@ -184,20 +343,7 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
                           border: Border.all(color: Colors.grey.shade300, width: 2),
                         ),
                         child: ClipOval(
-                          child: Image.asset(
-                            'assets/images/onboarding1.png',
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.grey.shade300,
-                                child: const Icon(
-                                  Icons.person,
-                                  size: 50,
-                                  color: Colors.grey,
-                                ),
-                              );
-                            },
-                          ),
+                          child: _buildProfileImageWidget(),
                         ),
                       ),
                       Positioned(
@@ -210,10 +356,13 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 2),
                           ),
-                          child: const Icon(
-                            Icons.camera_alt,
-                            color: Colors.white,
-                            size: 16,
+                          child: GestureDetector(
+                            onTap: _onEditPhotoTap,
+                            child: const Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: 16,
+                            ),
                           ),
                         ),
                       ),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/property_service.dart';
+import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/models/property_models.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hunt_property/cubit/auth_cubit.dart';
@@ -423,19 +424,55 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
     });
 
     // NOTE:
-    // Backend expects each item in "images" to be an object/dictionary,
-    // not a plain string. Our current UI only has local image files and
-    // we don't yet have an upload endpoint or agreed JSON shape for images.
-    // To avoid 422 validation errors, we temporarily send an empty list for
-    // "images" and only save the property metadata. When the backend image
-    // model / upload API is ready, we can wire picked images accordingly.
-    widget.draft.imageUrls = [];
+    // We do NOT clear draft.imageUrls here. If draft.imageUrls contains
+    // http/https URLs they will be sent. Local file paths (picked images)
+    // are skipped by the payload builder until an upload flow exists.
+    //
+    // If the user picked local images, upload them first and replace
+    // draft.imageUrls with the returned full URLs from the server.
+    List<String> uploadedUrls = [];
+    if (_pickedImages.isNotEmpty) {
+      // Show a temporary SnackBar to indicate upload progress (non-blocking)
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Uploading images...')),
+      );
 
-    // Get logged in user id from AuthCubit, if available
-    String? ownerId;
-    final authState = context.read<AuthCubit>().state;
-    if (authState is SignupSuccess) {
-      ownerId = authState.user.id;
+      for (final xfile in _pickedImages) {
+        try {
+          final file = File(xfile.path);
+          final url = await _propertyService.uploadImage(file);
+          if (url != null && url.isNotEmpty) {
+            uploadedUrls.add(url);
+          } else {
+            // ignore individual upload failure - continue with others
+            // (optionally we could abort and show error)
+            // ignore: avoid_print
+            print('⚠️ Image upload returned null for ${xfile.path}');
+          }
+        } catch (e) {
+          // ignore: avoid_print
+          print('❌ Exception while uploading ${xfile.path}: $e');
+        }
+      }
+
+      // If any uploads succeeded, use them
+      if (uploadedUrls.isNotEmpty) {
+        widget.draft.imageUrls = uploadedUrls;
+      } else {
+        // If all uploads failed, leave draft.imageUrls as-is (could be empty)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image upload failed, proceeding without images')),
+        );
+      }
+    }
+
+    // Get logged in user id from storage first; fall back to auth cubit.
+    String? ownerId = await StorageService.getUserId();
+    if (ownerId == null || ownerId.isEmpty) {
+      final authState = context.read<AuthCubit>().state;
+      if (authState is SignupSuccess) {
+        ownerId = authState.user.id;
+      }
     }
 
     final payload = widget.draft.toApiPayload(ownerId: ownerId);

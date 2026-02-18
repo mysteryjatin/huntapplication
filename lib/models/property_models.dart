@@ -87,18 +87,52 @@ class PropertyDraft {
 
   Map<String, dynamic> toApiPayload({String? ownerId}) {
     // Backend marks owner_id as required, so we must always send something.
-    // Prefer the real user id; otherwise use a temporary placeholder that
-    // backend can later ignore or replace.
     final String effectiveOwnerId =
         (ownerId != null && ownerId.isNotEmpty)
             ? ownerId
-            : '000000000000000000000000'; // TODO: replace with real user id when login returns it
+            : '000000000000000000000000';
+
+    // Normalize transaction type to backend expected values: "rent" or "sale"
+    String txLower = transactionType.toLowerCase();
+    String apiTransactionType = 'sale';
+    if (txLower.contains('rent')) {
+      apiTransactionType = 'rent';
+    } else if (txLower.contains('sell') || txLower.contains('sale')) {
+      apiTransactionType = 'sale';
+    } else {
+      apiTransactionType = txLower;
+    }
+
+    // Parse monthly rent string into a numeric price for rent listings.
+    num parsedPrice = 0;
+    if (apiTransactionType == 'rent' && monthlyRent.isNotEmpty) {
+      final cleaned = monthlyRent.replaceAll(RegExp(r'[^0-9.]'), '');
+      parsedPrice = num.tryParse(cleaned) ?? 0;
+    }
+
+    // Convert imageUrls (list of strings) into backend expected objects:
+    // [{ "url": "...", "is_primary": true }, ...]
+    final List<Map<String, dynamic>> imagesPayload = [];
+    for (var i = 0; i < imageUrls.length; i++) {
+      final url = imageUrls[i];
+      if (url == null) continue;
+      final trimmed = url.toString().trim();
+      if (trimmed.isEmpty) continue;
+      // Only include http/https URLs; skip local file paths (picked images)
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        imagesPayload.add({
+          'url': trimmed,
+          'is_primary': imagesPayload.isEmpty, // first valid becomes primary
+        });
+      }
+    }
 
     final Map<String, dynamic> data = {
       "title": title,
       "description": description,
-      "transaction_type": transactionType,
-      "price": 0, // price fields are in step 2, add later if backend requires it
+      "transaction_type": apiTransactionType,
+      // For rent listings use the monthly rent as price, otherwise keep 0
+      "price": apiTransactionType == 'rent' ? parsedPrice : 0,
       "property_category": propertyCategory,
       "property_subtype": propertySubtype,
       "bedrooms": bedrooms,
@@ -136,7 +170,7 @@ class PropertyDraft {
       "common_area": commonArea,
       "tenants_you_prefer": tenantsYouPrefer,
       "laundry": laundry,
-      "images": imageUrls,
+      "images": imagesPayload,
       "amenities": amenities,
       "owner_id": effectiveOwnerId,
     };
@@ -328,7 +362,15 @@ class Property {
           .map((e) => e.toString())
           .toList(),
       images: (json['images'] as List<dynamic>? ?? [])
-          .map((e) => e.toString())
+          .map<String>((e) {
+            if (e == null) return '';
+            if (e is Map && e['url'] != null) {
+              return e['url'].toString();
+            }
+            if (e is String) return e;
+            return e.toString();
+          })
+          .where((s) => s.isNotEmpty)
           .toList(),
       
       // Meta

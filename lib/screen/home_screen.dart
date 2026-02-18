@@ -669,10 +669,27 @@ class _HorizontalPropertyList extends StatelessWidget {
           itemBuilder: (context, i) {
             final p = apiProperties![i];
             final firstImage = p.images.isNotEmpty ? p.images.first : null;
+
+            // Price display logic:
+            // - If API returned a positive price, use it.
+            // - If price is 0 and transaction_type is "rent", fall back to monthlyRent.
+            // - Otherwise show the price as-is (may be 0).
+            String priceStr;
+            if (p.price is num && p.price > 0) {
+              priceStr = '₹${p.price}';
+            } else if (p.transactionType.toLowerCase() == 'rent' &&
+                p.monthlyRent.isNotEmpty) {
+              final cleaned = p.monthlyRent.replaceAll(RegExp(r'[^0-9.]'), '');
+              final numVal = num.tryParse(cleaned) ?? 0;
+              priceStr = numVal > 0 ? '₹${numVal}' : '₹0';
+            } else {
+              priceStr = '₹${p.price}';
+            }
+
             return _PropertyCard(
               tag: p.transactionType,
               title: p.title,
-              price: '₹${p.price}',
+              price: priceStr,
               location: '${p.locality}, ${p.city}',
               imageUrl: firstImage,
             );

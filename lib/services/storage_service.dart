@@ -386,5 +386,42 @@ class StorageService {
       }
     }
   }
+  // ----- Temporary profile picture cache (per-user) -----
+  static String _tempProfilePicKeyFor(String userId) => 'temp_profile_pic_$userId';
+
+  // Save a temporary uploaded profile picture URL for the user
+  static Future<void> saveTempProfilePicture(String userId, String url) async {
+    try {
+      await _getPreferences();
+      await _setValue(_tempProfilePicKeyFor(userId), url);
+    } catch (e) {
+      print('Error saving temp profile picture: $e');
+      _memoryStorage[_tempProfilePicKeyFor(userId)] = url;
+      _useMemoryStorage = true;
+    }
+  }
+
+  // Get temporary profile picture URL for the user (if any)
+  static Future<String?> getTempProfilePicture(String userId) async {
+    try {
+      await _getPreferences();
+      final value = _getValue(_tempProfilePicKeyFor(userId));
+      return value is String ? value : null;
+    } catch (e) {
+      print('Error getting temp profile picture: $e');
+      return _memoryStorage[_tempProfilePicKeyFor(userId)] as String?;
+    }
+  }
+
+  // Remove temporary profile picture for the user
+  static Future<void> removeTempProfilePicture(String userId) async {
+    try {
+      await _getPreferences();
+      await _removeValue(_tempProfilePicKeyFor(userId));
+    } catch (e) {
+      print('Error removing temp profile picture: $e');
+      _memoryStorage.remove(_tempProfilePicKeyFor(userId));
+    }
+  }
 }
 
