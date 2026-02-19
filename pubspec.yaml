@@ -68,6 +68,7 @@ dependencies:
   url_launcher: ^6.2.2
   google_maps_flutter: ^2.2.0
   geocoding: ^2.0.5
+  geolocator: ^9.0.2
   flutter_bloc: ^8.1.6
   http: ^1.2.2
   equatable: ^2.0.5

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/screen/add_post_step3_screen.dart';
 import 'package:hunt_property/models/property_models.dart';
@@ -459,9 +460,29 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
           "Select City",
           _selectedCity,
           _selectedState != null
-              ? (List<String>.from(_citiesByState[_selectedState] ?? [])..sort())
+              ? (() {
+                  final list = List<String>.from(_citiesByState[_selectedState] ?? []);
+                  final unique = list.toSet().toList();
+                  unique.sort();
+                  return unique;
+                })()
               : <String>[],
           (v) => setState(() => _selectedCity = v),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: _detectMyLocation,
+            icon: Icon(Icons.my_location, color: _primary),
+            label: Text("Detect my location",
+                style: GoogleFonts.poppins(
+                    fontSize: 13, fontWeight: FontWeight.w600, color: _primary)),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              backgroundColor: Colors.transparent,
+            ),
+          ),
         ),
         const SizedBox(height: _rowGap),
 
@@ -1444,6 +1465,64 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
           const SnackBar(content: Text('Could not open maps')),
         );
       }
+    }
+  }
+
+  Future<void> _detectMyLocation() async {
+    setState(() => _mapLoading = true);
+    try {
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location permission denied')),
+        );
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.best);
+      final lat = pos.latitude;
+      final lng = pos.longitude;
+
+      // Reverse geocode to get address components
+      String formattedAddress = '';
+      String detectedCity = '';
+      String detectedLocality = '';
+      try {
+        final placemarks = await placemarkFromCoordinates(lat, lng);
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          detectedCity = p.locality ?? p.subAdministrativeArea ?? p.administrativeArea ?? '';
+          detectedLocality = p.subLocality ?? p.subAdministrativeArea ?? '';
+          formattedAddress = [
+            p.name,
+            p.street,
+            p.subLocality,
+            p.locality,
+            p.postalCode,
+            p.country
+          ].where((s) => s != null && s!.isNotEmpty).join(', ');
+        }
+      } catch (_) {
+        // ignore reverse geocode errors
+      }
+
+      setState(() {
+        _mapPosition = LatLng(lat, lng);
+        if (detectedCity.isNotEmpty) _selectedCity = detectedCity;
+        if (detectedLocality.isNotEmpty) _localityController.text = detectedLocality;
+        if (formattedAddress.isNotEmpty) _addressController.text = formattedAddress;
+        // animate camera if map controller exists
+        if (_mapController != null) {
+          _mapController!.animateCamera(CameraUpdate.newLatLngZoom(_mapPosition!, 15));
+        }
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not detect location: $e')));
+    } finally {
+      setState(() => _mapLoading = false);
     }
   }
 

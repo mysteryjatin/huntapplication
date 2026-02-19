@@ -194,7 +194,7 @@ class _FilterScreenState extends State<FilterScreen> {
         RangeSlider(
           values: _budgetRange,
           min: 0,
-          max: 100,
+          max: 4000,
           activeColor: kGreen,
           inactiveColor: kBorderGrey,
           onChanged: (v) => setState(() => _budgetRange = v),
@@ -408,7 +408,7 @@ class _FilterScreenState extends State<FilterScreen> {
         RangeSlider(
           values: _areaRange,
           min: 0,
-          max: 100,
+          max: 4000,
           divisions: 100,
           activeColor: kGreen,
           inactiveColor: kBorderGrey.withOpacity(.4),

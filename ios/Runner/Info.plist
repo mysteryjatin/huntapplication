@@ -64,5 +64,8 @@
 	<!-- Google Maps API Key -->
 	<key>GMSApiKey</key>
 	<string>AIzaSyCRdp9XgSwmQ3zVkTyg4kxAYXompT81GqU</string>
+	<!-- Location usage description for detecting user's location -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your location to detect the property location.</string>
 </dict>
 </plist>

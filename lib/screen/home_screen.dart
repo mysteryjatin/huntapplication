@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:hunt_property/screen/add_post_screen.dart';
 import 'package:hunt_property/screen/blog_detail_screen.dart';
+import 'package:hunt_property/screen/notification_screen.dart';
 import 'package:hunt_property/screen/profile_screen.dart';
+import 'package:hunt_property/screen/property_details_screen.dart';
 import 'package:hunt_property/screen/search_screen.dart';
 import 'package:hunt_property/screen/shortlist_screen.dart';
 import 'package:hunt_property/screen/side_menu_screen.dart';
@@ -16,6 +18,17 @@ import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/models/property_models.dart';
 import 'filter_screen.dart';
 import 'widget/custombottomnavbar.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hunt_property/cubit/filter_cubit.dart';
+import 'package:hunt_property/services/filter_service.dart';
+// Service target screens
+import 'package:hunt_property/screen/sidemenu_screen/home_loan_screen.dart';
+import 'package:hunt_property/screen/sidemenu_screen/property_cost_calculator.dart';
+import 'package:hunt_property/screen/sidemenu_screen/vastu/vastuaiexpert_screen.dart';
+import 'package:hunt_property/screen/sidemenu_screen/channel_partner_screen.dart';
+import 'package:hunt_property/screen/sidemenu_screen/legal_advisory_screen.dart';
+import 'package:hunt_property/screen/sidemenu_screen/nri_center_screen.dart';
+import 'package:hunt_property/screen/sidemenu_screen/rera_service_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -356,8 +369,10 @@ class _HomeScreenState extends State<HomeScreen>
         initialChildSize: 0.9,
         maxChildSize: 0.95,
         minChildSize: 0.5,
-        builder: (context, scrollController) =>
-            FilterScreen(scrollController: scrollController),
+        builder: (context, scrollController) => BlocProvider(
+          create: (_) => FilterCubit(FilterService()),
+          child: FilterScreen(scrollController: scrollController),
+        ),
       ),
     );
   }
@@ -424,28 +439,45 @@ class _HeaderArea extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  Stack(
-                    children: [
-                      const Icon(Icons.notifications_outlined,
-                          size: 26, color: Colors.black),
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(
-                              color: Colors.red, shape: BoxShape.circle),
-                          child: const Text(
-                            '0',
-                            style: TextStyle(
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationScreen(),
+                        ),
+                      );
+                    },
+                    child: Stack(
+                      children: [
+                        const Icon(
+                          Icons.notifications_outlined,
+                          size: 26,
+                          color: Colors.black,
+                        ),
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Text(
+                              '0',
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
-                                fontWeight: FontWeight.bold),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  )
+
                 ],
               ),
             ),
@@ -741,72 +773,86 @@ class _PropertyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 180,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 2))
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: Stack(
-              children: [
-                SizedBox(
-                  height: 120,
-                  width: double.infinity,
-                  child: imageUrl != null && imageUrl!.isNotEmpty
-                      ? Image.network(
-                          imageUrl!,
-                          fit: BoxFit.cover,
-                        )
-                      : Image.asset(
-                          'assets/images/onboarding1.png',
-                          fit: BoxFit.cover,
-                        ),
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: CircleAvatar(
-                    radius: 14,
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.favorite_border, size: 16, color: Colors.black87),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PropertyDetailsScreen(
+              tag: tag,
+              price: price,
+              location: location,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        width: 180,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 2))
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: Stack(
+                children: [
+                  SizedBox(
+                    height: 120,
+                    width: double.infinity,
+                    child: imageUrl != null && imageUrl!.isNotEmpty
+                        ? Image.network(
+                            imageUrl!,
+                            fit: BoxFit.cover,
+                          )
+                        : Image.asset(
+                            'assets/images/onboarding1.png',
+                            fit: BoxFit.cover,
+                          ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(price, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: const Color(0xFF2FED9A),
-                      child: Icon(Icons.arrow_forward, size: 16, color: Colors.green.shade800),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: CircleAvatar(
+                      radius: 14,
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.favorite_border, size: 16, color: Colors.black87),
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(price, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                      CircleAvatar(
+                        radius: 16,
+                        backgroundColor: const Color(0xFF2FED9A),
+                        child: Icon(Icons.arrow_forward, size: 16, color: Colors.green.shade800),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -848,9 +894,33 @@ class _ServicesGrid extends StatelessWidget {
             ),
             itemBuilder: (context, i) {
               final s = services[i];
+              final label = s['label'] as String;
+              final png = s['asset'] as String;
+
+              VoidCallback? onTap;
+              final key = label.toLowerCase().replaceAll(RegExp(r'\\s+'), ' ');
+              if (key.contains('home loan')) {
+                onTap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HomeLoanScreen()));
+              } else if (key.contains('property') && key.contains('worth')) {
+                onTap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PropertyCostCalculatorScreen()));
+              } else if (key.contains('vastu')) {
+                onTap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VastuAiExpertScreen()));
+              } else if (key.contains('sell') || key.contains('rent')) {
+                onTap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddPostScreen()));
+              } else if (key.contains('channel')) {
+                onTap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChannelPartnerScreen()));
+              } else if (key.contains('legal')) {
+                onTap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LegalAdvisoryScreen()));
+              } else if (key.contains('nri')) {
+                onTap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NRICenterScreen()));
+              } else if (key.contains('rera')) {
+                onTap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReraServicesScreen()));
+              }
+
               return _ServiceItem(
-                pngAsset: s['asset'] as String, // ✅ PNG asset
-                label: s['label'] as String,
+                pngAsset: png,
+                label: label,
+                onTap: onTap,
               );
             },
           ),
@@ -864,15 +934,17 @@ class _ServicesGrid extends StatelessWidget {
 class _ServiceItem extends StatelessWidget {
   final String pngAsset;
   final String label;
+  final VoidCallback? onTap;
 
   const _ServiceItem({
     required this.pngAsset,
     required this.label,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
       decoration: BoxDecoration(
         color: const Color(0xFFE7F1FF),
@@ -910,6 +982,11 @@ class _ServiceItem extends StatelessWidget {
         ],
       ),
     );
+
+    if (onTap != null) {
+      return InkWell(onTap: onTap, child: card);
+    }
+    return card;
   }
 }
 
