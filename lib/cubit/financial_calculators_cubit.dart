@@ -74,5 +74,10 @@ class FinancialCalculatorsCubit extends Cubit<FinancialCalculatorsState> {
       emit(state.copyWith(status: CalcStatus.failure, error: e.toString()));
     }
   }
+
+  /// Reset all computed results and return to initial state.
+  void resetAll() {
+    emit(const FinancialCalculatorsState());
+  }
 }
 

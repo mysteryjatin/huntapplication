@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hunt_property/screen/sidemenu_screen/faq_screen.dart';
 import '../../cubit/home_loan_cubit.dart';
 import '../../cubit/home_loan_state.dart';
 import '../../data/repository/home_loan_repository.dart';
+import 'package:hunt_property/screen/sidemenu_screen/property_cost_calculator.dart';
+import 'package:hunt_property/screen/sidemenu_screen/financial_calculators_screen.dart';
 
 class HomeLoanScreen extends StatefulWidget {
   const HomeLoanScreen({super.key});
@@ -343,6 +346,12 @@ class _HomeLoanScreenState extends State<HomeLoanScreen> {
           child: TextField(
             controller: controller,
             maxLines: maxLines,
+            keyboardType: (label.toLowerCase().contains('phone') || label.toLowerCase().contains('mobile') || label.toLowerCase().contains('number'))
+                ? TextInputType.phone
+                : TextInputType.text,
+            inputFormatters: (label.toLowerCase().contains('phone') || label.toLowerCase().contains('mobile') || label.toLowerCase().contains('number'))
+                ? [FilteringTextInputFormatter.digitsOnly]
+                : null,
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding:
@@ -356,30 +365,44 @@ class _HomeLoanScreenState extends State<HomeLoanScreen> {
 
   // ================= OTHER CALCULATOR BUTTON =================
   Widget _calcButton(String title) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F7FF),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: Colors.black.withOpacity(0.08),
+    VoidCallback? onTap;
+    if (title.toLowerCase().contains('home loan')) {
+      onTap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FinancialCalculatorsScreen(initialTabIndex: 0)));
+    } else if (title.toLowerCase().contains('property cost')) {
+      onTap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PropertyCostCalculatorScreen()));
+    } else if (title.toLowerCase().contains('rental')) {
+      onTap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FinancialCalculatorsScreen(initialTabIndex: 1)));
+    } else if (title.toLowerCase().contains('future')) {
+      onTap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FinancialCalculatorsScreen(initialTabIndex: 2)));
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F7FF),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: Colors.black.withOpacity(0.08),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.07),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            )
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.07),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: Center(
-        child: Text(
-          title,
-          style: const TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+        child: Center(
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: Colors.black87,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
           ),
         ),
       ),

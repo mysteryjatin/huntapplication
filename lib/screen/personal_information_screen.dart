@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:io';
 
 import 'package:image_picker/image_picker.dart';
@@ -502,6 +503,12 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
         TextField(
           controller: controller,
           maxLines: maxLines,
+          keyboardType: label.toLowerCase().contains('mobile') || label.toLowerCase().contains('phone')
+              ? TextInputType.phone
+              : TextInputType.text,
+          inputFormatters: label.toLowerCase().contains('mobile') || label.toLowerCase().contains('phone')
+              ? [FilteringTextInputFormatter.digitsOnly]
+              : null,
           style: const TextStyle(
             fontSize: 15,
             color: Colors.black87,

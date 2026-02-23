@@ -6,7 +6,8 @@ import '../../cubit/financial_calculators_cubit.dart';
 import '../../cubit/financial_calculators_state.dart';
 
 class FinancialCalculatorsScreen extends StatefulWidget {
-  const FinancialCalculatorsScreen({super.key});
+  final int initialTabIndex;
+  const FinancialCalculatorsScreen({super.key, this.initialTabIndex = 0});
 
   @override
   State<FinancialCalculatorsScreen> createState() =>
@@ -16,11 +17,13 @@ class FinancialCalculatorsScreen extends StatefulWidget {
 class _FinancialCalculatorsScreenState extends State<FinancialCalculatorsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  late List<UniqueKey> _tabKeys;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 4, vsync: this, initialIndex: widget.initialTabIndex);
+    _tabKeys = List.generate(4, (_) => UniqueKey());
   }
 
   @override
@@ -88,6 +91,12 @@ class _FinancialCalculatorsScreenState extends State<FinancialCalculatorsScreen>
                 color: Color(0xFF9E9E9E),
               ),
 
+              onTap: (i) {
+                // When user switches tabs, rebuild tab widgets so their input controllers reset.
+                setState(() {
+                  _tabKeys = List.generate(4, (_) => UniqueKey());
+                });
+              },
               tabs: const [
                 Tab(text: 'Loan Eligibility'),
                 Tab(text: 'Rental Value'),
@@ -101,11 +110,11 @@ class _FinancialCalculatorsScreenState extends State<FinancialCalculatorsScreen>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: const [
-          LoanEligibilityTab(),
-          RentalValueTab(),
-          FutureValueTab(),
-          EmiTab(),
+        children: [
+          LoanEligibilityTab(key: _tabKeys[0]),
+          RentalValueTab(key: _tabKeys[1]),
+          FutureValueTab(key: _tabKeys[2]),
+          EmiTab(key: _tabKeys[3]),
         ],
       ),
       )    );
@@ -270,6 +279,7 @@ class _LoanEligibilityTabState extends State<LoanEligibilityTab> {
                   _existingCommitments.clear();
                   _tenure.clear();
                   _rate.clear();
+                  cubit.resetAll();
                 },
                 child: const Text('Reset all', style: TextStyle(fontSize: 12, color: Colors.black)),
               ),
@@ -415,6 +425,7 @@ class _RentalValueTabState extends State<RentalValueTab> {
                   _propertyValue.clear();
                   _years.clear();
                   _rate.clear();
+                  cubit.resetAll();
                 },
                 child: const Text('Reset all', style: TextStyle(fontSize: 12, color: Colors.black)),
               ),
@@ -513,7 +524,8 @@ class _FutureValueTabState extends State<FutureValueTab> {
               GestureDetector(
                 onTap: () {
                   final payload = {
-                    'property_value': int.tryParse(_currentValue.text) ?? 0,
+                    // backend expects 'current_property_value'
+                    'current_property_value': int.tryParse(_currentValue.text) ?? 0,
                     'years': int.tryParse(_years.text) ?? 1,
                     'average_appreciation': num.tryParse(_appreciation.text) ?? 0,
                   };
@@ -526,6 +538,7 @@ class _FutureValueTabState extends State<FutureValueTab> {
                   _currentValue.clear();
                   _years.clear();
                   _appreciation.clear();
+                  cubit.resetAll();
                 },
                 child: const Text('Reset all', style: TextStyle(fontSize: 12, color: Colors.black)),
               ),
@@ -622,6 +635,7 @@ class _EmiTabState extends State<EmiTab> {
                   _loanAmount.clear();
                   _tenure.clear();
                   _rate.clear();
+                  cubit.resetAll();
                 },
                 child: const Text('Reset all', style: TextStyle(fontSize: 12, color: Colors.black)),
               ),

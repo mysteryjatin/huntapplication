@@ -2,6 +2,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
@@ -463,6 +464,13 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
               ? (() {
                   final list = List<String>.from(_citiesByState[_selectedState] ?? []);
                   final unique = list.toSet().toList();
+                  // If a detected city is set but not present in our canonical list,
+                  // include it so the dropdown can display it.
+                  if (_selectedCity != null &&
+                      _selectedCity!.isNotEmpty &&
+                      !unique.any((c) => c.toLowerCase() == _selectedCity!.toLowerCase())) {
+                    unique.insert(0, _selectedCity!);
+                  }
                   unique.sort();
                   return unique;
                 })()
@@ -575,16 +583,8 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       ]);
     }
 
-    if (config.showFloorNumber) {
-      children.addAll([
-        _label("Floor Number"),
-        const SizedBox(height: 8),
-        _textField(_floorNumberController, hint: "Eg. 12"),
-        const SizedBox(height: 20),
-      ]);
-    }
-
     if (config.showTotalFloors || config.showFloorsAllowed) {
+      // Move Total Floors higher than Floor Number per UI request.
       children.add(
         Row(
           children: [
@@ -595,7 +595,25 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
                   children: [
                     _label("Total Floors"),
                     const SizedBox(height: 8),
-                    _textField(_totalFloorsController, hint: "Eg. 20"),
+                    _textField(
+                      _totalFloorsController,
+                      hint: "Eg. 20",
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      onChanged: (v) {
+                        final enteredTotal = int.tryParse(v) ?? 0;
+                        final currentFloor = int.tryParse(_floorNumberController.text) ?? 0;
+                        if (enteredTotal > 0 && currentFloor > enteredTotal) {
+                          // If total lowered below current floor, clamp floor number to total.
+                          _floorNumberController.text = enteredTotal.toString();
+                          _floorNumberController.selection = TextSelection.fromPosition(
+                              TextPosition(offset: _floorNumberController.text.length));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Total floors is less than floor number — floor number adjusted')),
+                          );
+                        }
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -608,7 +626,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
                   children: [
                     _label("Floors Allowed"),
                     const SizedBox(height: 8),
-                    _textField(_floorsAllowedController, hint: "Eg. 15"),
+                    _textField(_floorsAllowedController, hint: "Eg. 15", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
                   ],
                 ),
               ),
@@ -617,6 +635,36 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       );
       children.add(const SizedBox(height: 20));
     }
+
+    if (config.showFloorNumber) {
+      children.addAll([
+        _label("Floor Number"),
+        const SizedBox(height: 8),
+        _textField(
+          _floorNumberController,
+          hint: "Eg. 12",
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (v) {
+            final enteredFloor = int.tryParse(v) ?? 0;
+            final enteredTotal = int.tryParse(_totalFloorsController.text) ?? 0;
+            if (enteredTotal > 0 && enteredFloor > enteredTotal) {
+              // Prevent entering a floor number greater than total floors:
+              // reset to total and notify user.
+              _floorNumberController.text = enteredTotal.toString();
+              _floorNumberController.selection = TextSelection.fromPosition(
+                  TextPosition(offset: _floorNumberController.text.length));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Floor number cannot be greater than total floors')),
+              );
+            }
+          },
+        ),
+        const SizedBox(height: 20),
+      ]);
+    }
+
+    // (Moved: Total Floors and Floors Allowed are shown earlier above Floor Number)
 
     if (config.showAnyConstructionDone) {
       children.addAll([
@@ -1062,7 +1110,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Expected Price"),
         const SizedBox(height: 8),
-        _textField(_expectedPriceController, hint: "Enter expected price"),
+        _textField(_expectedPriceController, hint: "Enter expected price", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -1072,7 +1120,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Booking Amount"),
         const SizedBox(height: 8),
-        _textField(_bookingAmountController, hint: "Enter booking amount"),
+        _textField(_bookingAmountController, hint: "Enter booking amount", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -1081,7 +1129,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Monthly Rent"),
         const SizedBox(height: 8),
-        _textField(_monthlyRentController, hint: "Enter monthly rent"),
+        _textField(_monthlyRentController, hint: "Enter monthly rent", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -1090,7 +1138,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Security Amount"),
         const SizedBox(height: 8),
-        _textField(_securityAmountController, hint: "Enter security amount"),
+        _textField(_securityAmountController, hint: "Enter security amount", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -1099,7 +1147,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Maintenance Charges"),
         const SizedBox(height: 8),
-        _textField(_maintenanceChargesController, hint: "Enter maintenance charges"),
+        _textField(_maintenanceChargesController, hint: "Enter maintenance charges", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -1107,7 +1155,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     children.addAll([
       _label("Brokerage"),
       const SizedBox(height: 8),
-      _textField(_brokerageController, hint: "Enter brokerage"),
+      _textField(_brokerageController, hint: "Enter brokerage", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
     ]);
 
     if (config.showLaundry) {
@@ -1158,6 +1206,16 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
             String rentVal = _monthlyRentController.text.trim();
             if (rentVal.isEmpty && widget.draft.transactionType.toLowerCase() == 'rent') {
               rentVal = _expectedPriceController.text.trim();
+            }
+
+            // Validation: if total floors is provided, ensure floor number is not greater than total floors.
+            final int enteredFloor = int.tryParse(_floorNumberController.text.trim()) ?? 0;
+            final int enteredTotal = int.tryParse(_totalFloorsController.text.trim()) ?? 0;
+            if (config.showFloorNumber && config.showTotalFloors && enteredFloor > 0 && enteredTotal > 0 && enteredFloor > enteredTotal) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Floor number cannot be greater than total floors')),
+              );
+              return;
             }
 
             widget.draft
@@ -1263,6 +1321,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
         String? hint,
         TextInputType keyboardType = TextInputType.text,
         Function(String)? onChanged,
+        List<TextInputFormatter>? inputFormatters,
       }) {
     return SizedBox(
       height: 46,
@@ -1270,6 +1329,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
         controller: controller,
         keyboardType: keyboardType,
         onChanged: onChanged,
+        inputFormatters: inputFormatters,
         decoration: InputDecoration(
           hintText: hint ?? "",
           hintStyle:
@@ -1340,26 +1400,52 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: GoogleMap(
-          initialCameraPosition: CameraPosition(
-              target: initial, zoom: _mapPosition != null ? 15 : 5),
-          markers: _mapPosition != null
-              ? {Marker(markerId: const MarkerId('prop'), position: _mapPosition!)}
-              : {},
-          myLocationButtonEnabled: false,
-          zoomControlsEnabled: false,
-          onMapCreated: (controller) {
-            _mapController = controller;
-            // If a position was set after map creation, move camera to it
-            if (_mapPosition != null) {
-              _mapController!.animateCamera(CameraUpdate.newLatLngZoom(_mapPosition!, 15));
-            }
-          },
-          onTap: (pos) {
-            // open external maps when user taps map for full navigation
-            _openMapsApp();
-          },
-        ),
+        child: Builder(builder: (_) {
+          // If we have precise coordinates, show interactive GoogleMap.
+          if (_mapPosition != null) {
+            return GoogleMap(
+              initialCameraPosition: CameraPosition(target: _mapPosition!, zoom: 15),
+              markers: {Marker(markerId: const MarkerId('prop'), position: _mapPosition!)},
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              onMapCreated: (controller) => _mapController = controller,
+              onTap: (_) => _openMapsApp(),
+            );
+          }
+
+          // If we don't have coords, but address/locality/city exist, show Static Maps image as fallback.
+          final addrParts = <String>[];
+          if (_addressController.text.trim().isNotEmpty) addrParts.add(_addressController.text.trim());
+          if (_localityController.text.trim().isNotEmpty) addrParts.add(_localityController.text.trim());
+          if ((_selectedCity ?? widget.draft.city).isNotEmpty) addrParts.add(_selectedCity ?? widget.draft.city);
+          if (addrParts.isNotEmpty) {
+            final query = Uri.encodeComponent(addrParts.join(', '));
+            final apiKey = 'AIzaSyCRdp9XgSwmQ3zVkTyg4kxAYXompT81GqU';
+            final staticUrl = 'https://maps.googleapis.com/maps/api/staticmap?center=$query&zoom=15&size=600x300&markers=color:red%7C$query&key=$apiKey';
+
+            return GestureDetector(
+              onTap: _openMapsApp,
+              child: Container(
+                color: Colors.grey.shade200,
+                child: Image.network(
+                  staticUrl,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorBuilder: (c, e, s) => Center(
+                    child: Text('Map preview unavailable', style: TextStyle(color: Colors.grey[600])),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          // Last resort: show placeholder
+          return Container(
+            color: Colors.grey.shade200,
+            child: const Center(child: Icon(Icons.map, size: 36, color: Colors.grey)),
+          );
+        }),
       ),
     );
   }
@@ -1490,28 +1576,124 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       String formattedAddress = '';
       String detectedCity = '';
       String detectedLocality = '';
+      String detectedAdmin = '';
       try {
         final placemarks = await placemarkFromCoordinates(lat, lng);
         if (placemarks.isNotEmpty) {
           final p = placemarks.first;
-          detectedCity = p.locality ?? p.subAdministrativeArea ?? p.administrativeArea ?? '';
-          detectedLocality = p.subLocality ?? p.subAdministrativeArea ?? '';
+          // Build formattedAddress from available fields
           formattedAddress = [
             p.name,
             p.street,
             p.subLocality,
             p.locality,
+            p.subAdministrativeArea,
+            p.administrativeArea,
             p.postalCode,
             p.country
           ].where((s) => s != null && s!.isNotEmpty).join(', ');
+
+          // Try multiple placemark fields for city/locality/admin
+          detectedCity = p.locality ??
+              p.subAdministrativeArea ??
+              p.administrativeArea ??
+              p.subLocality ??
+              '';
+          detectedLocality = p.subLocality ?? p.subAdministrativeArea ?? p.locality ?? '';
+          detectedAdmin = p.administrativeArea ?? p.subAdministrativeArea ?? '';
+
+          // Debug: print placemark fields to logs
+          // ignore: avoid_print
+          print('📍 Placemark: name=${p.name}, street=${p.street}, subLocality=${p.subLocality}, locality=${p.locality}, subAdmin=${p.subAdministrativeArea}, admin=${p.administrativeArea}, postal=${p.postalCode}, country=${p.country}');
         }
-      } catch (_) {
-        // ignore reverse geocode errors
+      } catch (e) {
+        // ignore reverse geocode errors but log for debugging
+        // ignore: avoid_print
+        print('⚠️ placemarkFromCoordinates failed: $e');
       }
 
       setState(() {
         _mapPosition = LatLng(lat, lng);
-        if (detectedCity.isNotEmpty) _selectedCity = detectedCity;
+        if (detectedCity.isNotEmpty) {
+          // Try to match detected city to one of our known states -> cities map.
+          // If found, set the state and use the canonical city name from the list.
+          String matchedState = '';
+          String matchedCity = detectedCity;
+          _citiesByState.forEach((state, cities) {
+            final found = cities.firstWhere(
+                (c) => c.toLowerCase() == detectedCity.toLowerCase(),
+                orElse: () => '');
+            if (found.isNotEmpty && matchedState.isEmpty) {
+              matchedState = state;
+              matchedCity = found;
+            }
+          });
+          if (matchedState.isNotEmpty) {
+            _selectedState = matchedState;
+            _selectedCity = matchedCity;
+          } else {
+            // City not in our list — set selectedCity to detectedCity,
+            // and try to set state from detectedAdmin (administrative area).
+            _selectedCity = detectedCity;
+            if (detectedAdmin.isNotEmpty) {
+              final matchState = _states.firstWhere(
+                  (s) => s.toLowerCase() == detectedAdmin.toLowerCase(),
+                  orElse: () => '');
+              if (matchState.isNotEmpty) {
+                _selectedState = matchState;
+              } else {
+                // try partial match
+                final partial = _states.firstWhere(
+                    (s) => s.toLowerCase().contains(detectedAdmin.toLowerCase()) || detectedAdmin.toLowerCase().contains(s.toLowerCase()),
+                    orElse: () => '');
+                if (partial.isNotEmpty) _selectedState = partial;
+              }
+            }
+          }
+        }
+        else {
+          // If detectedCity empty, try to extract city from formattedAddress tokens
+          String matchedState = '';
+          String matchedCity = '';
+          if (formattedAddress.isNotEmpty) {
+            final tokens = formattedAddress.split(',').map((s) => s.trim()).toList();
+            // iterate tokens from right-to-left to find likely city
+            for (var i = tokens.length - 1; i >= 0; i--) {
+              final token = tokens[i];
+              if (token.length < 2) continue;
+              bool foundAny = false;
+              _citiesByState.forEach((state, cities) {
+                for (var c in cities) {
+                  final lc = c.toLowerCase();
+                  final tk = token.toLowerCase();
+                  if (lc == tk || lc.contains(tk) || tk.contains(lc) || lc.startsWith(tk) || tk.startsWith(lc)) {
+                    if (matchedState.isEmpty) {
+                      matchedState = state;
+                      matchedCity = c;
+                      foundAny = true;
+                      break;
+                    }
+                  }
+                }
+                if (foundAny) return;
+              });
+              if (matchedState.isNotEmpty) break;
+            }
+          }
+          if (matchedState.isNotEmpty) {
+            _selectedState = matchedState;
+            _selectedCity = matchedCity;
+            // debug
+            // ignore: avoid_print
+            print('🔎 Matched from address: state=$matchedState city=$matchedCity');
+          } else {
+            // last-resort: if formattedAddress contains a token, set city to that token
+            if (formattedAddress.isNotEmpty) {
+              final tokens = formattedAddress.split(',').map((s) => s.trim()).toList();
+              if (tokens.isNotEmpty) _selectedCity = tokens.first;
+            }
+          }
+        }
         if (detectedLocality.isNotEmpty) _localityController.text = detectedLocality;
         if (formattedAddress.isNotEmpty) _addressController.text = formattedAddress;
         // animate camera if map controller exists

@@ -15,6 +15,7 @@ import 'package:hunt_property/screen/sidemenu_screen/property_cost_calculator.da
 import 'package:hunt_property/screen/sidemenu_screen/proptery_news_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/rera_service_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/search_agent_screen.dart';
+import 'package:hunt_property/screen/search_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/subscriptioncardplan.dart';
 import 'package:hunt_property/screen/sidemenu_screen/terms_conditions_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/privacy_policy_screen.dart';
@@ -126,7 +127,14 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
                       context: context,
                       svgPath: 'assets/icons/search.svg',
                       title: 'Search Property',
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SearchScreen(),
+                          ),
+                        );
+                      },
                     ),
                     _buildMenuItem(
                       context: context,

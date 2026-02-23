@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hunt_property/theme/app_theme.dart';
@@ -25,6 +26,7 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
   int propertyType = 0;
   int optionIndex = -1;
   int bhkIndex = 0;
+  final TextEditingController _customBhkController = TextEditingController();
   int finishingIndex = 0;
   int possessionIndex = 0;
   int paymentIndex = 0;
@@ -37,6 +39,43 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
   final _localityController = TextEditingController();
   final _minPriceController = TextEditingController();
   final _maxPriceController = TextEditingController();
+  final List<String> _bhkOptions = ["1 BHK", "2 BHK", "3 BHK", "4 BHK", "5 BHK", "6 BHK", "6+ BHK"];
+
+  // Options by property type: 0 = Residential, 1 = Commercial, 2 = Agricultural
+  final Map<int, List<String>> _optionsByPropertyType = {
+    0: [
+      "House or Kothi",
+      "Builder Floor",
+      "Villa",
+      "Service Apartment",
+      "Penthouse",
+      "Studio Apartment",
+      "Flats",
+      "Duplex",
+      "Plot/Land",
+    ],
+    1: [
+      "Commercial Land",
+      "Office Space",
+      "Shop",
+      "Showroom",
+      "Warehouse / Godown",
+      "Industrial Land",
+      "Industrial Building",
+      "Industrial Shed",
+      "IT Space",
+      "Hostel / PG",
+      "Food Court",
+      "Restaurants",
+      "Banquet Hall",
+      "Cineplex / Cinema Hall",
+    ],
+    2: [
+      "Farm House",
+      "Agriculture Land",
+      "Farm Land",
+    ],
+  };
 
   @override
   void dispose() {
@@ -48,6 +87,7 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
     _localityController.dispose();
     _minPriceController.dispose();
     _maxPriceController.dispose();
+    _customBhkController.dispose();
     super.dispose();
   }
 
@@ -124,22 +164,16 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
                     pillWrap(
                       ["Residential", "Commercial", "Agricultural"],
                       propertyType,
-                          (i) => setState(() => propertyType = i),
+                          (i) => setState(() {
+                            propertyType = i;
+                            // reset option selection when property type changes
+                            optionIndex = -1;
+                          }),
                     ),
 
                     _label("Options"),
                     pillWrap(
-                      [
-                        "House or Kothi",
-                        "Builder Floor",
-                        "Villa",
-                        "Service Apartment",
-                        "Penthouse",
-                        "Studio Apartment",
-                        "Flats",
-                        "Duplex",
-                        "Plot/Land",
-                      ],
+                      _optionsByPropertyType[propertyType] ?? const [],
                       optionIndex,
                           (i) => setState(() => optionIndex = i),
                     ),
@@ -151,10 +185,18 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
 
                     _label("Select BHK"),
                     pillWrap(
-                      ["1 BHK", "2 BHK", "3 BHK", "4 BHK"],
+                      _bhkOptions,
                       bhkIndex,
-                          (i) => setState(() => bhkIndex = i),
+                          (i) => setState(() {
+                            bhkIndex = i;
+                            if (i != _bhkOptions.length - 1) _customBhkController.clear();
+                          }),
                     ),
+                    if (bhkIndex == _bhkOptions.length - 1) ...[
+                      const SizedBox(height: 8),
+                      // show custom numeric input when user selects "6+ BHK"
+                      inputField("Enter number of BHK ( > 6 )", controller: _customBhkController),
+                    ],
 
                     _label("Type of Finishing"),
                     pillWrap(
@@ -291,6 +333,23 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
           ),
           child: TextField(
             controller: controller,
+            keyboardType: (label.toLowerCase().contains('mobile') || label.toLowerCase().contains('phone'))
+                ? TextInputType.phone
+                : (label.toLowerCase().contains('price') ||
+                        label.toLowerCase().contains('area') ||
+                        label.toLowerCase().contains('size') ||
+                        label.toLowerCase().contains('min') ||
+                        label.toLowerCase().contains('max') ||
+                        label.toLowerCase().contains('units') ||
+                        label.toLowerCase().contains('amount') ||
+                        label.toLowerCase().contains('loan') ||
+                        label.toLowerCase().contains('rate') ||
+                        label.toLowerCase().contains('year'))
+                    ? const TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.text,
+            inputFormatters: (label.toLowerCase().contains('mobile') || label.toLowerCase().contains('phone'))
+                ? [FilteringTextInputFormatter.digitsOnly]
+                : null,
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding:
@@ -334,15 +393,15 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
   Widget pillWrap(
       List<String> items, int selected, Function(int) onTap) {
     return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+      spacing: 8,
+      runSpacing: 8,
       children: List.generate(items.length, (i) {
         final bool sel = selected == i;
         return GestureDetector(
           onTap: () => onTap(i),
           child: Container(
             padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: sel ? AppColors.primaryColor : Colors.transparent,
               borderRadius: BorderRadius.circular(22),
@@ -460,16 +519,15 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
                     final iam = iamIndex == 0 ? 'Individual' : 'Corporate';
                     final want = ['To Buy', 'To Rent', 'Other Services'][wantIndex];
                     final propertyTypeStr = ['Residential', 'Commercial', 'Agricultural'][propertyType];
-                    final bhkStr = ['1 BHK', '2 BHK', '3 BHK', '4 BHK'][bhkIndex];
                     final minP = num.tryParse(_minPriceController.text) ?? 0;
                     final maxP = num.tryParse(_maxPriceController.text) ?? 0;
 
-                    String? error;
                     bool isValidEmail(String e) {
                       final regex = RegExp(r"^[^\s@]+@[^\s@]+\.[^\s@]+$");
                       return regex.hasMatch(e);
                     }
 
+                    String? error;
                     if (name.isEmpty) {
                       error = 'Please enter name';
                     } else if (email.isEmpty) {
@@ -480,6 +538,18 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
                       error = 'Please enter mobile number';
                     } else if (propertyCity.isEmpty) {
                       error = 'Please enter property city';
+                    }
+
+                    String bhkStr = '';
+                    if (bhkIndex < _bhkOptions.length - 1) {
+                      bhkStr = _bhkOptions[bhkIndex];
+                    } else {
+                      final custom = int.tryParse(_customBhkController.text) ?? 0;
+                      if (custom <= 6) {
+                        error = 'Please enter a number greater than 6 for custom BHK';
+                      } else {
+                        bhkStr = '$custom BHK';
+                      }
                     }
 
                     if (error != null) {

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:hunt_property/services/auth_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/models/property_models.dart';
+import 'package:hunt_property/models/filter_models.dart';
 
 class PropertyService {
   // Re‑use the same base URL as auth
@@ -211,6 +212,104 @@ class PropertyService {
     } catch (e) {
       // ignore: avoid_print
       print('❌ GET PROPERTIES ERROR: $e');
+      return [];
+    }
+  }
+
+  /// Search properties using query text and optional filters.
+  /// Builds query parameters and calls the same properties endpoint.
+  Future<List<Property>> searchProperties({
+    String query = '',
+    FilterSelection? filters,
+    String type = 'BUY',
+    int page = 1,
+    int limit = 50,
+  }) async {
+    try {
+      final params = <String, String>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      if (query.trim().isNotEmpty) params['search'] = query.trim();
+
+      // Map UI type to backend transaction_type (buy/rent)
+      final txn = type.toLowerCase() == 'rent' ? 'rent' : 'buy';
+      params['transaction_type'] = txn;
+
+      if (filters != null) {
+        if (filters.city != null && filters.city!.isNotEmpty) {
+          params['city'] = filters.city!;
+        }
+        if (filters.locality != null && filters.locality!.isNotEmpty) {
+          params['locality'] = filters.locality!;
+        }
+        if (filters.propertyCategory != null && filters.propertyCategory!.isNotEmpty) {
+          params['property_category'] = filters.propertyCategory!;
+        }
+        if (filters.propertySubtype != null && filters.propertySubtype!.isNotEmpty) {
+          params['property_subtype'] = filters.propertySubtype!;
+        }
+        if (filters.budgetMin != null) params['price_min'] = filters.budgetMin!.toString();
+        if (filters.budgetMax != null) params['price_max'] = filters.budgetMax!.toString();
+        if (filters.areaMin != null) params['area_min'] = filters.areaMin!.toString();
+        if (filters.areaMax != null) params['area_max'] = filters.areaMax!.toString();
+        if (filters.bedrooms != null) {
+          params['bedrooms'] = filters.bedrooms!.toString();
+        } else if (filters.bedroomsList != null && filters.bedroomsList!.isNotEmpty) {
+          // Send comma-separated bedrooms list, e.g. bedrooms=1,2,3
+          params['bedrooms'] = filters.bedroomsList!.join(',');
+        }
+        if (filters.bathrooms != null) params['bathrooms'] = filters.bathrooms!.toString();
+        if (filters.furnishing != null && filters.furnishing!.isNotEmpty) {
+          params['furnishing'] = filters.furnishing!;
+        }
+        if (filters.facing != null && filters.facing!.isNotEmpty) {
+          params['facing'] = filters.facing!;
+        }
+        if (filters.storeRoom != null) params['store_room'] = filters.storeRoom! ? '1' : '0';
+        if (filters.servantRoom != null) params['servant_room'] = filters.servantRoom! ? '1' : '0';
+      }
+
+      final uri = Uri.parse('$baseUrl/api/properties/').replace(queryParameters: params);
+
+      final response = await http.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      // ignore: avoid_print
+      print('📥 SEARCH PROPERTIES RESPONSE: ${response.statusCode} ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(response.body);
+        dynamic list;
+        if (decoded is List) {
+          list = decoded;
+        } else if (decoded is Map) {
+          if (decoded['properties'] is List) {
+            list = decoded['properties'];
+          } else if (decoded['items'] is List) {
+            list = decoded['items'];
+          } else if (decoded['data'] is List) {
+            list = decoded['data'];
+          } else if (decoded['results'] is List) {
+            list = decoded['results'];
+          }
+        }
+
+        if (list is List) {
+          return list
+              .whereType<Map<String, dynamic>>()
+              .map((e) => Property.fromJson(e))
+              .toList();
+        }
+      }
+
+      return [];
+    } catch (e) {
+      // ignore: avoid_print
+      print('❌ SEARCH PROPERTIES ERROR: $e');
       return [];
     }
   }

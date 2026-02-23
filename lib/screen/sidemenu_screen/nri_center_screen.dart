@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/services.dart';
 import '../../cubit/nri_cubit.dart';
 import '../../cubit/nri_state.dart';
 import '../../data/repository/nri_repository.dart';
@@ -349,8 +350,14 @@ class _NRICenterScreenState extends State<NRICenterScreen> {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: kBorder),
             ),
-            child: TextField(
+          child: TextField(
               controller: controller,
+              keyboardType: (label.toLowerCase().contains('mobile') || label.toLowerCase().contains('phone'))
+                  ? TextInputType.phone
+                  : TextInputType.text,
+              inputFormatters: (label.toLowerCase().contains('mobile') || label.toLowerCase().contains('phone'))
+                  ? [FilteringTextInputFormatter.digitsOnly]
+                  : null,
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding:

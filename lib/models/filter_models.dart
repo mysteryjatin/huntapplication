@@ -141,6 +141,7 @@ class FilterSelection {
 
   final int? bedrooms;
   final int? bathrooms;
+  final List<int>? bedroomsList;
 
   final bool? storeRoom;
   final bool? servantRoom;
@@ -159,6 +160,7 @@ class FilterSelection {
     this.areaMax,
     this.bedrooms,
     this.bathrooms,
+    this.bedroomsList,
     this.storeRoom,
     this.servantRoom,
   });
@@ -177,6 +179,7 @@ class FilterSelection {
     num? areaMax,
     int? bedrooms,
     int? bathrooms,
+    List<int>? bedroomsList,
     bool? storeRoom,
     bool? servantRoom,
     bool clearCity = false,
@@ -186,6 +189,7 @@ class FilterSelection {
     bool clearFurnishing = false,
     bool clearFacing = false,
     bool clearBedrooms = false,
+    bool clearBedroomsList = false,
     bool clearBathrooms = false,
     bool clearStoreRoom = false,
     bool clearServantRoom = false,
@@ -205,6 +209,7 @@ class FilterSelection {
       areaMin: clearArea ? null : (areaMin ?? this.areaMin),
       areaMax: clearArea ? null : (areaMax ?? this.areaMax),
       bedrooms: clearBedrooms ? null : (bedrooms ?? this.bedrooms),
+      bedroomsList: clearBedroomsList ? null : (bedroomsList ?? this.bedroomsList),
       bathrooms: clearBathrooms ? null : (bathrooms ?? this.bathrooms),
       storeRoom: clearStoreRoom ? null : (storeRoom ?? this.storeRoom),
       servantRoom: clearServantRoom ? null : (servantRoom ?? this.servantRoom),
@@ -225,6 +230,7 @@ class FilterSelection {
         areaMin != null ||
         areaMax != null ||
         bedrooms != null ||
+        (bedroomsList != null && bedroomsList!.isNotEmpty) ||
         bathrooms != null ||
         storeRoom != null ||
         servantRoom != null;

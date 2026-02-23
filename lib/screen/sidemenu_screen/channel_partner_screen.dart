@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class ChannelPartnerScreen extends StatefulWidget {
   const ChannelPartnerScreen({super.key});
@@ -175,6 +176,8 @@ class _ChannelPartnerScreenState extends State<ChannelPartnerScreen> {
           TextField(
             controller: ctrl,
             maxLines: maxLines,
+            keyboardType: label.toLowerCase().contains('mobile') || label.toLowerCase().contains('phone') ? TextInputType.phone : TextInputType.text,
+            inputFormatters: label.toLowerCase().contains('mobile') || label.toLowerCase().contains('phone') ? [FilteringTextInputFormatter.digitsOnly] : null,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white,

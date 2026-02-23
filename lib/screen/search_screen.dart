@@ -8,6 +8,7 @@ import 'package:hunt_property/services/property_service.dart';
 import 'package:hunt_property/models/property_models.dart';
 import 'package:hunt_property/models/filter_models.dart';
 import 'package:intl/intl.dart';
+import 'package:hunt_property/screen/property_details_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   final VoidCallback? onBackPressed;
@@ -66,59 +67,45 @@ class _SearchScreenState extends State<SearchScreen> {
 
     setState(() => _isSearching = true);
 
-    _searchTimer = Timer(const Duration(milliseconds: 400), () {
-      final q = query.toLowerCase();
+    _searchTimer = Timer(const Duration(milliseconds: 400), () async {
+      try {
+        final results = await _propertyService.searchProperties(
+          query: query,
+          filters: _activeFilters,
+          type: _selectedType,
+          page: 1,
+          limit: 50,
+        );
 
-      final filtered = _allProperties.where((p) {
-        final typeMatch = _selectedType == "BUY"
-            ? p.transactionType.toLowerCase().contains('buy') ||
-                p.transactionType.toLowerCase().contains('sell')
-            : p.transactionType.toLowerCase().contains('rent');
-
-        if (!typeMatch) return false;
-
-        // Filters apply karo
-        final f = _activeFilters;
-        if (f != null) {
-          if (f.bedrooms != null && p.bedrooms != f.bedrooms) return false;
-          if (f.budgetMin != null && p.price < f.budgetMin!) return false;
-          if (f.budgetMax != null && p.price > f.budgetMax!) return false;
-          if (f.areaMin != null && p.areaSqft < f.areaMin!) return false;
-          if (f.areaMax != null && p.areaSqft > f.areaMax!) return false;
-        }
-
-        final searchable = [
-          p.title,
-          p.city,
-          p.locality,
-          p.address,
-          p.propertySubtype,
-          p.propertyCategory,
-        ].where((e) => e.isNotEmpty).join(' ').toLowerCase();
-
-        if (query.trim().isEmpty) {
-          // Agar sirf filters lagaye hain (search box blank)
-          return true;
-        }
-        return searchable.contains(q);
-      }).toList();
-
-      setState(() {
-        _searchResults = filtered;
-        _isSearching = false;
-      });
+        setState(() {
+          _searchResults = results;
+          _isSearching = false;
+        });
+      } catch (e) {
+        // ignore: avoid_print
+        print('❌ SEARCH FAILED: $e');
+        setState(() {
+          _searchResults = [];
+          _isSearching = false;
+        });
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        children: [
-          _searchBar(),
-          _buyRentToggle(),
-          Expanded(child: _buildContentArea()),
-        ],
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _searchBar(),
+            const SizedBox(height: 8),
+            _buyRentToggle(),
+            const SizedBox(height: 8),
+            Expanded(child: _buildContentArea()),
+          ],
+        ),
       ),
     );
   }
@@ -156,133 +143,70 @@ class _SearchScreenState extends State<SearchScreen> {
   // ---------------- PROPERTY CARD ----------------
 
   Widget _propertyItem(Property property) {
-    final imageUrl = property.images.isNotEmpty
-        ? property.images.first
-        : 'assets/images/onboarding1.png';
+    // Prepare display values
+    final imageUrl = property.images.isNotEmpty ? property.images.first : null;
+    final priceText = (property.price is num && property.price > 0) ? '₹ ${NumberFormat('#,###').format(property.price)}' : '₹ 0';
+    final dateText = property.postedAt != null ? DateFormat('dd MMM yyyy').format(property.postedAt!) : '';
+    final location = '${property.locality}${property.city.isNotEmpty ? ', ${property.city}' : ''}';
 
-    final priceText = property.price > 0
-        ? '₹ ${NumberFormat('#,###').format(property.price)}'
-        : '0.0';
-
-    final dateText = property.postedAt != null
-        ? DateFormat('dd MMMM yyyy').format(property.postedAt!)
-        : '';
-
-    final location =
-        '${property.locality}${property.city.isNotEmpty ? ', ${property.city}' : ''}';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5FAFF),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // IMAGE
-          Container(
-            width: 86,
-            height: 86,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.12),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Image.asset(imageUrl, fit: BoxFit.cover),
-            ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PropertyDetailsScreen(propertyId: property.id),
           ),
-
-          const SizedBox(width: 12),
-
-          // TEXT AREA
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                /// TITLE + HEART
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        property.title.isNotEmpty
-                            ? property.title
-                            : 'Flat in best offer',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const Icon(
-                      Icons.favorite_border,
-                      size: 18,
-                      color: Colors.black54,
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 4),
-
-                // LOCATION
-                Text(
-                  location,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
-
-                const SizedBox(height: 4),
-
-                // SIZE / TYPE (static in current UI)
-                const Text(
-                  '360 Sq Ft • Freehold',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
-
-                const SizedBox(height: 6),
-
-                /// DATE + PRICE
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        dateText,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      priceText,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: const Color(0xFFF5FAFF), borderRadius: BorderRadius.circular(14)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // IMAGE
+            Container(
+              width: 86,
+              height: 86,
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 8, offset: const Offset(0, 4))]),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: imageUrl != null ? Image.network(imageUrl, fit: BoxFit.cover) : Image.asset('assets/images/onboarding1.png', fit: BoxFit.cover),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            // TEXT AREA
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(property.title.isNotEmpty ? property.title : 'Flat in best offer', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                      ),
+                      const Icon(Icons.favorite_border, size: 18, color: Colors.black54),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(location, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  const Text('360 Sq Ft • Freehold', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(child: Text(dateText, style: const TextStyle(fontSize: 11, color: Colors.grey))),
+                      Text(priceText, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

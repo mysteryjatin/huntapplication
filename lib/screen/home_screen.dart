@@ -52,6 +52,7 @@ class _HomeScreenState extends State<HomeScreen>
   List<Property> _properties = [];
   bool _isLoadingProperties = false;
   final categories = [
+    'Home',
     'Buy',
     'Rent',
     'Projects',
@@ -208,21 +209,32 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: Colors.white,
-      drawer: _buildDrawer(),
-      body: _buildMainScreen(),
-      bottomNavigationBar: CustomBottomNavBar(
-        selectedIndex: selectedIndex,
-        onItemSelected: (i) async {
-          // If Add button (index 2) is clicked, check for spin popup first
-          if (i == 2) {
-            await _handleAddButtonClick();
-          } else {
-            setState(() => selectedIndex = i);
-          }
-        },
+    // Intercept Android back button to navigate to Home tab instead of closing app.
+    return WillPopScope(
+      onWillPop: () async {
+        if (selectedIndex != 0) {
+          setState(() => selectedIndex = 0);
+          return false; // don't pop navigator
+        }
+        // If already on home (index 0), allow default behavior (app will close)
+        return true;
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: Colors.white,
+        drawer: _buildDrawer(),
+        body: _buildMainScreen(),
+        bottomNavigationBar: CustomBottomNavBar(
+          selectedIndex: selectedIndex,
+          onItemSelected: (i) async {
+            // If Add button (index 2) is clicked, check for spin popup first
+            if (i == 2) {
+              await _handleAddButtonClick();
+            } else {
+              setState(() => selectedIndex = i);
+            }
+          },
+        ),
       ),
     );
   }
@@ -256,6 +268,9 @@ class _HomeScreenState extends State<HomeScreen>
           searchController: _searchController,
           searchFocusNode: _searchFocusNode,
           onTuneTap: _openFilter,
+          categories: categories,
+          selectedCategoryIndex: _selectedCategoryIndex,
+          onCategorySelected: (i) => setState(() => _selectedCategoryIndex = i),
         ),
 
         /// ALL CONTENT SCROLLS — NO OVERFLOW POSSIBLE
@@ -269,7 +284,6 @@ class _HomeScreenState extends State<HomeScreen>
                 children: [
 
                   const SizedBox(height: 20),
-
                   _GetStartedCarousel(
                     controller: _carouselController,
                     onPageChanged: (i) => setState(() => _carouselPage = i),
@@ -277,6 +291,8 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
 
                   const SizedBox(height: 20),
+
+                  // Latest Properties (from API)
                   _sectionTitle("Latest Properties"),
                   if (_isLoadingProperties)
                     const Center(
@@ -295,6 +311,24 @@ class _HomeScreenState extends State<HomeScreen>
                     )
                   else
                     _HorizontalPropertyList.fromProperties(properties: _properties),
+
+                  const SizedBox(height: 14),
+
+                  // Show sections depending on selected tab
+                  if (_selectedCategoryIndex == 0 || _selectedCategoryIndex == 1) ...[
+                    _sectionTitle("Top Selling Projects in Chennai"),
+                    _HorizontalPropertyList(properties: _topSelling),
+                    const SizedBox(height: 14),
+                  ],
+
+                  if (_selectedCategoryIndex == 0) ...[
+                    _sectionTitle("Recommend Your Location"),
+                    _HorizontalPropertyList(properties: _recommended),
+                    const SizedBox(height: 14),
+                    _sectionTitle("Property for Rent"),
+                    _HorizontalPropertyList(properties: _rents),
+                    const SizedBox(height: 14),
+                  ],
 
                   const SizedBox(height: 20),
                   _ServicesGrid(services: _services),
@@ -399,6 +433,9 @@ class _HeaderArea extends StatelessWidget {
   final TextEditingController searchController;
   final FocusNode searchFocusNode;
   final VoidCallback onTuneTap;
+  final List<String> categories;
+  final int selectedCategoryIndex;
+  final Function(int) onCategorySelected;
 
   const _HeaderArea({
     required this.scaffoldKey,
@@ -406,6 +443,9 @@ class _HeaderArea extends StatelessWidget {
     required this.searchController,
     required this.searchFocusNode,
     required this.onTuneTap,
+    required this.categories,
+    required this.selectedCategoryIndex,
+    required this.onCategorySelected,
   });
 
   @override
@@ -528,25 +568,44 @@ class _HeaderArea extends StatelessWidget {
             ),
 
 
-            // Categories
+            // Categories (scrollable tabs)
             SizedBox(
               height: 52,
-              child: ListView(
+              child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 scrollDirection: Axis.horizontal,
-                children: [
-                  _CategoryChip(label: 'Buy', selected: true),
-                  const SizedBox(width: 18),
-                  _CategoryChip(label: 'Rent', selected: false),
-                  const SizedBox(width: 18),
-                  _CategoryChip(label: 'Projects', selected: false),
-                  const SizedBox(width: 18),
-                  _CategoryChip(label: 'Residential', selected: false),
-                  const SizedBox(width: 18),
-                  _CategoryChip(label: 'Commercial', selected: false),
-                  const SizedBox(width: 18),
-                  _CategoryChip(label: 'Agents', selected: false),
-                ],
+                itemCount: categories.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 18),
+                itemBuilder: (context, idx) {
+                  final label = categories[idx];
+                  final selected = idx == selectedCategoryIndex;
+                  return GestureDetector(
+                    onTap: () => onCategorySelected(idx),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: selected ? Colors.black : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          height: 3,
+                          width: selected ? 32 : 0,
+                          decoration: BoxDecoration(
+                            color: selected ? Colors.black : Colors.transparent,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -690,63 +749,55 @@ class _HorizontalPropertyList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (apiProperties != null) {
-      return SizedBox(
-        height: 235,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: apiProperties!.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 12),
-          itemBuilder: (context, i) {
-            final p = apiProperties![i];
-            final firstImage = p.images.isNotEmpty ? p.images.first : null;
+    // Use a 2-column grid to match the screenshot design
+    final items = apiProperties != null
+        ? apiProperties!
+            .map((p) {
+              final firstImage = p.images.isNotEmpty ? p.images.first : null;
+              String priceStr;
+              if (p.price is num && p.price > 0) {
+                priceStr = '₹${p.price}';
+              } else if (p.transactionType.toLowerCase() == 'rent' &&
+                  p.monthlyRent.isNotEmpty) {
+                final cleaned = p.monthlyRent.replaceAll(RegExp(r'[^0-9.]'), '');
+                final numVal = num.tryParse(cleaned) ?? 0;
+                priceStr = numVal > 0 ? '₹${numVal}' : '₹0';
+              } else {
+                priceStr = '₹${p.price}';
+              }
 
-            // Price display logic:
-            // - If API returned a positive price, use it.
-            // - If price is 0 and transaction_type is "rent", fall back to monthlyRent.
-            // - Otherwise show the price as-is (may be 0).
-            String priceStr;
-            if (p.price is num && p.price > 0) {
-              priceStr = '₹${p.price}';
-            } else if (p.transactionType.toLowerCase() == 'rent' &&
-                p.monthlyRent.isNotEmpty) {
-              final cleaned = p.monthlyRent.replaceAll(RegExp(r'[^0-9.]'), '');
-              final numVal = num.tryParse(cleaned) ?? 0;
-              priceStr = numVal > 0 ? '₹${numVal}' : '₹0';
-            } else {
-              priceStr = '₹${p.price}';
-            }
-
-            return _PropertyCard(
-              tag: p.transactionType,
-              title: p.title,
-              price: priceStr,
-              location: '${p.locality}, ${p.city}',
-              imageUrl: firstImage,
-            );
-          },
-        ),
-      );
-    }
-
-    final localList = properties ?? [];
+              return {
+                'id': p.id,
+                'tag': p.transactionType,
+                'title': p.title,
+                'price': priceStr,
+                'location': '${p.locality}, ${p.city}',
+                'image': firstImage,
+              };
+            })
+            .toList()
+        : (properties ?? []);
 
     return SizedBox(
-      height: 235,
+      height: 240,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: localList.length,
+        itemCount: items.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, i) {
-          final p = localList[i];
-          return _PropertyCard(
-            tag: p['tag'] ?? '',
-            title: p['title'] ?? '',
-            price: p['price'] ?? '',
-            location: p['location'] ?? '',
-          );
+          final item = items[i];
+            return SizedBox(
+              width: 180,
+              child: _PropertyCard(
+                propertyId: item['id'] as String?,
+                tag: item['tag'] ?? '',
+                title: item['title'] ?? '',
+                price: item['price'] ?? '',
+                location: item['location'] ?? '',
+                imageUrl: item['image'] as String?,
+              ),
+            );
         },
       ),
     );
@@ -762,8 +813,10 @@ class _PropertyCard extends StatelessWidget {
   final String price;
   final String location;
   final String? imageUrl;
+  final String? propertyId;
 
   const _PropertyCard({
+    this.propertyId,
     required this.tag,
     required this.title,
     required this.price,
@@ -779,21 +832,18 @@ class _PropertyCard extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (context) => PropertyDetailsScreen(
-              tag: tag,
-              price: price,
-              location: location,
+              propertyId: propertyId ?? '',
             ),
           ),
         );
       },
       child: Container(
-        width: 180,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.grey.shade300),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 2))
+            BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 4))
           ],
         ),
         child: Column(
@@ -803,48 +853,41 @@ class _PropertyCard extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
               child: Stack(
                 children: [
-                  SizedBox(
-                    height: 120,
-                    width: double.infinity,
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
                     child: imageUrl != null && imageUrl!.isNotEmpty
-                        ? Image.network(
-                            imageUrl!,
-                            fit: BoxFit.cover,
-                          )
-                        : Image.asset(
-                            'assets/images/onboarding1.png',
-                            fit: BoxFit.cover,
-                          ),
+                        ? Image.network(imageUrl!, fit: BoxFit.cover)
+                        : Image.asset('assets/images/onboarding1.png', fit: BoxFit.cover),
                   ),
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: CircleAvatar(
-                      radius: 14,
-                      backgroundColor: Colors.white,
-                      child: Icon(Icons.favorite_border, size: 16, color: Colors.black87),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                      child: const Icon(Icons.favorite_border, size: 16, color: Colors.black87),
                     ),
                   ),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 4),
-                  Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
                   const SizedBox(height: 6),
+                  Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(price, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundColor: const Color(0xFF2FED9A),
-                        child: Icon(Icons.arrow_forward, size: 16, color: Colors.green.shade800),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: const Color(0xFF2FED9A), borderRadius: BorderRadius.circular(20)),
+                        child: const Icon(Icons.arrow_forward, size: 16, color: Colors.black),
                       ),
                     ],
                   ),

@@ -18,8 +18,11 @@ class _FilterScreenState extends State<FilterScreen> {
   RangeValues _budgetRange = const RangeValues(15, 25);
   RangeValues _areaRange = const RangeValues(15, 25);
 
-  String? _selectedBedroom;
+  // allow multi-select for bedrooms
+  final Set<String> _selectedBedrooms = {};
   Set<int> _selectedYears = {};
+  String? _selectedMonth;
+  int? _selectedYear;
   String _selectedPossessionStatus = "Under Construction";
 
   // Multi select
@@ -140,7 +143,7 @@ class _FilterScreenState extends State<FilterScreen> {
         ),
       );
 
-  Widget _gap() => const SizedBox(height: 20);
+  Widget _gap() => const SizedBox(height: 12);
 
   // ---------------- CATEGORY ----------------
 
@@ -227,14 +230,20 @@ class _FilterScreenState extends State<FilterScreen> {
   Widget _bedroomSelector() {
     final rooms = ["1 BHK", "2 BHK", "3 BHK", "4 BHK"];
     return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+      spacing: 8,
+      runSpacing: 8,
       children: rooms.map((room) {
-        final sel = _selectedBedroom == room;
+        final sel = _selectedBedrooms.contains(room);
         return GestureDetector(
-          onTap: () => setState(() => _selectedBedroom = sel ? null : room),
+          onTap: () => setState(() {
+            if (sel) {
+              _selectedBedrooms.remove(room);
+            } else {
+              _selectedBedrooms.add(room);
+            }
+          }),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               color: sel ? kGreen : Colors.white,
               borderRadius: BorderRadius.circular(30),
@@ -242,8 +251,7 @@ class _FilterScreenState extends State<FilterScreen> {
             ),
             child: Text(
               room,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w600, color: Colors.black),
+              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black),
             ),
           ),
         );
@@ -254,42 +262,77 @@ class _FilterScreenState extends State<FilterScreen> {
   // ---------------- AVAILABILITY ----------------
 
   Widget _availabilityRow() {
-    final years = [2023, 2024, 2025, 2026];
+    final now = DateTime.now();
+    final monthsAll = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ];
+    // Months from current month to December
+    final months = monthsAll.sublist(now.month - 1);
 
-    return Wrap(
-      spacing: 20,
-      runSpacing: 12,
-      children: years.map((yr) {
-        final sel = _selectedYears.contains(yr);
-        return GestureDetector(
-          onTap: () {
-            setState(() {
-              sel ? _selectedYears.remove(yr) : _selectedYears.add(yr);
-            });
-          },
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 18,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: sel ? kGreen : Colors.white,
-                  border: Border.all(color: sel ? kGreen : kBorderGrey),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: sel
-                    ? const Icon(Icons.check, size: 14, color: Colors.white)
-                    : null,
+    // Years from current year to next 6 years (inclusive)
+    final years = List<int>.generate(7, (i) => now.year + i);
+
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: kBorderGrey)),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                isDense: true,
+                style: const TextStyle(fontSize: 13, color: Colors.black),
+                hint: const Text("Month", style: TextStyle(fontSize: 13)),
+                value: _selectedMonth,
+                items: months
+                    .map((m) => DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13))))
+                    .toList(),
+                onChanged: (v) => setState(() => _selectedMonth = v),
               ),
-              const SizedBox(width: 8),
-              Text("$yr",
-                  style: TextStyle(
-                      color: sel ? Colors.black : Colors.black54)),
-            ],
+            ),
           ),
-        );
-      }).toList(),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: kBorderGrey)),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                isExpanded: true,
+                isDense: true,
+                style: const TextStyle(fontSize: 13, color: Colors.black),
+                hint: const Text("Year", style: TextStyle(fontSize: 13)),
+                value: _selectedYear,
+                items: years
+                    .map((y) => DropdownMenuItem(value: y, child: Text("$y", style: const TextStyle(fontSize: 13))))
+                    .toList(),
+                onChanged: (v) => setState(() => _selectedYear = v),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -323,7 +366,7 @@ class _FilterScreenState extends State<FilterScreen> {
           child: Text(
             text,
             style: const TextStyle(
-                fontWeight: FontWeight.w600, color: Colors.black),
+                fontWeight: FontWeight.w600, color: Colors.black,fontSize: 12),
           ),
         ),
       ),
@@ -344,8 +387,8 @@ class _FilterScreenState extends State<FilterScreen> {
     final itemWidth = (w - 40 - 14) / 2;
 
     return Wrap(
-      spacing: 14,
-      runSpacing: 14,
+      spacing: 10,
+      runSpacing: 10,
       children: items.map((label) {
         final selected = _selectedConstruction.contains(label);
 
@@ -359,31 +402,52 @@ class _FilterScreenState extends State<FilterScreen> {
           },
           child: Container(
             width: itemWidth,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
             decoration: BoxDecoration(
-              color: selected ? kGreen.withOpacity(.15) : Colors.white,
+              color: selected ? kGreen : Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: selected ? kGreen : kBorderGrey, width: 1.5),
+              border: Border.all(color: kGreen, width: 1.6),
+              boxShadow: selected
+                  ? []
+                  : [
+                      // subtle elevation for unselected cards to match design
+                      BoxShadow(
+                        color: Colors.black.withOpacity(.02),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      )
+                    ],
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Icon(Icons.apartment,
-                    size: 18, color: selected ? kGreen : Colors.black54),
-                const SizedBox(width: 8),
+                // Icon on the left
+                Container(
+                  width: 25,
+                  height: 25,
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(Icons.apartment,
+                      size: 18, color: selected ? Colors.black : kGreen),
+                ),
+                const SizedBox(width: 2),
                 Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: selected ? kGreen : Colors.black87),
+                  child: Center(
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.start,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 11,
+                          height: 1.1,
+                          fontWeight: FontWeight.w600,
+                          color: selected ? Colors.black : Colors.black87),
+                    ),
                   ),
                 ),
-                if (selected)
-                  const Icon(Icons.check_circle, size: 16, color: kGreen),
               ],
             ),
           ),
@@ -454,11 +518,15 @@ class _FilterScreenState extends State<FilterScreen> {
                 onPressed: () {
                   // FilterSelection banake SearchScreen ko wapas bhej do
                   int? bedroomCount;
-                  if (_selectedBedroom != null &&
-                      _selectedBedroom!.trim().isNotEmpty) {
-                    // "1 BHK" => 1, "2 BHK" => 2 ...
-                    final first = _selectedBedroom!.trim().split(' ').first;
-                    bedroomCount = int.tryParse(first);
+                  List<int>? bedroomsList;
+                  if (_selectedBedrooms.isNotEmpty) {
+                    bedroomsList = _selectedBedrooms
+                        .map((s) => int.tryParse(s.split(' ').first) ?? 0)
+                        .where((v) => v > 0)
+                        .toList();
+                    if (bedroomsList.length == 1) {
+                      bedroomCount = bedroomsList.first;
+                    }
                   }
 
                   final selection = FilterSelection(
@@ -468,6 +536,7 @@ class _FilterScreenState extends State<FilterScreen> {
                     areaMin: _areaRange.start,
                     areaMax: _areaRange.end,
                     bedrooms: bedroomCount,
+                    bedroomsList: bedroomsList,
                   );
 
                   Navigator.of(context).pop(selection);
@@ -488,8 +557,10 @@ class _FilterScreenState extends State<FilterScreen> {
       _selectedCategory = "BUY";
       _budgetRange = const RangeValues(15, 25);
       _areaRange = const RangeValues(15, 25);
-      _selectedBedroom = null;
+      _selectedBedrooms.clear();
       _selectedYears.clear();
+      _selectedMonth = null;
+      _selectedYear = null;
       _selectedConstruction.clear();
       _selectedPossessionStatus = "Under Construction";
     });
