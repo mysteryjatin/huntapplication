@@ -21,6 +21,11 @@ import 'widget/custombottomnavbar.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hunt_property/cubit/filter_cubit.dart';
 import 'package:hunt_property/services/filter_service.dart';
+import 'package:hunt_property/services/shortlist_service.dart';
+import 'package:hunt_property/cubit/shortlist_cubit.dart';
+import 'package:hunt_property/cubit/home_cubit.dart';
+import 'package:hunt_property/cubit/home_state.dart';
+import 'package:hunt_property/repositories/home_repository.dart';
 // Service target screens
 import 'package:hunt_property/screen/sidemenu_screen/home_loan_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/property_cost_calculator.dart';
@@ -50,9 +55,12 @@ class _HomeScreenState extends State<HomeScreen>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final PropertyService _propertyService = PropertyService();
   List<Property> _properties = [];
+  HomeCubit? _homeCubit;
+  final ShortlistService _shortlistService = ShortlistService();
+  Set<String> _favoriteIds = {};
+  String _selectedCity = 'Chennai';
   bool _isLoadingProperties = false;
   final categories = [
-    'Home',
     'Buy',
     'Rent',
     'Projects',
@@ -138,8 +146,79 @@ class _HomeScreenState extends State<HomeScreen>
     _searchFocusNode.addListener(
           () => setState(() => _isSearchFocused = _searchFocusNode.hasFocus),
     );
-
     _loadProperties();
+    _loadSelectedCity();
+    _initHomeCubit();
+  }
+
+  Future<void> _loadSelectedCity() async {
+    final c = await StorageService.getSelectedCity();
+    if (c != null && c.isNotEmpty) {
+      setState(() {
+        _selectedCity = c;
+      });
+    }
+  }
+
+  Future<void> _onCategorySelected(int idx) async {
+    setState(() => _selectedCategoryIndex = idx);
+
+    String? txn;
+    String? category;
+    final label = categories[idx].toLowerCase();
+    if (label == 'buy') txn = 'sale';
+    if (label == 'rent') txn = 'rent';
+    if (label == 'projects') category = 'Projects';
+    if (label == 'residential') category = 'Residential';
+    if (label == 'commercial') category = 'Commercial';
+
+    final userId = await StorageService.getUserId();
+    _homeCubit?.fetchHomeWithFilters(city: _selectedCity, userId: userId, limit: 10, transactionType: txn, propertyCategory: category);
+  }
+
+  void _initHomeCubit() async {
+    _homeCubit = HomeCubit(HomeRepository(service: _propertyService));
+    final userId = await StorageService.getUserId();
+    _homeCubit?.fetchHome(city: 'Chennai', userId: userId, limit: 10);
+  }
+
+  Future<void> _loadFavorites() async {
+    try {
+      final res = await _shortlistService.getShortlist();
+      if (!mounted) return;
+      setState(() {
+        _favoriteIds = res.properties.map((p) => p.id).toSet();
+      });
+    } catch (e) {
+      // ignore: avoid_print
+      print('❌ LOAD FAVORITES ERROR: $e');
+    }
+  }
+
+  Future<void> _selectCityDialog() async {
+    final controller = TextEditingController(text: _selectedCity);
+    final res = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select City'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'Enter city name'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Save')),
+        ],
+      ),
+    );
+
+    if (res != null && res.isNotEmpty) {
+      await StorageService.saveSelectedCity(res);
+      setState(() => _selectedCity = res);
+      // refetch home with new city
+      final userId = await StorageService.getUserId();
+      _homeCubit?.fetchHomeWithFilters(city: _selectedCity, userId: userId, limit: 10);
+    }
   }
 
   @override
@@ -147,6 +226,7 @@ class _HomeScreenState extends State<HomeScreen>
     _carouselController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _homeCubit?.close();
     super.dispose();
   }
 
@@ -232,6 +312,10 @@ class _HomeScreenState extends State<HomeScreen>
               await _handleAddButtonClick();
             } else {
               setState(() => selectedIndex = i);
+              // When returning to Home tab, refresh favorites so heart states update.
+              if (i == 0) {
+                _loadFavorites();
+              }
             }
           },
         ),
@@ -270,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen>
           onTuneTap: _openFilter,
           categories: categories,
           selectedCategoryIndex: _selectedCategoryIndex,
-          onCategorySelected: (i) => setState(() => _selectedCategoryIndex = i),
+          onCategorySelected: (i) => _onCategorySelected(i),
         ),
 
         /// ALL CONTENT SCROLLS — NO OVERFLOW POSSIBLE
@@ -310,24 +394,99 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                     )
                   else
-                    _HorizontalPropertyList.fromProperties(properties: _properties),
+                    _HorizontalPropertyList.fromProperties(properties: _properties, favoriteIds: _favoriteIds),
 
                   const SizedBox(height: 14),
 
-                  // Show sections depending on selected tab
+                  // Show sections depending on selected tab (driven by HomeCubit)
                   if (_selectedCategoryIndex == 0 || _selectedCategoryIndex == 1) ...[
-                    _sectionTitle("Top Selling Projects in Chennai"),
-                    _HorizontalPropertyList(properties: _topSelling),
-                    const SizedBox(height: 14),
+                    BlocBuilder<HomeCubit, HomeState>(
+                      bloc: _homeCubit,
+                      builder: (context, state) {
+                        if (state is HomeLoaded) {
+                          final title = state.data.topSellingProjects.sectionTitle.isNotEmpty
+                              ? state.data.topSellingProjects.sectionTitle
+                              : "Top Selling Projects in Chennai";
+                          final props = state.data.topSellingProjects.properties;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _sectionTitle(title),
+                              props.isNotEmpty
+                                  ? _HorizontalPropertyList.fromProperties(properties: props, favoriteIds: _favoriteIds)
+                                  : _HorizontalPropertyList(properties: _topSelling, favoriteIds: _favoriteIds),
+                              const SizedBox(height: 14),
+                            ],
+                          );
+                        } else if (state is HomeLoading) {
+                          return Column(children: const [
+                            SizedBox(height: 8),
+                            Center(child: CircularProgressIndicator()),
+                            SizedBox(height: 14),
+                          ]);
+                        }
+                        // fallback to sample data
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _sectionTitle("Top Selling Projects in Chennai"),
+                            _HorizontalPropertyList(properties: _topSelling, favoriteIds: _favoriteIds),
+                            const SizedBox(height: 14),
+                          ],
+                        );
+                      },
+                    ),
                   ],
 
                   if (_selectedCategoryIndex == 0) ...[
-                    _sectionTitle("Recommend Your Location"),
-                    _HorizontalPropertyList(properties: _recommended),
-                    const SizedBox(height: 14),
-                    _sectionTitle("Property for Rent"),
-                    _HorizontalPropertyList(properties: _rents),
-                    const SizedBox(height: 14),
+                    BlocBuilder<HomeCubit, HomeState>(
+                      bloc: _homeCubit,
+                      builder: (context, state) {
+                        if (state is HomeLoaded) {
+                          final recTitle = state.data.recommendYourLocation.sectionTitle.isNotEmpty
+                              ? state.data.recommendYourLocation.sectionTitle
+                              : "Recommend Your Location";
+                          final rentTitle = state.data.propertyForRent.sectionTitle.isNotEmpty
+                              ? state.data.propertyForRent.sectionTitle
+                              : "Property for Rent";
+                          final recProps = state.data.recommendYourLocation.properties;
+                          final rentProps = state.data.propertyForRent.properties;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _sectionTitle(recTitle),
+                              recProps.isNotEmpty
+                                  ? _HorizontalPropertyList.fromProperties(properties: recProps, favoriteIds: _favoriteIds)
+                                  : _HorizontalPropertyList(properties: _recommended, favoriteIds: _favoriteIds),
+                              const SizedBox(height: 14),
+                              _sectionTitle(rentTitle),
+                              rentProps.isNotEmpty
+                                  ? _HorizontalPropertyList.fromProperties(properties: rentProps, favoriteIds: _favoriteIds)
+                                  : _HorizontalPropertyList(properties: _rents, favoriteIds: _favoriteIds),
+                              const SizedBox(height: 14),
+                            ],
+                          );
+                        } else if (state is HomeLoading) {
+                          return Column(children: const [
+                            SizedBox(height: 8),
+                            Center(child: CircularProgressIndicator()),
+                            SizedBox(height: 14),
+                          ]);
+                        }
+                        // fallback
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _sectionTitle("Recommend Your Location"),
+                            _HorizontalPropertyList(properties: _recommended, favoriteIds: _favoriteIds),
+                            const SizedBox(height: 14),
+                            _sectionTitle("Property for Rent"),
+                            _HorizontalPropertyList(properties: _rents, favoriteIds: _favoriteIds),
+                            const SizedBox(height: 14),
+                          ],
+                        );
+                      },
+                    ),
                   ],
 
                   const SizedBox(height: 20),
@@ -415,12 +574,20 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() {
       _isLoadingProperties = true;
     });
-    final props = await _propertyService.getProperties();
-    if (!mounted) return;
-    setState(() {
-      _properties = props;
-      _isLoadingProperties = false;
-    });
+
+    try {
+      final props = await _propertyService.getProperties();
+      if (!mounted) return;
+      setState(() {
+        _properties = props;
+        _isLoadingProperties = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingProperties = false;
+      });
+    }
   }
 }
 
@@ -472,11 +639,8 @@ class _HeaderArea extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   SizedBox(
-                    height: 100,
-                    child: Image.asset(
-                      'assets/images/hunt_property_logo_-removebg-preview.png',
-                      fit: BoxFit.fill,
-                    ),
+                    height: 72,
+                    child: Image.asset('assets/images/hunt_property_logo_-removebg-preview.png', fit: BoxFit.fill),
                   ),
                   const Spacer(),
                   InkWell(
@@ -735,20 +899,38 @@ class _GetStartedCarousel extends StatelessWidget {
 class _HorizontalPropertyList extends StatelessWidget {
   final List<Map<String, String>>? properties;
   final List<Property>? apiProperties;
+  final Set<String>? favoriteIds;
 
   const _HorizontalPropertyList({
     this.properties,
     this.apiProperties,
+    this.favoriteIds,
   });
 
   factory _HorizontalPropertyList.fromProperties({
     required List<Property> properties,
+    Set<String>? favoriteIds,
   }) {
-    return _HorizontalPropertyList(apiProperties: properties);
+    return _HorizontalPropertyList(apiProperties: properties, favoriteIds: favoriteIds);
   }
 
   @override
   Widget build(BuildContext context) {
+    // Determine favorites from either passed-in favoriteIds or ShortlistCubit (if available).
+    final Set<String> favIds = {};
+    if (favoriteIds != null) {
+      favIds.addAll(favoriteIds!);
+    } else {
+      try {
+        final s = BlocProvider.of<ShortlistCubit>(context).state;
+        if (s is ShortlistLoaded) {
+          favIds.addAll(s.properties.map((e) => e.id));
+        }
+      } catch (_) {
+        // ignore
+      }
+    }
+
     // Use a 2-column grid to match the screenshot design
     final items = apiProperties != null
         ? apiProperties!
@@ -766,6 +948,8 @@ class _HorizontalPropertyList extends StatelessWidget {
                 priceStr = '₹${p.price}';
               }
 
+              final isFav = favIds.contains(p.id) || p.isFavorite;
+
               return {
                 'id': p.id,
                 'tag': p.transactionType,
@@ -773,6 +957,7 @@ class _HorizontalPropertyList extends StatelessWidget {
                 'price': priceStr,
                 'location': '${p.locality}, ${p.city}',
                 'image': firstImage,
+                'is_favorite': isFav,
               };
             })
             .toList()
@@ -791,11 +976,12 @@ class _HorizontalPropertyList extends StatelessWidget {
               width: 180,
               child: _PropertyCard(
                 propertyId: item['id'] as String?,
-                tag: item['tag'] ?? '',
-                title: item['title'] ?? '',
-                price: item['price'] ?? '',
-                location: item['location'] ?? '',
+                tag: item['tag']?.toString() ?? '',
+                title: item['title']?.toString() ?? '',
+                price: item['price']?.toString() ?? '',
+                location: item['location']?.toString() ?? '',
                 imageUrl: item['image'] as String?,
+                isFavorite: item['is_favorite'] as bool? ?? false,
               ),
             );
         },
@@ -807,13 +993,14 @@ class _HorizontalPropertyList extends StatelessWidget {
 // ------------------------
 // PROPERTY CARD
 // ------------------------
-class _PropertyCard extends StatelessWidget {
+class _PropertyCard extends StatefulWidget {
   final String tag;
   final String title;
   final String price;
   final String location;
   final String? imageUrl;
   final String? propertyId;
+  final bool isFavorite;
 
   const _PropertyCard({
     this.propertyId,
@@ -822,7 +1009,68 @@ class _PropertyCard extends StatelessWidget {
     required this.price,
     required this.location,
     this.imageUrl,
+    this.isFavorite = false,
   });
+
+  @override
+  State<_PropertyCard> createState() => _PropertyCardState();
+}
+
+class _PropertyCardState extends State<_PropertyCard> {
+  late bool _isFavorite;
+  final ShortlistService _shortlistService = ShortlistService();
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorite = widget.isFavorite;
+  }
+
+  Future<void> _toggleFavorite() async {
+    final userId = await StorageService.getUserId();
+    if (userId == null || userId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please login to save favorites')));
+      }
+      return;
+    }
+
+    final propId = widget.propertyId ?? '';
+    if (propId.isEmpty) return;
+
+    setState(() => _isFavorite = !_isFavorite); // optimistic
+
+    bool success = false;
+    if (_isFavorite) {
+      success = await _shortlistService.addToShortlist(propId);
+    } else {
+      success = await _shortlistService.removeFromShortlist(propId);
+    }
+
+    if (!success) {
+      // revert
+      setState(() => _isFavorite = !_isFavorite);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update favorites')));
+      }
+      return;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_isFavorite ? 'Added to favorites' : 'Removed from favorites')));
+    }
+
+    // If ShortlistCubit exists above in tree, reload it so shortlist screen shows update immediately.
+    try {
+      final cubit = BlocProvider.of<ShortlistCubit>(context, listen: false);
+      cubit.load();
+    } catch (_) {}
+    // Also refresh HomeScreen's local favorites cache if HomeScreen is an ancestor
+    try {
+      final homeState = context.findAncestorStateOfType<_HomeScreenState>();
+      await homeState?._loadFavorites();
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -832,7 +1080,7 @@ class _PropertyCard extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (context) => PropertyDetailsScreen(
-              propertyId: propertyId ?? '',
+              propertyId: widget.propertyId ?? '',
             ),
           ),
         );
@@ -855,17 +1103,22 @@ class _PropertyCard extends StatelessWidget {
                 children: [
                   AspectRatio(
                     aspectRatio: 16 / 9,
-                    child: imageUrl != null && imageUrl!.isNotEmpty
-                        ? Image.network(imageUrl!, fit: BoxFit.cover)
+                    child: widget.imageUrl != null && widget.imageUrl!.isNotEmpty
+                        ? Image.network(widget.imageUrl!, fit: BoxFit.cover)
                         : Image.asset('assets/images/onboarding1.png', fit: BoxFit.cover),
                   ),
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-                      child: const Icon(Icons.favorite_border, size: 16, color: Colors.black87),
+                    child: GestureDetector(
+                      onTap: _toggleFavorite,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                        child: _isFavorite
+                            ? const Icon(Icons.favorite, size: 26, color: AppColors.primaryColor)
+                            : const Icon(Icons.favorite_border, size: 26, color: Colors.black87),
+                      ),
                     ),
                   ),
                 ],
@@ -876,14 +1129,14 @@ class _PropertyCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                  Text(widget.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
-                  Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  Text(widget.location, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(price, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                      Text(widget.price, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(color: const Color(0xFF2FED9A), borderRadius: BorderRadius.circular(20)),
@@ -1158,11 +1411,23 @@ class _BlogCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
             const SizedBox(height: 10),
-            const Row(children: [
-              Text("Read more", style: TextStyle(fontSize: 11, color: Color(0xFF2FED9A), fontWeight: FontWeight.w600)),
-              SizedBox(width: 4),
-              Icon(Icons.arrow_forward, size: 12, color: Color(0xFF2FED9A)),
-            ])
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BlogDetailScreen(title: title, image: image, bgColor: bg),
+                  ),
+                );
+              },
+              child: Row(
+                children: const [
+                  Text("Read more", style: TextStyle(fontSize: 11, color: Color(0xFF2FED9A), fontWeight: FontWeight.w600)),
+                  SizedBox(width: 4),
+                  Icon(Icons.arrow_forward, size: 12, color: Color(0xFF2FED9A)),
+                ],
+              ),
+            )
           ]),
         ),
       ]),

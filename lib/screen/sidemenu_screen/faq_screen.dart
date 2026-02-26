@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import 'package:hunt_property/screen/add_post_screen.dart';
 
 class FAQScreen extends StatefulWidget {
   const FAQScreen({super.key});
@@ -11,6 +12,7 @@ class FAQScreen extends StatefulWidget {
 class _FAQScreenState extends State<FAQScreen> {
   int expandedIndex = -1; // none open
   final Duration animDuration = const Duration(milliseconds: 300);
+  int menuExpanded = -1;
 
   List<Map<String, String>> faqList = [
     {
@@ -22,6 +24,18 @@ class _FAQScreenState extends State<FAQScreen> {
           "You can click Here to register."
     },
     {
+      "q": "How to Post Property on Hunt Property ?",
+      "a":
+      "Follow the steps below to post property on Hunt Property.com:\n"
+          "• Click on 'Post Your Property' on home page.\n"
+          "• Fill in the required relevant details regarding your property.\n"
+          "• For better response and clarity add property photos.\n"
+          "• If you’re a registered user login with your username and password or else register for free.\n"
+          "• Once you have filled the entire details click on the Submit button.\n"
+          "• In case your subscription of listing package has expired, please contact our Sales Team or you can also renew your subscription or buy a new package online.\n"
+          "You can click Here to post property."
+    },
+    {
       "q": "Forgot Password ?",
       "a":
       "Steps to reset your password:\n"
@@ -29,6 +43,11 @@ class _FAQScreenState extends State<FAQScreen> {
           "• Enter Email / Mobile / Username\n"
           "• Reset link will be mailed\n"
           "• If mobile entered, OTP will be sent"
+    },
+    {
+      "q": "How can I view my responses ?",
+      "a":
+      "To view responses on your property log in to huntproperty.com and click on 'Responses' option under 'My Hunt Property'. The list of all the responses received in the last 3 months on your property will be reflected."
     },
     {
       "q": "Can I create Multiple Accounts with Same Details ?",
@@ -47,7 +66,7 @@ class _FAQScreenState extends State<FAQScreen> {
   ];
 
   List<String> menuTitles = [
-    "Post/Delete/Refersh Property",
+    "Post/Delete/Refresh Property",
     "Search on Hunt Property",
     "Responses",
     "Post Requirements/Alerts",
@@ -261,24 +280,169 @@ class _FAQScreenState extends State<FAQScreen> {
   Widget _menuList() {
     return Column(
       children: List.generate(menuTitles.length, (i) {
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration: BoxDecoration(
-            color: const Color(0xfff3f8ff),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(menuTitles[i],
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w600)),
-              const Icon(Icons.arrow_forward_ios, size: 16),
-            ],
-          ),
+        return Column(
+          children: [
+            InkWell(
+              onTap: () => setState(() => menuExpanded = menuExpanded == i ? -1 : i),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xfff3f8ff),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(menuTitles[i],
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600)),
+                    Icon(menuExpanded == i ? Icons.keyboard_arrow_down : Icons.arrow_forward_ios, size: 16),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedSize(
+              duration: animDuration,
+              curve: Curves.easeInOut,
+              child: menuExpanded == i
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+                      child: _menuDetailWidget(i),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
         );
       }),
+    );
+  }
+
+  // --------------------------- MENU DETAIL WIDGET ----------------------------
+  Widget _menuDetailWidget(int index) {
+    if (index == 0) {
+      // Detailed steps for "Post/Delete/Refresh Property"
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "How to Post Property on Hunt Property ?",
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            const Text("Follow the steps below to post property on Hunt Property.com:", style: TextStyle(fontSize: 14)),
+            const SizedBox(height: 8),
+            const Text("• Click on 'Post Your Property' on home page."),
+            const Text("• Fill in the required relevant details regarding your property."),
+            const Text("• For better response and clarity add property photos."),
+            const Text("• If you’re a registered user login with your username and password or else register for free."),
+            const Text("• Once you have filled the entire details click on the Submit button."),
+            const Text("• In case your subscription of listing package has expired, please contact our Sales Team or you can also renew your subscription or buy a new package online."),
+            const SizedBox(height: 10),
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(color: Colors.black, fontSize: 14),
+                children: [
+                  const TextSpan(text: "You can click "),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AddPostScreen()),
+                        );
+                      },
+                      child: const Text(
+                        "Here",
+                        style: TextStyle(
+                          color: AppColors.primaryColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const TextSpan(text: " to post property."),
+                ],
+              ),
+            )
+          ],
+        ),
+      );
+    }
+
+    if (index == 1) {
+      // Responses details
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: const Text(
+          "To view responses on your property log in to huntproperty.com and click on 'Responses' option under 'My Hunt Property'. The list of all the responses received in the last 3 months on your property will be reflected.",
+          style: TextStyle(fontSize: 14),
+        ),
+      );
+    }
+    if (index == 2) {
+      // Post Requirements / Alerts details
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: const Text(
+          "To post your property requirement on our site, please follow these simple steps:\n\n"
+          "• Log in into your Hunt Property user account with your username and password.\n"
+          "• Click on 'Requirement' in your dashboard and then click on 'Post Requirement'.\n"
+          "• Fill in the details and click on 'Submit'.",
+          style: TextStyle(fontSize: 14),
+        ),
+      );
+    }
+    if (index == 3) {
+      // Special Tags with Property details
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: const Text(
+          "How do I get the 'Verified on Call' tag for my properties as I am an Agent/Builder ?\n\n"
+          "Just leave your details at our customer care and we will get in touch with you once this service will be available.\n\n"
+          "However, you may still request for 'Verified on Site' tag if your property falls under Residential and Ready to Move in category. We will arrange the Physical Verification of your property within 5 working days from the date of receipt of request.",
+          style: TextStyle(fontSize: 14),
+        ),
+      );
+    }
+
+    // default placeholder for other menu items
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: const Text("Content for this section will be available soon.", style: TextStyle(fontSize: 14)),
     );
   }
 

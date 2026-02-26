@@ -200,7 +200,7 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
 
                     _label("Type of Finishing"),
                     pillWrap(
-                      ["Bare Shell", "Semi Furnished", "Fully Furnished"],
+                      ["Bare Shell", "Unfurnished", "Semi-Furnished", "Fully Furnished"],
                       finishingIndex,
                           (i) => setState(() => finishingIndex = i),
                     ),

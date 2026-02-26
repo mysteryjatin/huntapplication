@@ -63,18 +63,18 @@ class _ShortlistScreenState extends State<ShortlistScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    // Go back to home when back button is tapped
-                    // This won't do anything since we're in bottom nav
-                    // but kept for consistency with design
-                  },
-                  child: const Icon(
-                    Icons.arrow_back_ios,
-                    size: 20,
-                    color: Colors.black,
-                  ),
-                ),
+                // GestureDetector(
+                //   onTap: () {
+                //     // Go back to home when back button is tapped
+                //     // This won't do anything since we're in bottom nav
+                //     // but kept for consistency with design
+                //   },
+                //   child: const Icon(
+                //     Icons.arrow_back_ios,
+                //     size: 20,
+                //     color: Colors.black,
+                //   ),
+                // ),
                 const Expanded(
                   child: Center(
                     child: Text(

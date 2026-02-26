@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../theme/app_theme.dart';
+import 'package:hunt_property/cubit/notification_cubit.dart';
+import 'package:hunt_property/cubit/notification_state.dart';
+import 'package:hunt_property/repositories/notification_repository.dart';
+import 'package:hunt_property/services/notification_service.dart';
+import 'package:hunt_property/services/storage_service.dart';
+import 'package:hunt_property/models/notification_models.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -12,60 +19,65 @@ class _NotificationScreenState extends State<NotificationScreen> {
   int selectedTab = 0;
 
   // "property" = Property Alerts, "plan" = Plan
-  late List<Map<String, dynamic>> notifications;
+  NotificationCubit? _notificationCubit;
+  List<NotificationModel> notifications = [];
+  final ScrollController _scrollController = ScrollController();
+  bool _isLoadingMore = false;
+  String _currentTab = 'all';
 
   @override
   void initState() {
     super.initState();
-    notifications = [
-      {
-        "id": "1",
-        "type": "property",
-        "title": "Price dropped by \$20k!",
-        "subtitle":
-            "Modern Villa with Pool in Beverly Hills is now available at a lower price...",
-        "time": "2 MINS AGO",
-        "cta": "View Details",
-      },
-      {
-        "id": "2",
-        "type": "property",
-        "title": "New Listing in Austin",
-        "subtitle": "A 3 BHK Apartment just went live in your area...",
-        "time": "15 mins ago",
-        "cta": "Book Visit",
-      },
-      {
-        "id": "3",
-        "type": "plan",
-        "title": "Subscription Expiring",
-        "subtitle": "Your Gold Plan subscription will expire in 3 days",
-        "time": "3 hours ago",
-        "cta": "Renew Now",
-      },
-      {
-        "id": "4",
-        "type": "property",
-        "title": "Plot available near Airport",
-        "subtitle": "A new plot is available near the airport...",
-        "time": "5 hours ago",
-        "cta": "View Details",
-      },
-    ];
+    _notificationCubit = NotificationCubit(NotificationRepository(service: NotificationService()));
+    _loadNotifications();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      _loadMore();
+    }
+  }
+
+  Future<void> _loadNotifications({String tab = 'all'}) async {
+    final userId = await StorageService.getUserId();
+    if (userId == null || userId.isEmpty) return;
+    _currentTab = tab;
+    await _notificationCubit?.fetchNotifications(userId: userId, tab: tab, page: 1, limit: 20, append: false);
+  }
+
+  Future<void> _loadMore() async {
+    if (_isLoadingMore) return;
+    final userId = await StorageService.getUserId();
+    if (userId == null || userId.isEmpty) return;
+    final state = _notificationCubit?.state;
+    if (state is! NotificationLoaded) return;
+    if (!state.hasNext) return;
+
+    setState(() => _isLoadingMore = true);
+    final nextPage = state.page + 1;
+    await _notificationCubit?.fetchNotifications(userId: userId, tab: _currentTab, page: nextPage, limit: state.limit, append: true);
+    if (mounted) setState(() => _isLoadingMore = false);
   }
 
   List<Map<String, dynamic>> get _filteredNotifications {
-    if (selectedTab == 0) return notifications; // All
-    if (selectedTab == 1) {
-      return notifications.where((n) => n["type"] == "property").toList();
-    }
-    return notifications.where((n) => n["type"] == "plan").toList(); // Plan
+    // kept for compatibility but actual data comes from cubit
+    return notifications.map((n) {
+      return {
+        "id": n.id,
+        "type": n.type,
+        "title": n.title,
+        "subtitle": n.body ?? '',
+        "time": _timeAgo(n.createdAt),
+        "cta": n.actionText ?? '',
+        "read": n.read,
+      };
+    }).toList();
   }
 
   void _removeNotification(String id) {
-    setState(() {
-      notifications.removeWhere((n) => n["id"] == id);
-    });
+    // delegate to cubit
+    _notificationCubit?.deleteNotification(id);
   }
 
   @override
@@ -93,35 +105,62 @@ class _NotificationScreenState extends State<NotificationScreen> {
         children: [
           _filterChips(),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              itemCount: _filteredNotifications.length,
-              itemBuilder: (context, index) {
-                final item = _filteredNotifications[index];
-                return Dismissible(
-                  key: ValueKey(item["id"]),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 24),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEF4444),
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.06),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+            child: BlocBuilder<NotificationCubit, NotificationState>(
+              bloc: _notificationCubit,
+              builder: (context, state) {
+                if (state is NotificationLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (state is NotificationLoaded) {
+                  notifications = state.notifications;
+                  final list = notifications;
+                  if (list.isEmpty) {
+                    return const Center(child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('No notifications'),
+                    ));
+                  }
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    itemCount: list.length + (state.hasNext || _isLoadingMore ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index >= list.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      final item = list[index];
+                      return Dismissible(
+                        key: ValueKey(item.id),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 24),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444),
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
                         ),
-                      ],
-                    ),
-                    child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
-                  ),
-                  confirmDismiss: (_) => _showDeleteDialog(context),
-                  onDismissed: (_) => _removeNotification(item["id"] as String),
-                  child: _notificationCard(item),
-                );
+                        confirmDismiss: (_) => _showDeleteDialog(context),
+                        onDismissed: (_) => _notificationCubit?.deleteNotification(item.id),
+                        child: _notificationCardFromModel(item),
+                      );
+                    },
+                  );
+                } else if (state is NotificationError) {
+                  return Center(child: Text(state.message));
+                }
+                return const SizedBox.shrink();
               },
             ),
           ),
@@ -142,7 +181,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
           return Padding(
             padding: EdgeInsets.only(right: i < labels.length - 1 ? 10 : 0),
             child: GestureDetector(
-              onTap: () => setState(() => selectedTab = i),
+              onTap: () {
+                setState(() => selectedTab = i);
+                final tab = (i == 0) ? 'all' : (i == 1 ? 'property_alerts' : 'plan');
+                _loadNotifications(tab: tab);
+              },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 decoration: BoxDecoration(
@@ -171,7 +214,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   // ---------------- NOTIFICATION CARD ----------------
 
-  Widget _notificationCard(Map<String, dynamic> item) {
+  Widget _notificationCardFromModel(NotificationModel item) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -190,19 +233,20 @@ class _NotificationScreenState extends State<NotificationScreen> {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Unread indicator - green dot top right
-          Positioned(
-            top: -2,
-            right: -2,
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: const BoxDecoration(
-                color: AppColors.primaryColor,
-                shape: BoxShape.circle,
+          // Unread indicator - green dot top right (only when unread)
+          if (!item.read)
+            Positioned(
+              top: -2,
+              right: -2,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryColor,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
-          ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -226,7 +270,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item["title"] as String? ?? "",
+                      item.title,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -235,7 +279,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      item["subtitle"] as String? ?? "",
+                      item.body ?? '',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -249,14 +293,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
                         const SizedBox(width: 6),
                         Text(
-                          item["time"] as String? ?? "",
+                          _timeAgo(item.createdAt),
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[600],
                           ),
                         ),
                         const Spacer(),
-                        _greenCta(item["cta"] as String? ?? ""),
+                        _greenCta(item.actionText ?? ''),
                       ],
                     ),
                   ],
@@ -322,5 +366,20 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ],
       ),
     ) ?? false;
+  }
+ 
+  String _timeAgo(DateTime? dt) {
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} mins ago';
+    if (diff.inHours < 24) return '${diff.inHours} hours ago';
+    return '${diff.inDays} days ago';
+  }
+
+  @override
+  void dispose() {
+    _notificationCubit?.close();
+    super.dispose();
   }
 }

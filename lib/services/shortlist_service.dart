@@ -55,5 +55,83 @@ class ShortlistService {
 
     throw Exception(message);
   }
+ 
+  /// Add property to user's shortlist (favorites).
+  /// Returns true on success.
+  Future<bool> addToShortlist(String propertyId) async {
+    final userId = await StorageService.getUserId();
+    if (userId == null || userId.isEmpty) {
+      // ignore: avoid_print
+      print('❌ addToShortlist: no user id');
+      return false;
+    }
+
+    final uri = Uri.parse('${ApiUrls.baseUrl}/api/favorites/');
+    try {
+      final body = jsonEncode({'property_id': propertyId, 'user_id': userId});
+      final resp = await http.post(uri, headers: {'Content-Type': 'application/json'}, body: body);
+      // ignore: avoid_print
+      print('📤 ADD TO SHORTLIST [${resp.statusCode}] -> ${resp.body}');
+      if (resp.statusCode == 200 || resp.statusCode == 201) return true;
+      // Treat common 'already in favorites' response as success
+      if (resp.statusCode == 400) {
+        try {
+          final decoded = jsonDecode(resp.body);
+          if (decoded is Map<String, dynamic> && decoded['detail']?.toString().toLowerCase().contains('already') == true) {
+            return true;
+          }
+        } catch (_) {}
+      }
+      return false;
+    } catch (e) {
+      // ignore: avoid_print
+      print('❌ addToShortlist error: $e');
+      return false;
+    }
+  }
+
+  /// Remove property from user's shortlist.
+  /// Returns true on success.
+  Future<bool> removeFromShortlist(String propertyId) async {
+    final userId = await StorageService.getUserId();
+    if (userId == null || userId.isEmpty) {
+      // ignore: avoid_print
+      print('❌ removeFromShortlist: no user id');
+      return false;
+    }
+
+    // Many backends expose DELETE /api/favorites/{property_id}/ or similar.
+    // Try both patterns: first try DELETE /api/favorites/{propertyId}/, then fallback to POST toggle.
+    final tryDelete = Uri.parse('${ApiUrls.baseUrl}/api/favorites/$propertyId/');
+    try {
+      final resp = await http.delete(tryDelete, headers: {'Content-Type': 'application/json'});
+      // ignore: avoid_print
+      print('📤 REMOVE FROM SHORTLIST DELETE [${resp.statusCode}] -> ${resp.body}');
+      if (resp.statusCode == 200 || resp.statusCode == 204) return true;
+      // If server returns 404 "not found" for delete, treat as success (already removed)
+      if (resp.statusCode == 404) {
+        try {
+          final decoded = jsonDecode(resp.body);
+          if (decoded is Map<String, dynamic> && decoded['detail'] != null) return true;
+        } catch (_) {}
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // Fallback: POST to /api/favorites/remove with body
+    final fallback = Uri.parse('${ApiUrls.baseUrl}/api/favorites/remove');
+    try {
+      final body = jsonEncode({'property_id': propertyId, 'user_id': userId});
+      final resp = await http.post(fallback, headers: {'Content-Type': 'application/json'}, body: body);
+      // ignore: avoid_print
+      print('📤 REMOVE FROM SHORTLIST FALLBACK POST [${resp.statusCode}] -> ${resp.body}');
+      return resp.statusCode == 200 || resp.statusCode == 201;
+    } catch (e) {
+      // ignore: avoid_print
+      print('❌ removeFromShortlist error: $e');
+      return false;
+    }
+  }
 }
 

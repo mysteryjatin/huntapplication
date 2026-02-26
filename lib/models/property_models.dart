@@ -29,6 +29,8 @@ class PropertyDraft {
   String electricity;
   bool anyConstructionDone;
   String monthlyRent;
+  /// Sale price (expected price) for transaction_type sale. Sent as "price" in API.
+  String expectedPrice;
   bool sharedOfficeSpace;
   bool personalWashroom;
   bool pantry;
@@ -71,6 +73,7 @@ class PropertyDraft {
     this.electricity = '',
     this.anyConstructionDone = false,
     this.monthlyRent = '',
+    this.expectedPrice = '',
     this.sharedOfficeSpace = false,
     this.personalWashroom = false,
     this.pantry = false,
@@ -103,10 +106,13 @@ class PropertyDraft {
       apiTransactionType = txLower;
     }
 
-    // Parse monthly rent string into a numeric price for rent listings.
+    // Parse price: for rent use monthlyRent, for sale use expectedPrice.
     num parsedPrice = 0;
     if (apiTransactionType == 'rent' && monthlyRent.isNotEmpty) {
       final cleaned = monthlyRent.replaceAll(RegExp(r'[^0-9.]'), '');
+      parsedPrice = num.tryParse(cleaned) ?? 0;
+    } else if (apiTransactionType == 'sale' && expectedPrice.isNotEmpty) {
+      final cleaned = expectedPrice.replaceAll(RegExp(r'[^0-9.]'), '');
       parsedPrice = num.tryParse(cleaned) ?? 0;
     }
 
@@ -131,8 +137,7 @@ class PropertyDraft {
       "title": title,
       "description": description,
       "transaction_type": apiTransactionType,
-      // For rent listings use the monthly rent as price, otherwise keep 0
-      "price": apiTransactionType == 'rent' ? parsedPrice : 0,
+      "price": parsedPrice,
       "property_category": propertyCategory,
       "property_subtype": propertySubtype,
       "bedrooms": bedrooms,
@@ -222,6 +227,7 @@ class Property {
   final List<String> amenities;
   final List<String> images;
   final String ownerId;
+  final bool isFavorite;
   final DateTime? postedAt;
 
   Property({
@@ -267,6 +273,7 @@ class Property {
     required this.amenities,
     required this.images,
     required this.ownerId,
+    this.isFavorite = false,
     required this.postedAt,
   });
 
@@ -288,7 +295,14 @@ class Property {
   /// - how_old_is_pg, attached_balcony, security_amount, common_area
   /// - tenants_you_prefer, laundry
   factory Property.fromJson(Map<String, dynamic> json) {
-    final location = json['location'] as Map<String, dynamic>? ?? {};
+    final dynamic locationRaw = json['location'];
+    final Map<String, dynamic> location =
+        (locationRaw is Map<String, dynamic>) ? locationRaw : {};
+    // If API returns a string location (e.g. "3 BHK | Anna Nagar, Chennai"), place it into address
+    String _stringLocationFallback = '';
+    if (locationRaw is String) {
+      _stringLocationFallback = locationRaw;
+    }
 
     int _toInt(dynamic v) {
       if (v == null) return 0;
@@ -333,8 +347,9 @@ class Property {
       storeRoom: (json['store_room'] ?? false) as bool,
       servantRoom: (json['servant_room'] ?? false) as bool,
       
-      // Location (from nested location object)
-      address: location['address']?.toString() ?? '',
+      // Location (from nested location object). If backend returned a string location,
+      // use it as the address fallback.
+      address: location['address']?.toString() ?? _stringLocationFallback,
       locality: location['locality']?.toString() ?? '',
       city: location['city']?.toString() ?? '',
       
@@ -375,6 +390,7 @@ class Property {
       
       // Meta
       ownerId: json['owner_id']?.toString() ?? '',
+      isFavorite: json['is_favorite'] is bool ? json['is_favorite'] as bool : (json['is_favorite'] != null ? (json['is_favorite'].toString().toLowerCase() == 'true') : false),
       postedAt: json['posted_at'] != null
           ? DateTime.tryParse(json['posted_at'].toString())
           : null,

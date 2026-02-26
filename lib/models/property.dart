@@ -7,6 +7,7 @@ class Property {
   final String transactionType;
   final double? price;
   final String propertyCategory;
+  final String? propertySubtype;
   final int? bedrooms;
   final int? bathrooms;
   final double? areaSqft;
@@ -35,6 +36,7 @@ class Property {
     required this.transactionType,
     this.price,
     required this.propertyCategory,
+    this.propertySubtype,
     this.bedrooms,
     this.bathrooms,
     this.areaSqft,
@@ -72,6 +74,7 @@ class Property {
       transactionType: json['transaction_type'] as String? ?? '',
       price: (json['price'] != null) ? (json['price'] as num).toDouble() : null,
       propertyCategory: json['property_category'] as String? ?? '',
+      propertySubtype: json['property_subtype'] as String? ?? '',
       bedrooms: json['bedrooms'] != null ? (json['bedrooms'] as num).toInt() : null,
       bathrooms: json['bathrooms'] != null ? (json['bathrooms'] as num).toInt() : null,
       balconies: json['balconies'] != null ? (json['balconies'] as num).toInt() : null,
@@ -108,6 +111,7 @@ class Property {
       'transaction_type': transactionType,
       'price': price,
       'property_category': propertyCategory,
+      'property_subtype': propertySubtype,
       'bedrooms': bedrooms,
       'bathrooms': bathrooms,
       'area_sqft': areaSqft,

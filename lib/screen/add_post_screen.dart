@@ -77,6 +77,15 @@ class _AddPostScreenState extends State<AddPostScreen> {
     // Pre-fill controllers if coming back to this step
     _propertyNameController.text = _draft.title;
     _buildingDescriptionController.text = _draft.description;
+    // Pre-select property type/category if draft provided
+    if (widget.initialDraft != null) {
+      if (_draft.propertyCategory.isNotEmpty) {
+        _buildingType = _draft.propertyCategory;
+      }
+      if (_draft.propertySubtype.isNotEmpty) {
+        _selectedPropertyType = _draft.propertySubtype;
+      }
+    }
 
     _buildingDescriptionController.addListener(() {
       setState(() {});

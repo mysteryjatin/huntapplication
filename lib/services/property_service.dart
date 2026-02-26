@@ -352,5 +352,100 @@ class PropertyService {
       return 0;
     }
   }
+ 
+  /// Fetch home screen sections from backend: top_selling_projects,
+  /// recommend_your_location, property_for_rent.
+  /// Returns a map: { 'success': bool, 'sections': { key: { 'section_title': String, 'properties': List<Property> } } }
+  Future<Map<String, dynamic>> getHomeSections({
+    String city = 'Chennai',
+    String? userId,
+    int limit = 10,
+    String? transactionType,
+    String? propertyCategory,
+  }) async {
+    try {
+      final params = <String, String>{
+        'city': city,
+        'limit': limit.clamp(1, 20).toString(),
+      };
+      if (userId != null && userId.isNotEmpty) params['user_id'] = userId;
+      if (transactionType != null && transactionType.isNotEmpty) params['transaction_type'] = transactionType;
+      if (propertyCategory != null && propertyCategory.isNotEmpty) params['property_category'] = propertyCategory;
+
+      final uri = Uri.parse('$baseUrl/api/home/').replace(queryParameters: params);
+      final response = await http.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      // ignore: avoid_print
+      print('📥 GET HOME SECTIONS RESPONSE: ${response.statusCode} ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(response.body);
+        // Pretty-print decoded response for debugging
+        try {
+          final pretty = const JsonEncoder.withIndent('  ').convert(decoded);
+          print('📥 GET HOME SECTIONS DECODED:\n$pretty');
+        } catch (_) {
+          // ignore
+        }
+
+        // Handle cases where decoded['data'] might be a JSON-encoded string
+        Map<String, dynamic> dataMap = {};
+        if (decoded is Map) {
+          final dataCandidate = decoded['data'];
+          if (dataCandidate is Map<String, dynamic>) {
+            dataMap = dataCandidate;
+          } else if (dataCandidate is String) {
+            try {
+              final parsed = jsonDecode(dataCandidate);
+              if (parsed is Map<String, dynamic>) dataMap = parsed;
+            } catch (_) {
+              // leave empty
+            }
+          }
+        }
+
+        if (dataMap.isNotEmpty) {
+          final Map<String, dynamic> sections = {};
+          for (final key in ['top_selling_projects', 'recommend_your_location', 'property_for_rent']) {
+            final sectionCandidate = dataMap[key];
+            Map<String, dynamic> section = {};
+            if (sectionCandidate is Map<String, dynamic>) {
+              section = sectionCandidate;
+            } else if (sectionCandidate is String) {
+              try {
+                final parsed = jsonDecode(sectionCandidate);
+                if (parsed is Map<String, dynamic>) section = parsed;
+              } catch (_) {
+                // skip
+              }
+            }
+
+            final title = section['section_title']?.toString() ?? '';
+            final propsRaw = section['properties'] as List<dynamic>? ?? [];
+            final props = propsRaw
+                .whereType<Map<String, dynamic>>()
+                .map((e) => Property.fromJson(e))
+                .toList();
+            sections[key] = {
+              'section_title': title,
+              'properties': props,
+            };
+          }
+          return {'success': true, 'sections': sections};
+        } else {
+          // dataMap empty — return raw decoded for debugging
+          return {'success': false, 'error': 'unexpected response shape', 'raw': decoded, 'sections': {}};
+        }
+      }
+      return {'success': false, 'sections': {}};
+    } catch (e) {
+      // ignore: avoid_print
+      print('❌ GET HOME SECTIONS ERROR: $e');
+      return {'success': false, 'error': e.toString(), 'sections': {}};
+    }
+  }
 }
 

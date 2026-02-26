@@ -47,6 +47,10 @@ class FilterScreenResponse {
   final List<int> bathrooms;
   final List<bool> storeRoomOptions;
   final List<bool> servantRoomOptions;
+  final List<Map<String, String>> possessionStatusOptions;
+  final List<Map<String, dynamic>> availabilityMonths;
+  final List<int> availabilityYears;
+  final List<Map<String, String>> ageOfConstructionOptions;
 
   const FilterScreenResponse({
     required this.transactionTypes,
@@ -62,6 +66,10 @@ class FilterScreenResponse {
     required this.bathrooms,
     required this.storeRoomOptions,
     required this.servantRoomOptions,
+    required this.possessionStatusOptions,
+    required this.availabilityMonths,
+    required this.availabilityYears,
+    required this.ageOfConstructionOptions,
   });
 
   static List<String> _toStringList(dynamic v) {
@@ -119,6 +127,31 @@ class FilterScreenResponse {
       bathrooms: _toIntList(json['bathrooms']),
       storeRoomOptions: _toBoolList(json['store_room_options']),
       servantRoomOptions: _toBoolList(json['servant_room_options']),
+      possessionStatusOptions: (json['possession_status_options'] as List<dynamic>?)
+              ?.whereType<Map<String, dynamic>>()
+              .map((m) => {
+                    'value': m['value']?.toString() ?? '',
+                    'label': m['label']?.toString() ?? '',
+                  })
+              .toList() ??
+          const [],
+      availabilityMonths: (json['availability_months'] as List<dynamic>?)
+              ?.whereType<Map<String, dynamic>>()
+              .map((m) => {
+                    'value': m['value'],
+                    'label': m['label']?.toString() ?? '',
+                  })
+              .toList() ??
+          const [],
+      availabilityYears: _toIntList(json['availability_years']),
+      ageOfConstructionOptions: (json['age_of_construction_options'] as List<dynamic>?)
+              ?.whereType<Map<String, dynamic>>()
+              .map((m) => {
+                    'value': m['value']?.toString() ?? '',
+                    'label': m['label']?.toString() ?? '',
+                  })
+              .toList() ??
+          const [],
     );
   }
 }

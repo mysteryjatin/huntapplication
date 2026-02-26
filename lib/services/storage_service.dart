@@ -352,6 +352,31 @@ class StorageService {
     }
   }
 
+  // Save selected city (for Home screen)
+  static const String _keySelectedCity = 'selected_city';
+
+  static Future<void> saveSelectedCity(String city) async {
+    try {
+      await _getPreferences();
+      await _setValue(_keySelectedCity, city);
+    } catch (e) {
+      print('Error saving selected city: $e');
+      _memoryStorage[_keySelectedCity] = city;
+      _useMemoryStorage = true;
+    }
+  }
+
+  static Future<String?> getSelectedCity() async {
+    try {
+      await _getPreferences();
+      final value = _getValue(_keySelectedCity);
+      return value is String ? value : null;
+    } catch (e) {
+      print('Error getting selected city: $e');
+      return _memoryStorage[_keySelectedCity] as String?;
+    }
+  }
+
   // Check if spin popup has been shown for current user
   static Future<bool> hasSpinPopupShown() async {
     try {

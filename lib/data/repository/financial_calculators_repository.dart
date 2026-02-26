@@ -13,7 +13,7 @@ class FinancialCalculatorsRepository {
     required int loanRequired,
     required int netIncomePerMonth,
     required int existingLoanCommitments,
-    required int loanTenureYears,
+    required num loanTenureYears,
     required num rateOfInterest,
   }) async {
     final url = Uri.parse('$baseUrl/loan-eligibility');

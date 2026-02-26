@@ -287,6 +287,7 @@ class _LoanEligibilityTabState extends State<LoanEligibilityTab> {
           ),
 
           BlocBuilder<FinancialCalculatorsCubit, FinancialCalculatorsState>(
+            bloc: cubit,
             builder: (context, state) {
               if (state.status == CalcStatus.loading) {
                 return const Padding(
@@ -294,12 +295,12 @@ class _LoanEligibilityTabState extends State<LoanEligibilityTab> {
                   child: Center(child: CircularProgressIndicator()),
                 );
               }
-              if (state.loanEligibility == null) {
+              if (state.status == CalcStatus.failure) {
                 return resultCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
-                    children: const [
-                      CircleAvatar(
+                    children: [
+                      const CircleAvatar(
                         radius: 20,
                         backgroundColor: Color(0xFFFFE5E5),
                         child: Icon(
@@ -308,25 +309,23 @@ class _LoanEligibilityTabState extends State<LoanEligibilityTab> {
                           size: 22,
                         ),
                       ),
-                      SizedBox(height: 12),
+                      const SizedBox(height: 12),
                       Text(
-                        'Eligibility Check Failed',
+                        state.error ?? 'Eligibility Check Failed',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black,
-                        ),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black),
                       ),
-                      SizedBox(height: 6),
-                      Text(
-                        'Maximum eligible amount: ₹0',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
+                    ],
+                  ),
+                );
+              }
+
+              if (state.loanEligibility == null) {
+                return resultCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: const [
+                      Text('Enter details above and tap "Check Eligibility"', textAlign: TextAlign.center, style: TextStyle(fontSize: 13)),
                     ],
                   ),
                 );
@@ -433,11 +432,20 @@ class _RentalValueTabState extends State<RentalValueTab> {
           ),
 
           BlocBuilder<FinancialCalculatorsCubit, FinancialCalculatorsState>(
+            bloc: cubit,
             builder: (context, state) {
               if (state.status == CalcStatus.loading) {
                 return const Padding(
                   padding: EdgeInsets.only(top: 20),
                   child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (state.status == CalcStatus.failure) {
+                return resultCard(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Text(state.error ?? 'Failed to calculate rental value', textAlign: TextAlign.center),
+                  ),
                 );
               }
               if (state.rentalValue == null) {
@@ -448,8 +456,9 @@ class _RentalValueTabState extends State<RentalValueTab> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: const [
                         Text(
-                          'Your rental value is',
-                          style: TextStyle(fontSize: 13, color: Colors.black, fontWeight: FontWeight.w500),
+                          'Enter property details above and tap "Check Value"',
+                          style: TextStyle(fontSize: 13, color: Colors.black),
+                          textAlign: TextAlign.center,
                         ),
                         SizedBox(height: 10),
                         Text(
@@ -461,6 +470,7 @@ class _RentalValueTabState extends State<RentalValueTab> {
                   ),
                 );
               }
+
               final d = state.rentalValue!;
               return resultCard(
                 child: Padding(
@@ -546,6 +556,7 @@ class _FutureValueTabState extends State<FutureValueTab> {
           ),
 
           BlocBuilder<FinancialCalculatorsCubit, FinancialCalculatorsState>(
+            bloc: cubit,
             builder: (context, state) {
               if (state.status == CalcStatus.loading) {
                 return const Padding(
@@ -553,18 +564,27 @@ class _FutureValueTabState extends State<FutureValueTab> {
                   child: Center(child: CircularProgressIndicator()),
                 );
               }
+              if (state.status == CalcStatus.failure) {
+                return resultCard(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Text(state.error ?? 'Failed to calculate future value', textAlign: TextAlign.center),
+                  ),
+                );
+              }
               if (state.futureValue == null) {
                 return resultCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: const [
-                      Text('Your rental value is', style: TextStyle(fontSize: 12, color: Colors.black)),
+                      Text('Enter current value and tap "Check Value"', style: TextStyle(fontSize: 12, color: Colors.black)),
                       SizedBox(height: 6),
                       Text('₹0', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black)),
                     ],
                   ),
                 );
               }
+
               final d = state.futureValue!;
               final display = d['future_value'] ?? d;
               return resultCard(
@@ -643,6 +663,7 @@ class _EmiTabState extends State<EmiTab> {
           ),
 
           BlocBuilder<FinancialCalculatorsCubit, FinancialCalculatorsState>(
+            bloc: cubit,
             builder: (context, state) {
               if (state.status == CalcStatus.loading) {
                 return const Padding(
@@ -650,18 +671,41 @@ class _EmiTabState extends State<EmiTab> {
                   child: Center(child: CircularProgressIndicator()),
                 );
               }
-              if (state.emi == null) {
+
+              if (state.status == CalcStatus.initial) {
                 return resultCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text('Monthly EMI', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      const SizedBox(height: 6),
-                      const Text('₹0', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                    children: const [
+                      Text('Monthly EMI', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      SizedBox(height: 6),
+                      Text('₹0', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                     ],
                   ),
                 );
               }
+
+              if (state.status == CalcStatus.failure) {
+                return resultCard(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Text(state.error ?? 'Failed to calculate EMI', textAlign: TextAlign.center),
+                  ),
+                );
+              }
+              if (state.emi == null) {
+                return resultCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: const [
+                      Text('Monthly EMI', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      SizedBox(height: 6),
+                      Text('₹0', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                );
+              }
+
               final d = state.emi!;
               return resultCard(
                 child: Column(

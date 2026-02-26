@@ -270,6 +270,9 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       _monthlyRentController.text = widget.draft.monthlyRent;
       _monthlyRent = widget.draft.monthlyRent;
     }
+    if (widget.draft.expectedPrice.isNotEmpty) {
+      _expectedPriceController.text = widget.draft.expectedPrice;
+    }
     _sharedOfficeSpace = widget.draft.sharedOfficeSpace;
     _personalWashroom = widget.draft.personalWashroom;
     _pantry = widget.draft.pantry;
@@ -328,6 +331,33 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
         _loadMapForAddress();
       }
     });
+    // If draft contains city but state not set, try to infer state from our cities map
+    if (widget.draft.city.isNotEmpty && (_selectedState == null || _selectedState!.isEmpty)) {
+      final detectedCity = widget.draft.city;
+      String matchedState = '';
+      String matchedCity = detectedCity;
+      // Try exact match first, then more fuzzy matches
+      _citiesByState.forEach((state, cities) {
+        for (var c in cities) {
+          final lc = c.toLowerCase();
+          final tk = detectedCity.toLowerCase();
+          if (lc == tk || lc.contains(tk) || tk.contains(lc) || lc.startsWith(tk) || tk.startsWith(lc)) {
+            if (matchedState.isEmpty) {
+              matchedState = state;
+              matchedCity = c;
+              break;
+            }
+          }
+        }
+      });
+      if (matchedState.isNotEmpty) {
+        _selectedState = matchedState;
+        _selectedCity = matchedCity;
+      } else {
+        // If no exact match, still set selectedCity so it appears in dropdown helper in build
+        _selectedCity = detectedCity;
+      }
+    }
   }
 
   @override
@@ -1005,6 +1035,9 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
           spacing: 12,
           runSpacing: 12,
           children: [
+            _chip("Immediately", _availableFrom == "Immediately",
+                    () => setState(() => _availableFrom = "Immediately")),
+            const SizedBox(width: 8),
             _chip("After 1 Month", _availableFrom == "After 1 Month",
                     () => setState(() => _availableFrom = "After 1 Month")),
             _chip("After 3 Month", _availableFrom == "After 3 Month",
@@ -1238,6 +1271,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
               ..electricity = config.showElectricity ? _electricityController.text.trim() : ''
               ..anyConstructionDone = config.showAnyConstructionDone ? _anyConstructionDone : false
               ..monthlyRent = rentVal
+              ..expectedPrice = _expectedPriceController.text.trim()
               ..sharedOfficeSpace = config.showSharedOfficeSpace ? _sharedOfficeSpace : false
               ..personalWashroom = config.showPersonalWashroom ? _personalWashroom : false
               ..pantry = config.showPantry ? _pantry : false

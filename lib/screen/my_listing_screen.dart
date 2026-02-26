@@ -6,6 +6,9 @@ import 'package:hunt_property/services/my_listings_service.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/property_service.dart';
 import 'package:hunt_property/screen/add_post_screen.dart';
+import 'package:hunt_property/screen/property_details_screen.dart';
+import 'package:hunt_property/repositories/property_repository.dart';
+import 'package:hunt_property/models/property.dart' as fullprop;
 import 'package:hunt_property/models/property_models.dart' as pm;
 import 'package:intl/intl.dart';
 import 'package:hunt_property/screen/widget/custombottomnavbar.dart';
@@ -414,7 +417,19 @@ class PropertyCard extends StatelessWidget {
                 child: _ActionButton(
                   icon: Icons.remove_red_eye_outlined,
                   label: 'View',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PropertyDetailsScreen(
+                          propertyId: property.id,
+                          tag: null,
+                          price: property.price > 0 ? property.price.toString() : null,
+                          location: '${property.locality.isNotEmpty ? property.locality + ', ' : ''}${property.city}',
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 6),
@@ -423,8 +438,75 @@ class PropertyCard extends StatelessWidget {
                   icon: Icons.edit_outlined,
                   label: 'Edit',
                   onTap: () async {
-                    // Map MyListingItem -> PropertyDraft (partial mapping)
-                  }
+                    // Fetch full property from backend and map to draft
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (_) => const Center(child: CircularProgressIndicator()),
+                    );
+                    try {
+                      final repo = PropertyRepository();
+                      final full = await repo.fetchProperty(property.id);
+                      final draft = pm.PropertyDraft(
+                        title: full.title,
+                        description: full.description,
+                        transactionType: full.transactionType.isNotEmpty
+                            ? (full.transactionType.toLowerCase().contains('rent') ? 'Rent' : 'Sell')
+                            : 'Sell',
+                        propertyCategory: full.propertyCategory,
+                        propertySubtype: full.propertySubtype ?? '',
+                        bedrooms: full.bedrooms ?? 0,
+                        bathrooms: full.bathrooms ?? 0,
+                        balconies: full.balconies ?? 0,
+                        areaSqft: full.areaSqft != null ? full.areaSqft!.toInt() : 0,
+                        furnishing: full.furnishing ?? '',
+                        floorNumber: full.floorNumber ?? 0,
+                        totalFloors: full.totalFloors ?? 0,
+                        floorsAllowed: 0,
+                        openSides: 0,
+                        facing: full.facing ?? '',
+                        storeRoom: false,
+                        servantRoom: false,
+                        address: full.location?.address ?? '',
+                        locality: full.location?.locality ?? '',
+                        city: full.location?.city ?? '',
+                        buildingName: '',
+                        unitNumber: '',
+                        boundaryWallMade: false,
+                        occupancy: '',
+                        attachedBathroom: false,
+                        electricity: '',
+                        anyConstructionDone: false,
+                        monthlyRent: full.price != null ? full.price!.toString() : '',
+                        expectedPrice: full.price != null ? full.price!.toString() : '',
+                        sharedOfficeSpace: false,
+                        personalWashroom: false,
+                        pantry: false,
+                        howOldIsPG: '',
+                        attachedBalcony: false,
+                        securityAmount: '',
+                        commonArea: false,
+                        tenantsYouPrefer: '',
+                        laundry: '',
+                        amenities: full.amenities ?? [],
+                        imageUrls: (full.images ?? []).map((i) => i.url).toList(),
+                      );
+                      Navigator.of(context).pop(); // dismiss loading
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AddPostScreen(
+                            initialDraft: draft,
+                          ),
+                        ),
+                      );
+                    } catch (e) {
+                      Navigator.of(context).pop(); // dismiss loading
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to load property for edit: $e')),
+                      );
+                    }
+                  },
                 ),
               ),
               const SizedBox(width: 6),
