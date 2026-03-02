@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hunt_property/cubit/shortlist_cubit.dart';
 import 'package:hunt_property/models/property_models.dart';
+import 'package:hunt_property/screen/property_details_screen.dart';
 
 class RentPropertiesScreen extends StatefulWidget {
   const RentPropertiesScreen({super.key});
@@ -185,160 +186,190 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
     final location =
         '${property.locality}${property.city.isNotEmpty ? ', ${property.city}' : ''}';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Property Image
-          ClipRRect(
-            borderRadius: const BorderRadius.all(Radius.circular(16)),
-            child: Container(
-              height: 160,
-              width: double.infinity,
-              color: const Color(0xFFF5F5F5),
-              child: Image.asset(
-                imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: const Color(0xFFE3F2FD),
-                    child: const Center(
-                      child: Icon(
-                        Icons.home_work_outlined,
-                        size: 60,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  );
-                },
-              ),
+    return GestureDetector(
+      onTap: () {
+        if (property.id.isEmpty) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PropertyDetailsScreen(
+              propertyId: property.id,
+              initialIsFavorite: true,
             ),
           ),
-
-          // Property Details
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title with heart icon
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        property.title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black,
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Property Image
+            ClipRRect(
+              borderRadius: const BorderRadius.all(Radius.circular(16)),
+              child: Container(
+                height: 160,
+                width: double.infinity,
+                color: const Color(0xFFF5F5F5),
+                child: Image.asset(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: const Color(0xFFE3F2FD),
+                      child: const Center(
+                        child: Icon(
+                          Icons.home_work_outlined,
+                          size: 60,
+                          color: Colors.grey,
                         ),
                       ),
-                    ),
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF2FED9A),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.favorite,
-                        size: 18,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
+              ),
+            ),
 
-                const SizedBox(height: 8),
+            // Property Details
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title with heart icon
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          property.title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () async {
+                          final id = property.id;
+                          if (id.isEmpty) return;
+                          await context
+                              .read<ShortlistCubit>()
+                              .removeProperty(id);
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Property removed from shortlist'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF2FED9A),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.favorite,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
 
-                // Location, Type, Area
-                Row(
-                  children: [
-                    Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        location,
+                  const SizedBox(height: 8),
+
+                  // Location, Type, Area
+                  Row(
+                    children: [
+                      Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          location,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '${property.areaSqft} Sq Ft',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      '${property.areaSqft} Sq Ft',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-
-                // Amenities
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _buildAmenityChip(
-                      Icons.bed_outlined,
-                      '${property.bedrooms} Bedrooms',
-                    ),
-                    _buildAmenityChip(
-                      Icons.bathtub_outlined,
-                      '${property.bathrooms} Bathroom',
-                    ),
-                    if (property.attachedBalcony)
-                      _buildAmenityChip(
-                        Icons.balcony_outlined,
-                        'Balcony',
-                      ),
-                    if (property.storeRoom)
-                      _buildAmenityChip(
-                        Icons.store_mall_directory_outlined,
-                        'Store Room',
-                      ),
-                    if (property.servantRoom)
-                      _buildAmenityChip(
-                        Icons.meeting_room_outlined,
-                        'Servant Room',
-                      ),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-
-                // Price
-                Text(
-                  priceText,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    ],
                   ),
-                ),
-              ],
+
+                  const SizedBox(height: 12),
+
+                  // Amenities
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildAmenityChip(
+                        Icons.bed_outlined,
+                        '${property.bedrooms} Bedrooms',
+                      ),
+                      _buildAmenityChip(
+                        Icons.bathtub_outlined,
+                        '${property.bathrooms} Bathroom',
+                      ),
+                      if (property.attachedBalcony)
+                        _buildAmenityChip(
+                          Icons.balcony_outlined,
+                          'Balcony',
+                        ),
+                      if (property.storeRoom)
+                        _buildAmenityChip(
+                          Icons.store_mall_directory_outlined,
+                          'Store Room',
+                        ),
+                      if (property.servantRoom)
+                        _buildAmenityChip(
+                          Icons.meeting_room_outlined,
+                          'Servant Room',
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Price
+                  Text(
+                    priceText,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

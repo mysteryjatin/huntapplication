@@ -100,38 +100,87 @@ class ShortlistService {
       return false;
     }
 
-    // Many backends expose DELETE /api/favorites/{property_id}/ or similar.
-    // Try both patterns: first try DELETE /api/favorites/{propertyId}/, then fallback to POST toggle.
+    // Many backends expose DELETE /api/favorites/{property_id}/ and may return
+    // a 3xx redirect when trailing slashes or http/https differ. Handle that
+    // explicitly, similar to property delete logic.
     final tryDelete = Uri.parse('${ApiUrls.baseUrl}/api/favorites/$propertyId/');
     try {
-      final resp = await http.delete(tryDelete, headers: {'Content-Type': 'application/json'});
+      var resp = await http.delete(
+        tryDelete,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
       // ignore: avoid_print
       print('📤 REMOVE FROM SHORTLIST DELETE [${resp.statusCode}] -> ${resp.body}');
+
+      // Success or already-removed cases
       if (resp.statusCode == 200 || resp.statusCode == 204) return true;
-      // If server returns 404 "not found" for delete, treat as success (already removed)
       if (resp.statusCode == 404) {
         try {
           final decoded = jsonDecode(resp.body);
-          if (decoded is Map<String, dynamic> && decoded['detail'] != null) return true;
+          if (decoded is Map<String, dynamic> && decoded['detail'] != null) {
+            return true;
+          }
         } catch (_) {}
       }
+
+      // Handle common redirect statuses manually (DELETE does not auto-follow)
+      if (resp.statusCode == 301 ||
+          resp.statusCode == 302 ||
+          resp.statusCode == 307 ||
+          resp.statusCode == 308) {
+        final location = resp.headers['location'];
+        if (location != null && location.isNotEmpty) {
+          try {
+            final redirectUri = Uri.parse(location);
+            resp = await http.delete(
+              redirectUri,
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            );
+            // ignore: avoid_print
+            print('📤 REMOVE FROM SHORTLIST DELETE (redirect) [${resp.statusCode}] -> ${resp.body}');
+            if (resp.statusCode == 200 || resp.statusCode == 204) return true;
+            if (resp.statusCode == 404) {
+              try {
+                final decoded = jsonDecode(resp.body);
+                if (decoded is Map<String, dynamic> && decoded['detail'] != null) {
+                  return true;
+                }
+              } catch (_) {}
+            }
+          } catch (e) {
+            // ignore: avoid_print
+            print('❌ REMOVE FROM SHORTLIST REDIRECT ERROR: $e');
+          }
+        }
+      }
     } catch (e) {
-      // ignore
+      // ignore: avoid_print
+      print('❌ removeFromShortlist DELETE error: $e');
     }
 
-    // Fallback: POST to /api/favorites/remove with body
+    // Fallback: POST to /api/favorites/remove with body (if backend supports it).
     final fallback = Uri.parse('${ApiUrls.baseUrl}/api/favorites/remove');
     try {
       final body = jsonEncode({'property_id': propertyId, 'user_id': userId});
-      final resp = await http.post(fallback, headers: {'Content-Type': 'application/json'}, body: body);
+      final resp = await http.post(
+        fallback,
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
       // ignore: avoid_print
       print('📤 REMOVE FROM SHORTLIST FALLBACK POST [${resp.statusCode}] -> ${resp.body}');
-      return resp.statusCode == 200 || resp.statusCode == 201;
+      if (resp.statusCode == 200 || resp.statusCode == 201) return true;
     } catch (e) {
       // ignore: avoid_print
-      print('❌ removeFromShortlist error: $e');
-      return false;
+      print('❌ removeFromShortlist fallback error: $e');
     }
+
+    return false;
   }
 }
 

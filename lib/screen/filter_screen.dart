@@ -5,7 +5,9 @@ import 'package:hunt_property/models/filter_models.dart';
 
 class FilterScreen extends StatefulWidget {
   final ScrollController? scrollController;
-  const FilterScreen({super.key, this.scrollController});
+  /// Last applied filter — when reopening filter sheet, this state is restored
+  final FilterSelection? initialSelection;
+  const FilterScreen({super.key, this.scrollController, this.initialSelection});
 
   @override
   State<FilterScreen> createState() => _FilterScreenState();
@@ -15,15 +17,16 @@ class _FilterScreenState extends State<FilterScreen> {
   // ---------------- STATE ----------------
   String _selectedCategory = 'BUY';
 
-  RangeValues _budgetRange = const RangeValues(15, 25);
-  RangeValues _areaRange = const RangeValues(15, 25);
+  // Full range by default so no budget/area filter applied until user moves sliders
+  RangeValues _budgetRange = const RangeValues(0, 1000);
+  RangeValues _areaRange = const RangeValues(0, 4000);
 
   // allow multi-select for bedrooms
   final Set<String> _selectedBedrooms = {};
   Set<int> _selectedYears = {};
   String? _selectedMonth;
   int? _selectedYear;
-  String _selectedPossessionStatus = "Under Construction";
+  String? _selectedPossessionStatus;
 
   // Multi select
   final Set<String> _selectedConstruction = {};
@@ -51,13 +54,19 @@ class _FilterScreenState extends State<FilterScreen> {
   static const Color kGreen = Color(0xFF2FED9A);
   static const Color kBorderGrey = Color(0xFFD1D1D1);
   // Static caps
-  static const int BUY_CAP_LACS = 100;
+  // BUY: allow budget slider up to 10 Cr (1000 Lacs)
+  static const int BUY_CAP_LACS = 1000;
+  // RENT: allow monthly rent slider up to 10 Lacs
   static const int RENT_CAP_LACS = 10;
   static const int AREA_CAP_SQFT = 4000;
 
   @override
   void initState() {
     super.initState();
+    final init = widget.initialSelection;
+    if (init != null) {
+      _selectedCategory = init.category;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadFilters();
     });
@@ -125,17 +134,17 @@ class _FilterScreenState extends State<FilterScreen> {
             // Ensure at least a small positive range to avoid identical min/max
             if (lMax <= lMin) lMax = lMin + 1.0;
 
-            // Ensure sensible defaults and clamp previous selection into new range
-            final start = _budgetRange.start.clamp(lMin, lMax);
-            final end = _budgetRange.end.clamp(lMin, lMax);
-            _budgetRange = RangeValues(start, end);
+            // Default budget slider to full available range so that
+            // by default no price filter is applied.
+            _budgetRange = RangeValues(lMin, lMax);
 
             // Use static area cap
             _areaMin = 0;
             _areaMax = AREA_CAP_SQFT;
-            final aStart = _areaRange.start.clamp(_areaMin.toDouble(), _areaMax.toDouble());
-            final aEnd = _areaRange.end.clamp(_areaMin.toDouble(), _areaMax.toDouble());
-            _areaRange = RangeValues(aStart, aEnd);
+            // Default area slider to full available range so that
+            // by default no area filter is applied.
+            _areaRange =
+                RangeValues(_areaMin.toDouble(), _areaMax.toDouble());
 
             _bedroomsOptions = data.bedrooms.where((b) => b > 0).toList();
             if (_bedroomsOptions.isEmpty) _bedroomsOptions = [1, 2, 3, 4];
@@ -144,6 +153,69 @@ class _FilterScreenState extends State<FilterScreen> {
             _availabilityMonths = data.availabilityMonths;
             _availabilityYears = data.availabilityYears;
             _ageOfConstructionOptions = data.ageOfConstructionOptions;
+
+            // Restore last applied filter when reopening sheet
+            final init = widget.initialSelection;
+            if (init != null) {
+              if (init.budgetMin != null && init.budgetMax != null) {
+                final lMinVal = (init.budgetMin! / 100000).toDouble().clamp(lMin, lMax);
+                final lMaxVal = (init.budgetMax! / 100000).toDouble().clamp(lMin, lMax);
+                _budgetRange = RangeValues(lMinVal, lMaxVal);
+              }
+              if (init.areaMin != null && init.areaMax != null) {
+                final aMin = init.areaMin!.toDouble().clamp(_areaMin.toDouble(), _areaMax.toDouble());
+                final aMax = init.areaMax!.toDouble().clamp(_areaMin.toDouble(), _areaMax.toDouble());
+                _areaRange = RangeValues(aMin, aMax);
+              }
+              if (init.bedroomsList != null && init.bedroomsList!.isNotEmpty) {
+                _selectedBedrooms.clear();
+                for (final b in init.bedroomsList!) {
+                  if (b > 0) _selectedBedrooms.add('$b BHK');
+                }
+              } else if (init.bedrooms != null && init.bedrooms! > 0) {
+                _selectedBedrooms.clear();
+                _selectedBedrooms.add('${init.bedrooms} BHK');
+              }
+              if (init.furnishing != null && init.furnishing!.isNotEmpty) {
+                final f = init.furnishing!.trim().toLowerCase().replaceAll(' ', '-');
+                for (final opt in _furnishingOptions) {
+                  if (opt.trim().toLowerCase().replaceAll(' ', '-') == f) {
+                    _selectedFurnishing = opt;
+                    break;
+                  }
+                }
+              }
+              if (init.possessionStatus != null && init.possessionStatus!.isNotEmpty) {
+                final v = init.possessionStatus!.trim().toLowerCase();
+                for (final m in _possessionStatusOptions) {
+                  if ((m['value'] ?? '').toString().toLowerCase() == v) {
+                    _selectedPossessionStatus = m['label'] ?? init.possessionStatus;
+                    break;
+                  }
+                }
+                if (_selectedPossessionStatus == null) _selectedPossessionStatus = init.possessionStatus;
+              }
+              if (init.availabilityMonth != null && init.availabilityMonth!.isNotEmpty) {
+                final raw = init.availabilityMonth!.trim();
+                final monthInt = int.tryParse(raw);
+                if (monthInt != null && monthInt >= 1 && monthInt <= 12) {
+                  for (final m in _availabilityMonths) {
+                    if (m['value'] == monthInt || m['value'].toString() == raw) {
+                      _selectedMonth = (m['label'] ?? '').toString();
+                      break;
+                    }
+                  }
+                }
+                if (_selectedMonth == null) _selectedMonth = init.availabilityMonth;
+              }
+              if (init.availabilityYear != null && init.availabilityYear!.isNotEmpty) {
+                _selectedYear = int.tryParse(init.availabilityYear!.trim());
+              }
+              if (init.ageOfConstruction != null && init.ageOfConstruction!.isNotEmpty) {
+                _selectedConstruction.clear();
+                _selectedConstruction.addAll(init.ageOfConstruction!);
+              }
+            }
           });
         }
       },
@@ -244,9 +316,11 @@ class _FilterScreenState extends State<FilterScreen> {
         _pill("BUY", _selectedCategory == "BUY", () {
           setState(() {
             _selectedCategory = "BUY";
-            // set sensible defaults immediately for BUY: 0 - 100 Lacs
+            // set sensible defaults immediately for BUY: 0 - BUY_CAP_LACS Lacs (e.g. up to 10 Cr)
             _priceMin = 0;
-            _priceMax = (_priceMax < 100 * 100000) ? _priceMax : 100 * 100000;
+            _priceMax = (_priceMax < BUY_CAP_LACS * 100000)
+                ? _priceMax
+                : BUY_CAP_LACS * 100000;
             final lMin = (_priceMin / 100000).toDouble();
             final lMax = (_priceMax / 100000).toDouble();
             _budgetRange = RangeValues(lMin, lMax);
@@ -257,9 +331,11 @@ class _FilterScreenState extends State<FilterScreen> {
         _pill("RENT", _selectedCategory == "RENT", () {
           setState(() {
             _selectedCategory = "RENT";
-            // set sensible defaults immediately for RENT: 0 - 10 Lacs
+            // set sensible defaults immediately for RENT: 0 - RENT_CAP_LACS Lacs (e.g. up to 10 Lacs)
             _priceMin = 0;
-            _priceMax = (_priceMax < 10 * 100000) ? _priceMax : 10 * 100000;
+            _priceMax = (_priceMax < RENT_CAP_LACS * 100000)
+                ? _priceMax
+                : RENT_CAP_LACS * 100000;
             final lMin = (_priceMin / 100000).toDouble();
             final lMax = (_priceMax / 100000).toDouble();
             _budgetRange = RangeValues(lMin, lMax);
@@ -347,11 +423,45 @@ class _FilterScreenState extends State<FilterScreen> {
       );
 
   String _formatPriceLabel(double lacs) {
-    if (lacs >= 100) {
-      final cr = lacs / 100.0;
-      return '${cr.toStringAsFixed(cr.truncateToDouble() == cr ? 0 : 1)} Cr';
+    // Determine current cap based on category so we can show "10 L+" / "10 Cr+"
+    final isBuy = _selectedCategory == 'BUY';
+    final capLacs = (isBuy ? BUY_CAP_LACS : RENT_CAP_LACS).toDouble();
+    final isMax = lacs >= capLacs;
+
+    // Convert lacs -> rupees so we can format as ₹1K, ₹1 L, ₹1 Cr etc.
+    final rupees = lacs * 100000.0;
+
+    String base;
+
+    if (rupees == 0) {
+      base = '₹ 0';
     }
-    return '${lacs.toInt()} Lacs';
+    // < 1 Lac => show in thousands (₹ 1K, ₹ 2K, ... ₹ 95K)
+    else if (rupees < 100000) {
+      final thousands = rupees / 1000.0;
+      final display = thousands.truncateToDouble() == thousands
+          ? thousands.toStringAsFixed(0)
+          : thousands.toStringAsFixed(1);
+      base = '₹ ${display}K';
+    }
+    // 1 Lac to < 1 Cr => show in L (₹ 1 L, ₹ 1.1 L, ...)
+    else if (rupees < 10000000) {
+      final l = rupees / 100000.0;
+      final display = l.truncateToDouble() == l
+          ? l.toStringAsFixed(0)
+          : l.toStringAsFixed(1);
+      base = '₹ $display L';
+    }
+    // >= 1 Cr => show in Cr (₹ 1 Cr, ₹ 1.5 Cr, ...)
+    else {
+      final cr = rupees / 10000000.0;
+      final display = cr.truncateToDouble() == cr
+          ? cr.toStringAsFixed(0)
+          : cr.toStringAsFixed(1);
+      base = '₹ $display Cr';
+    }
+
+    return isMax ? '$base+' : base;
   }
 
   // ---------------- BEDROOM ----------------
@@ -431,65 +541,40 @@ class _FilterScreenState extends State<FilterScreen> {
   // ---------------- AVAILABILITY ----------------
 
   Widget _availabilityRow() {
-    // Use backend-provided availability months/years when available
-    final months = _availabilityMonths.isNotEmpty
-        ? _availabilityMonths.map((m) => m['label']?.toString() ?? '').where((s) => s.isNotEmpty).toList()
-        : <String>["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    // Single-select chips styled like design: pill buttons in a wrap
+    const options = [
+      "Immediately",
+      "After 1 Month",
+      "After 3 Month",
+      "After 7 Month",
+      "After 9 Month",
+    ];
 
-    final years = _availabilityYears.isNotEmpty
-        ? _availabilityYears
-        : List<int>.generate(7, (i) => DateTime.now().year + i);
-
-    return Row(
-      children: [
-        Expanded(
+    return Wrap(
+      spacing: 8,
+      runSpacing: 10,
+      children: options.map((label) {
+        final selected = _selectedMonth == label;
+        return GestureDetector(
+          onTap: () => setState(() => _selectedMonth = label),
           child: Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: kBorderGrey)),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                isExpanded: true,
-                isDense: true,
-                style: const TextStyle(fontSize: 13, color: Colors.black),
-                hint: const Text("Month", style: TextStyle(fontSize: 13)),
-                value: _selectedMonth,
-                items: months
-                    .map((m) => DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13))))
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedMonth = v),
+              color: selected ? kGreen : Colors.white,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: selected ? kGreen : kBorderGrey),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: selected ? Colors.black : Colors.black87,
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: kBorderGrey)),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                isExpanded: true,
-                isDense: true,
-                style: const TextStyle(fontSize: 13, color: Colors.black),
-                hint: const Text("Year", style: TextStyle(fontSize: 13)),
-                value: _selectedYear,
-                items: years
-                    .map((y) => DropdownMenuItem(value: y, child: Text("$y", style: const TextStyle(fontSize: 13))))
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedYear = v),
-              ),
-            ),
-          ),
-        ),
-      ],
+        );
+      }).toList(),
     );
   }
 
@@ -704,16 +789,91 @@ class _FilterScreenState extends State<FilterScreen> {
                     }
                   }
 
+                  // Decide whether budget/area sliders are effectively "no filter" (full range)
+                  final sliderBudgetMinLacs =
+                      (_priceMin / 100000).toDouble();
+                  final sliderBudgetMaxLacs =
+                      (_priceMax / 100000).toDouble();
+                  const epsilon = 0.01;
+
+                  final isFullBudgetRange =
+                      (_budgetRange.start - sliderBudgetMinLacs).abs() <=
+                          epsilon &&
+                          (_budgetRange.end - sliderBudgetMaxLacs).abs() <=
+                              epsilon;
+
+                  final sliderAreaMin = _areaMin.toDouble();
+                  final sliderAreaMax = _areaMax.toDouble();
+                  final isFullAreaRange =
+                      (_areaRange.start - sliderAreaMin).abs() <= epsilon &&
+                          (_areaRange.end - sliderAreaMax).abs() <= epsilon;
+
+                  final num? budgetMin =
+                      isFullBudgetRange ? null : _budgetRange.start * 100000;
+                  final num? budgetMax =
+                      isFullBudgetRange ? null : _budgetRange.end * 100000;
+                  final num? areaMin =
+                      isFullAreaRange ? null : _areaRange.start;
+                  final num? areaMax =
+                      isFullAreaRange ? null : _areaRange.end;
+
+                  // Map selected possession label -> backend value
+                  String? possessionValue;
+                  if (_selectedPossessionStatus != null &&
+                      _selectedPossessionStatus!.isNotEmpty) {
+                    for (final m in _possessionStatusOptions) {
+                      final label = m['label'] ?? '';
+                      if (label == _selectedPossessionStatus) {
+                        final v = m['value'] ?? '';
+                        if (v.isNotEmpty) possessionValue = v;
+                        break;
+                      }
+                    }
+                    // Fallback: if no explicit value found, still send label
+                    possessionValue ??= _selectedPossessionStatus;
+                  }
+
+                  // Map selected availability month label -> backend value
+                  String? availabilityMonthValue;
+                  if (_selectedMonth != null && _selectedMonth!.isNotEmpty) {
+                    if (_availabilityMonths.isNotEmpty) {
+                      for (final m in _availabilityMonths) {
+                        final label = (m['label'] ?? '').toString();
+                        if (label == _selectedMonth) {
+                          final raw = m['value'];
+                          if (raw != null) {
+                            availabilityMonthValue = raw.toString();
+                          }
+                          break;
+                        }
+                      }
+                    }
+                    // Fallback: if backend didn't provide mapping or we didn't find it,
+                    // keep using the label so month-name converter on service side can handle it.
+                    availabilityMonthValue ??= _selectedMonth;
+                  }
+
+                  // Backend stores age_of_construction as label (e.g. "Less than 5 yrs")
+                  // so send labels, not values
+                  List<String>? ageForSearch = _selectedConstruction.isNotEmpty
+                      ? _selectedConstruction.toList()
+                      : null;
+
                   final selection = FilterSelection(
                     category: _selectedCategory,
-                    // Convert Lacs back to rupees for backend queries
-                    budgetMin: _budgetRange.start * 100000,
-                    budgetMax: _budgetRange.end * 100000,
-                    areaMin: _areaRange.start,
-                    areaMax: _areaRange.end,
+                    // Convert Lacs back to rupees for backend queries (only if not full range)
+                    budgetMin: budgetMin,
+                    budgetMax: budgetMax,
+                    areaMin: areaMin,
+                    areaMax: areaMax,
                     bedrooms: bedroomCount,
                     bedroomsList: bedroomsList,
                     furnishing: _selectedFurnishing,
+                    possessionStatus: possessionValue,
+                    availabilityMonth: availabilityMonthValue,
+                    availabilityYear:
+                        _selectedYear != null ? _selectedYear.toString() : null,
+                    ageOfConstruction: ageForSearch,
                   );
 
                   Navigator.of(context).pop(selection);
@@ -732,14 +892,16 @@ class _FilterScreenState extends State<FilterScreen> {
   void _resetFilters() {
     setState(() {
       _selectedCategory = "BUY";
-      _budgetRange = const RangeValues(15, 25);
-      _areaRange = const RangeValues(15, 25);
+      // Full range = no filter applied
+      _budgetRange = const RangeValues(0, 1000);
+      _areaRange = const RangeValues(0, 4000);
       _selectedBedrooms.clear();
       _selectedYears.clear();
       _selectedMonth = null;
       _selectedYear = null;
       _selectedConstruction.clear();
-      _selectedPossessionStatus = "Under Construction";
+      _selectedPossessionStatus = null;
+      _selectedFurnishing = null;
     });
     _loadFilters();
   }

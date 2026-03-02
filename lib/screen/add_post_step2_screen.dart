@@ -224,6 +224,12 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   final _builtUpAreaController = TextEditingController();
   final _carpetAreaController = TextEditingController();
 
+  // Area validation state
+  String? _areaErrorMessage;
+  bool _superAreaHasError = false;
+  bool _builtUpAreaHasError = false;
+  bool _carpetAreaHasError = false;
+
   String _transactionType = "New Property";
   String _possessionStatus = "Under Construction";
   String _availableFrom = "After 1 Month";
@@ -233,6 +239,9 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   bool _lift = true;
 
   String _ownershipType = "Freehold";
+
+  // Preview label for Expected Price (e.g. "₹ 50 Lac")
+  String _expectedPricePreview = '';
 
   final _expectedPriceController = TextEditingController();
   final _bookingAmountController = TextEditingController();
@@ -505,7 +514,12 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
                   return unique;
                 })()
               : <String>[],
-          (v) => setState(() => _selectedCity = v),
+          (v) {
+            setState(() => _selectedCity = v);
+            // Jab user city manually select kare, turant map ke liye
+            // geocoding chala do taaki preview dikh sake.
+            _loadMapForAddress();
+          },
         ),
         const SizedBox(height: 8),
         Align(
@@ -948,7 +962,14 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Super Area (Sq. Ft)"),
         const SizedBox(height: 8),
-        _textField(_superAreaController, hint: "Enter area"),
+        _textField(
+          _superAreaController,
+          hint: "Enter area",
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (_) => _onAreaChanged(),
+          isError: _superAreaHasError,
+        ),
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -957,7 +978,14 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Built Up Area (Sq. Ft)"),
         const SizedBox(height: 8),
-        _textField(_builtUpAreaController, hint: "Enter area"),
+        _textField(
+          _builtUpAreaController,
+          hint: "Enter area",
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (_) => _onAreaChanged(),
+          isError: _builtUpAreaHasError,
+        ),
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -966,7 +994,28 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Carpet Area (Sq. Ft)"),
         const SizedBox(height: 8),
-        _textField(_carpetAreaController, hint: "Enter area"),
+        _textField(
+          _carpetAreaController,
+          hint: "Enter area",
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (_) => _onAreaChanged(),
+          isError: _carpetAreaHasError,
+        ),
+      ]);
+    }
+
+    if (_areaErrorMessage != null && _areaErrorMessage!.isNotEmpty) {
+      children.addAll([
+        const SizedBox(height: 8),
+        Text(
+          _areaErrorMessage!,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: Colors.red,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ]);
     }
 
@@ -980,6 +1029,66 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       title: "Area",
       children: children,
     );
+  }
+
+  // Validate area fields according to rule: Carpet ≤ Built‑up ≤ Super
+  bool _validateAreaValues({bool hardValidation = false}) {
+    final config = _fieldConfig;
+
+    double? superArea = config.showAreaSuper
+        ? double.tryParse(_superAreaController.text.trim())
+        : null;
+    double? builtUpArea = config.showAreaBuiltUp
+        ? double.tryParse(_builtUpAreaController.text.trim())
+        : null;
+    double? carpetArea = config.showAreaCarpet
+        ? double.tryParse(_carpetAreaController.text.trim())
+        : null;
+
+    // Reset previous error state
+    _areaErrorMessage = null;
+    _superAreaHasError = false;
+    _builtUpAreaHasError = false;
+    _carpetAreaHasError = false;
+
+    // If user has not entered enough values yet, treat as valid in real‑time mode
+    if (!hardValidation) {
+      // Only run validation when at least the pair of fields involved has values
+      if (carpetArea == null || builtUpArea == null) {
+        if (builtUpArea == null || superArea == null) {
+          return true;
+        }
+      }
+    }
+
+    // Rule 1: Carpet ≤ Built‑up
+    if (carpetArea != null &&
+        builtUpArea != null &&
+        carpetArea > builtUpArea) {
+      _areaErrorMessage =
+          "Carpet Area cannot be greater than Built-up Area";
+      _carpetAreaHasError = true;
+      return false;
+    }
+
+    // Rule 2: Built‑up ≤ Super
+    if (builtUpArea != null &&
+        superArea != null &&
+        builtUpArea > superArea) {
+      _areaErrorMessage =
+          "Built-up Area cannot be greater than Super Area";
+      _builtUpAreaHasError = true;
+      return false;
+    }
+
+    // If we reach here, values respect Carpet ≤ Built‑up ≤ Super
+    return true;
+  }
+
+  void _onAreaChanged() {
+    setState(() {
+      _validateAreaValues();
+    });
   }
 
   // ===================== TRANSACTION SECTION =====================
@@ -1133,6 +1242,99 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     );
   }
 
+  String _formatExpectedPriceLabel(String raw) {
+    final cleaned = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleaned.isEmpty) return '';
+    final value = int.tryParse(cleaned) ?? 0;
+    if (value <= 0) return '';
+
+    return '₹ ${_numberToWordsIndian(value)}';
+  }
+
+  // Convert number to words using Indian system (Thousand / Lakh / Crore)
+  String _numberToWordsIndian(int number) {
+    if (number == 0) return 'Zero';
+
+    const ones = [
+      '',
+      'One',
+      'Two',
+      'Three',
+      'Four',
+      'Five',
+      'Six',
+      'Seven',
+      'Eight',
+      'Nine',
+      'Ten',
+      'Eleven',
+      'Twelve',
+      'Thirteen',
+      'Fourteen',
+      'Fifteen',
+      'Sixteen',
+      'Seventeen',
+      'Eighteen',
+      'Nineteen',
+    ];
+
+    const tens = [
+      '',
+      '',
+      'Twenty',
+      'Thirty',
+      'Forty',
+      'Fifty',
+      'Sixty',
+      'Seventy',
+      'Eighty',
+      'Ninety',
+    ];
+
+    String twoDigits(int n) {
+      if (n < 20) return ones[n];
+      final t = n ~/ 10;
+      final o = n % 10;
+      if (o == 0) return tens[t];
+      return '${tens[t]} ${ones[o]}';
+    }
+
+    String threeDigits(int n) {
+      final h = n ~/ 100;
+      final rest = n % 100;
+      if (h == 0) return twoDigits(rest);
+      if (rest == 0) return '${ones[h]} Hundred';
+      return '${ones[h]} Hundred ${twoDigits(rest)}';
+    }
+
+    final parts = <String>[];
+
+    final crore = number ~/ 10000000;
+    if (crore > 0) {
+      parts.add('${twoDigits(crore)} Crore');
+      number %= 10000000;
+    }
+
+    final lakh = number ~/ 100000;
+    if (lakh > 0) {
+      parts.add('${twoDigits(lakh)} Lakh');
+      number %= 100000;
+    }
+
+    final thousand = number ~/ 1000;
+    if (thousand > 0) {
+      parts.add('${twoDigits(thousand)} Thousand');
+      number %= 1000;
+    }
+
+    final hundreds = number;
+    if (hundreds > 0) {
+      parts.add(threeDigits(hundreds));
+    }
+
+    return parts.join(' ');
+  }
+
   // ===================== PRICE SECTION =====================
   Widget _priceSection() {
     final config = _fieldConfig;
@@ -1143,7 +1345,28 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Expected Price"),
         const SizedBox(height: 8),
-        _textField(_expectedPriceController, hint: "Enter expected price", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
+        _textField(
+          _expectedPriceController,
+          hint: "Enter expected price",
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (v) {
+            setState(() {
+              _expectedPricePreview = _formatExpectedPriceLabel(v);
+            });
+          },
+        ),
+        if (_expectedPricePreview.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            _expectedPricePreview,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -1160,9 +1383,9 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
 
     if (config.showMonthlyRent) {
       children.addAll([
-        _label("Monthly Rent"),
+        _label("Monthly Rent (₹/month)"),
         const SizedBox(height: 8),
-        _textField(_monthlyRentController, hint: "Enter monthly rent", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
+        _textField(_monthlyRentController, hint: "Enter monthly rent", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], suffixText: "/month"),
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -1241,6 +1464,21 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
               rentVal = _expectedPriceController.text.trim();
             }
 
+            // Validate area rules before proceeding to next step
+            final areaValid = _validateAreaValues(hardValidation: true);
+            if (!areaValid) {
+              setState(() {}); // refresh UI highlighting
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    _areaErrorMessage ??
+                        'Please enter valid area values (Carpet ≤ Built-up ≤ Super)',
+                  ),
+                ),
+              );
+              return;
+            }
+
             // Validation: if total floors is provided, ensure floor number is not greater than total floors.
             final int enteredFloor = int.tryParse(_floorNumberController.text.trim()) ?? 0;
             final int enteredTotal = int.tryParse(_totalFloorsController.text.trim()) ?? 0;
@@ -1284,7 +1522,14 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
               ..areaSqft = int.tryParse(_superAreaController.text) ?? 0
               ..address = _addressController.text.trim()
               ..locality = _localityController.text.trim()
-              ..city = _selectedCity ?? widget.draft.city;
+              ..city = _selectedCity ?? widget.draft.city
+              // New: push meta fields so DB me null na jaye
+              ..possessionStatus = config.showPossessionStatus ? _possessionStatus : ''
+              ..availableFrom = config.showAvailableFrom ? _availableFrom : ''
+              ..ageOfConstruction = config.showAgeOfConstruction ? _ageOfConstruction : ''
+              ..carParking = config.showCarParking ? _carParking : false
+              ..lift = config.showLift ? _lift : false
+              ..typeOfOwnership = config.showOwnershipType ? _ownershipType : '';
 
             Navigator.push(
               context,
@@ -1356,7 +1601,12 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
         TextInputType keyboardType = TextInputType.text,
         Function(String)? onChanged,
         List<TextInputFormatter>? inputFormatters,
+        bool isError = false,
+        String? suffixText,
       }) {
+    final borderColor = isError ? Colors.red : Colors.grey.shade300;
+    final focusedBorderColor = isError ? Colors.red : _primary;
+
     return SizedBox(
       height: 46,
       child: TextField(
@@ -1368,21 +1618,23 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
           hintText: hint ?? "",
           hintStyle:
           GoogleFonts.poppins(fontSize: 13, color: Colors.grey[400]),
+          suffixText: suffixText,
+          suffixStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600]),
           filled: true,
           fillColor: Colors.white,
           contentPadding:
           const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderSide: BorderSide(color: borderColor),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderSide: BorderSide(color: borderColor),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: _primary, width: 1.4),
+            borderSide: BorderSide(color: focusedBorderColor, width: 1.4),
           ),
         ),
       ),

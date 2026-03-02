@@ -1,20 +1,31 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:hunt_property/theme/app_theme.dart';
-import 'package:hunt_property/cubit/property_cubit.dart';
-import 'package:hunt_property/repositories/property_repository.dart';
-import 'package:hunt_property/models/property.dart';
-import 'dart:async';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:hunt_property/cubit/property_cubit.dart';
+import 'package:hunt_property/cubit/shortlist_cubit.dart';
+import 'package:hunt_property/models/property.dart';
+import 'package:hunt_property/repositories/property_repository.dart';
+import 'package:hunt_property/services/shortlist_service.dart';
+import 'package:hunt_property/services/storage_service.dart';
+import 'package:hunt_property/theme/app_theme.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-class PropertyDetailsScreen extends StatelessWidget {
+class PropertyDetailsScreen extends StatefulWidget {
   final String propertyId;
   final String? tag;
   final String? price;
   final String? location;
+  final bool initialIsFavorite;
 
   const PropertyDetailsScreen({
     super.key,
@@ -22,12 +33,180 @@ class PropertyDetailsScreen extends StatelessWidget {
     this.tag,
     this.price,
     this.location,
+    this.initialIsFavorite = false,
   });
+
+  @override
+  State<PropertyDetailsScreen> createState() => _PropertyDetailsScreenState();
+}
+
+class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
+  final ShortlistService _shortlistService = ShortlistService();
+  late bool _isFavorite;
+  Property? _currentProperty; // latest loaded property details
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorite = widget.initialIsFavorite;
+  }
+
+  Future<void> _toggleFavorite() async {
+    final userId = await StorageService.getUserId();
+    if (userId == null || userId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please login to save favorites')),
+        );
+      }
+      return;
+    }
+
+    final propId = widget.propertyId;
+    if (propId.isEmpty) return;
+
+    setState(() => _isFavorite = !_isFavorite); // optimistic
+
+    bool success = false;
+    if (_isFavorite) {
+      success = await _shortlistService.addToShortlist(propId);
+    } else {
+      success = await _shortlistService.removeFromShortlist(propId);
+    }
+
+    if (!success) {
+      setState(() => _isFavorite = !_isFavorite);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update favorites')),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isFavorite ? 'Added to favorites' : 'Removed from favorites',
+          ),
+        ),
+      );
+    }
+
+    // Refresh shortlist cubit if present so shortlist screens update immediately.
+    try {
+      final cubit = BlocProvider.of<ShortlistCubit>(context, listen: false);
+      cubit.load();
+    } catch (_) {}
+  }
+
+  Future<void> _shareProperty() async {
+    // Try to use full property details from last loaded state
+    final property = _currentProperty;
+
+    final title = property?.title ?? widget.tag ?? 'Property';
+
+    String priceText;
+    if (property?.price != null && property!.price! > 0) {
+      priceText = '₹ ${property.price!.toStringAsFixed(0)}';
+    } else {
+      priceText = widget.price ?? '';
+    }
+
+    String locationText;
+    if (property?.location != null) {
+      final loc = property!.location!;
+      locationText = [
+        loc.address,
+        loc.locality,
+        loc.city,
+      ].where((s) => s != null && s.toString().trim().isNotEmpty).join(', ');
+    } else {
+      locationText = widget.location ?? '';
+    }
+
+    // Shareable URL (deep link / backend URL)
+    final repo = PropertyRepository();
+    final propertyUrl = '${repo.baseUrl}/api/properties/${widget.propertyId}';
+
+    final detailsLines = <String>[
+      'Check this property on Hunt Property:',
+      if (title.isNotEmpty) title,
+      if (priceText.isNotEmpty) 'Price: $priceText',
+      if (locationText.isNotEmpty) 'Location: $locationText',
+      if (property != null && property.areaSqft != null)
+        'Area: ${_formatArea(property.areaSqft)}',
+      if (property != null && property.bedrooms != null)
+        'Bedrooms: ${property.bedrooms}',
+      if (property != null && property.bathrooms != null)
+        'Bathrooms: ${property.bathrooms}',
+      if (property != null && property.transactionType.isNotEmpty)
+        'For: ${property.transactionType}',
+      '',
+      'More details:',
+      propertyUrl,
+    ];
+
+    final message =
+        detailsLines.where((s) => s.trim().isNotEmpty).join('\n');
+
+    // Try to attach main property image (WhatsApp / Telegram preview ke liye)
+    XFile? imageFile;
+    String? imageUrl;
+    if (property != null && property.images.isNotEmpty) {
+      // Prefer primary image, fallback to first
+      final primary = property.images.firstWhere(
+        (i) => i.isPrimary == true,
+        orElse: () => property!.images.first,
+      );
+      imageUrl = primary.url;
+    }
+
+    if (imageUrl != null && imageUrl.startsWith('http')) {
+      try {
+        final response = await http.get(Uri.parse(imageUrl));
+        if (response.statusCode == 200) {
+          final tempDir = await getTemporaryDirectory();
+          final filePath = '${tempDir.path}/property_${widget.propertyId}.jpg';
+          final file = File(filePath);
+          await file.writeAsBytes(response.bodyBytes);
+          imageFile = XFile(file.path);
+        }
+      } catch (e) {
+        // Image download fail ho jaye to bhi text share chalega
+        debugPrint('Share image download failed: $e');
+      }
+    }
+
+    try {
+      if (imageFile != null) {
+        await Share.shareXFiles(
+          [imageFile],
+          text: message,
+          subject: title,
+        );
+      } else {
+        await Share.share(
+          message,
+          subject: title,
+        );
+      }
+    } catch (e) {
+      // Agar file-share me koi issue aaye to simple text share fallback
+      debugPrint('Share failed with image, falling back to text: $e');
+      await Share.share(
+        message,
+        subject: title,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => PropertyCubit(repository: PropertyRepository())..fetchProperty(propertyId),
+      create: (_) => PropertyCubit(repository: PropertyRepository())
+        ..fetchProperty(widget.propertyId),
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: _buildAppBar(context),
@@ -38,6 +217,9 @@ class PropertyDetailsScreen extends StatelessWidget {
             } else if (state is PropertyError) {
               return Center(child: Text('Error: ${state.message}'));
             } else if (state is PropertyLoaded) {
+              // Cache latest property so share button ke time par
+              // bina Bloc/Provider context ke details mil sake.
+              _currentProperty = state.property;
               return SingleChildScrollView(
                 child: _PropertyDetailsView(property: state.property),
               );
@@ -62,32 +244,34 @@ class PropertyDetailsScreen extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
           padding: EdgeInsets.zero,
         ),
-        ),
-
+      ),
       title: Container(
         height: 40,
         decoration: BoxDecoration(
           color: AppColors.lightGray,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: TextField(
+        child: const TextField(
           decoration: InputDecoration(
             hintText: 'Search City/Location/Project',
-            hintStyle: const TextStyle(fontSize: 14, color: AppColors.textLight),
-            prefixIcon: const Icon(Icons.search, color: AppColors.textLight, size: 20),
+            hintStyle: TextStyle(fontSize: 14, color: AppColors.textLight),
+            prefixIcon: Icon(Icons.search, color: AppColors.textLight, size: 20),
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           ),
         ),
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.favorite_border, color: AppColors.textDark),
-          onPressed: () {},
+          icon: Icon(
+            _isFavorite ? Icons.favorite : Icons.favorite_border,
+            color: _isFavorite ? AppColors.primaryColor : AppColors.textDark,
+          ),
+          onPressed: _toggleFavorite,
         ),
         IconButton(
           icon: const Icon(Icons.share, color: AppColors.textDark),
-          onPressed: () {},
+          onPressed: _shareProperty,
         ),
       ],
     );
@@ -161,7 +345,7 @@ class PropertyDetailsScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(price ?? '₹ 45Lac',
+          Text(widget.price ?? '₹ 45Lac',
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -179,7 +363,7 @@ class PropertyDetailsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'For ${tag ?? 'Sell'} in ${location ?? 'Hyderabad, Hyderabad City'}',
+            'For ${widget.tag ?? 'Sell'} in ${widget.location ?? 'Hyderabad, Hyderabad City'}',
             style: const TextStyle(
               fontSize: 14,
               color: AppColors.textLight,
@@ -222,7 +406,7 @@ class PropertyDetailsScreen extends StatelessWidget {
                       const Icon(Icons.map, size: 60, color: AppColors.textLight),
                       const SizedBox(height: 8),
                       Text(
-                        location ?? 'Hyderabad',
+                        widget.location ?? 'Hyderabad',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -269,14 +453,19 @@ class PropertyDetailsScreen extends StatelessWidget {
 
   Widget _buildAmenitiesSection() {
     final amenities = [
-      {'image': 'assets/images/school.png', 'label': 'School'},
-      {'image': 'assets/images/Library.png', 'label': 'Library'},
-      {'image': 'assets/images/car_parking .png', 'label': 'Car Parking'},
+      {'image': 'assets/images/car_parking.png', 'label': 'Car Parking'},
       {'image': 'assets/images/Kids.png', 'label': "Kid's Playground"},
-      {'image': 'assets/images/restro.png', 'label': 'Restaurants'},
       {'image': 'assets/images/club_house.png', 'label': 'Club House'},
+      {'image': 'assets/images/restro.png', 'label': 'Restaurants'},
       {'image': 'assets/images/gym.png', 'label': 'Fitness Gym'},
-      {'image': 'assets/images/yoga .png', 'label': 'Yoga'},
+      {'image': 'assets/images/school.png', 'label': 'School'},
+      {'image': 'assets/images/hospital.png', 'label': 'Hospital'},
+      {'image': 'assets/images/swimming.png', 'label': 'Swimming Pool'},
+      {'image': 'assets/images/water.png', 'label': '24 Hour Water Supply'},
+      {'image': 'assets/images/fire.png', 'label': 'Firefighting'},
+      {'image': 'assets/images/power_backup.png', 'label': 'Power backup'},
+      {'image': 'assets/images/yoga.png', 'label': 'Yoga'},
+      {'image': 'assets/images/Library.png', 'label': 'Library'},
     ];
 
     // Test if assets are accessible
@@ -436,7 +625,7 @@ class PropertyDetailsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _buildDescriptionItem('Description', 'Located at prime location of Noida'),
-          _buildDescriptionItem('Property For', tag ?? 'Sell'),
+          _buildDescriptionItem('Property For', widget.tag ?? 'Sell'),
           _buildDescriptionItem('State', 'Uttar Pradesh'),
           _buildDescriptionItem('City', 'Gautam Buddha Nagar'),
           _buildDescriptionItem('Locality', 'Sector 104'),
@@ -711,30 +900,73 @@ class _PropertyDetailsViewState extends State<_PropertyDetailsView> {
       );
     }
 
-    Widget _amenityChip(String label) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF0F8F2),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFBFE6CB)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _amenityIcon(label),
-            const SizedBox(width: 8),
-            Text(label, style: const TextStyle(fontSize: 12, color: Colors.black87)),
-          ],
-        ),
+    // Static amenity master list: image ya icon ke sath
+    final List<Map<String, dynamic>> masterAmenities = [
+      {'name': 'Car Parking', 'image': 'assets/images/car_parking.png'},
+      {'name': "Kid's Playground", 'image': 'assets/images/Kids.png'},
+      {'name': 'Club House', 'image': 'assets/images/club_house.png'},
+      {'name': 'Restaurants', 'image': 'assets/images/restro.png'},
+      {'name': 'Fitness Gym', 'image': 'assets/images/gym.png'},
+      {'name': 'School', 'image': 'assets/images/school.png'},
+      {'name': 'Hospital', 'image': 'assets/images/hospital.png'},
+      {'name': 'Swimming Pool', 'image': 'assets/images/swimming.png'},
+      {'name': '24 Hour Water Supply', 'image': 'assets/images/water.png'},
+      {'name': 'Firefighting', 'image': 'assets/images/fire.png'},
+      {'name': 'Power backup', 'image': 'assets/images/power_backup.png'},
+      {'name': 'Yoga', 'image': 'assets/images/yoga.png'},
+      {'name': 'Library', 'image': 'assets/images/Library.png'},
+    ];
+
+    // Backend se aaye amenities ko master list se map karo,
+    // taaki sirf wohi amenities dikhain jo property me hain.
+    final List<Map<String, dynamic>> displayedAmenities = [];
+    for (final raw in property.amenities) {
+      final key = raw.toLowerCase();
+      final match = masterAmenities.firstWhere(
+        (m) => key.contains(m['name'].toString().toLowerCase().split(' ').first),
+        orElse: () => {},
       );
+      if (match.isNotEmpty && !displayedAmenities.contains(match)) {
+        displayedAmenities.add(match);
+      }
     }
 
+    // Agar backend ne amenities list khali bheji ho, to fallback: sab master dikhado
+    final amenitiesToShow =
+        displayedAmenities.isNotEmpty ? displayedAmenities : masterAmenities;
+
     String _priceText() {
-      if (property.price != null && property.price! > 0) {
-        return '₹ ${property.price!.toStringAsFixed(0)}';
+      final price = property.price ?? 0;
+      if (price <= 0) return '₹ 0';
+
+      final isRent =
+          property.transactionType.toLowerCase() == 'rent';
+      final formatter = NumberFormat.decimalPattern('en_IN');
+
+      if (isRent) {
+        // e.g. ₹ 12,500/month
+        return '₹ ${formatter.format(price)}/month';
       }
-      return '₹ 0';
+
+      // For sale – show in Lac / Cr like portals
+      if (price >= 10000000) {
+        // 1 Cr = 1,00,00,000
+        final cr = price / 10000000;
+        final crStr = cr % 1 == 0
+            ? cr.toStringAsFixed(0)
+            : cr.toStringAsFixed(1);
+        return '₹ $crStr Cr';
+      } else if (price >= 100000) {
+        // 1 Lac = 1,00,000
+        final lac = price / 100000;
+        final lacStr = lac % 1 == 0
+            ? lac.toStringAsFixed(0)
+            : lac.toStringAsFixed(1);
+        return '₹ $lacStr Lac';
+      }
+
+      // Fallback: simple currency formatting
+      return '₹ ${formatter.format(price)}';
     }
 
     return Column(
@@ -862,9 +1094,13 @@ class _PropertyDetailsViewState extends State<_PropertyDetailsView> {
                 mainAxisSpacing: 12,
                 childAspectRatio: 0.9,
               ),
-              itemCount: property.amenities.length,
+              itemCount: amenitiesToShow.length,
               itemBuilder: (context, idx) {
-                final a = property.amenities[idx];
+                final item = amenitiesToShow[idx];
+                final String name = item['name'] as String;
+                final String? imagePath = item['image'] as String?;
+                final IconData? iconData = item['icon'] as IconData?;
+
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -875,18 +1111,43 @@ class _PropertyDetailsViewState extends State<_PropertyDetailsView> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.grey.shade200),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0,2))],
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          )
+                        ],
                       ),
-                      child: Center(child: _amenityIconLarge(a)),
+                      child: Center(
+                        child: imagePath != null
+                            ? Image.asset(
+                                imagePath,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) =>
+                                    Icon(iconData ?? Icons.check,
+                                        size: 24,
+                                        color: Colors.black54),
+                              )
+                            : Icon(
+                                iconData ?? Icons.check,
+                                size: 24,
+                                color: Colors.black54,
+                              ),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Flexible(
                       child: Text(
-                        a,
+                        name,
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11, color: AppColors.textDark, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textDark,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -1018,22 +1279,60 @@ Widget _amenityIcon(String label) {
 Widget _amenityIconLarge(String label) {
   final key = label.toLowerCase();
   String? asset;
-  if (key.contains('car') || key.contains('parking')) asset = 'assets/images/car_parking.png';
-  else if (key.contains('kid') || key.contains('play')) asset = 'assets/images/Kids.png';
-  else if (key.contains('gym') || key.contains('fitness')) asset = 'assets/images/gym.png';
-  else if (key.contains('swimm') || key.contains('pool')) asset = 'assets/images/swimming_pool.png';
-  else if (key.contains('24') || key.contains('water')) asset = 'assets/images/water_supply.png';
-  else if (key.contains('fire') || key.contains('firefight')) asset = 'assets/images/fire_safety.png';
-  else if (key.contains('library')) asset = 'assets/images/Library.png';
-  else if (key.contains('rest')) asset = 'assets/images/restro.png';
-  else if (key.contains('club')) asset = 'assets/images/club_house.png';
-  else if (key.contains('yoga')) asset = 'assets/images/yoga.png';
-  else if (key.contains('power') || key.contains('backup')) asset = 'assets/images/power_backup.png';
+  IconData? fallbackIcon;
+
+  if (key.contains('car') || key.contains('parking')) {
+    asset = 'assets/images/car_parking.png';
+    fallbackIcon = Icons.directions_car;
+  } else if (key.contains('kid') || key.contains('play')) {
+    asset = 'assets/images/Kids.png';
+    fallbackIcon = Icons.child_care;
+  } else if (key.contains('gym') || key.contains('fitness')) {
+    asset = 'assets/images/gym.png';
+    fallbackIcon = Icons.fitness_center;
+  } else if (key.contains('swimm') || key.contains('pool')) {
+    asset = 'assets/images/swimming_pool.png';
+    fallbackIcon = Icons.pool;
+  } else if (key.contains('24') || key.contains('water')) {
+    asset = 'assets/images/water_supply.png';
+    fallbackIcon = Icons.water_drop;
+  } else if (key.contains('fire') || key.contains('firefight')) {
+    asset = 'assets/images/fire_safety.png';
+    fallbackIcon = Icons.local_fire_department;
+  } else if (key.contains('library')) {
+    asset = 'assets/images/Library.png';
+    fallbackIcon = Icons.menu_book;
+  } else if (key.contains('rest')) {
+    asset = 'assets/images/restro.png';
+    fallbackIcon = Icons.restaurant;
+  } else if (key.contains('club')) {
+    asset = 'assets/images/club_house.png';
+    fallbackIcon = Icons.apartment;
+  } else if (key.contains('yoga')) {
+    asset = 'assets/images/yoga.png';
+    fallbackIcon = Icons.self_improvement;
+  } else if (key.contains('power') || key.contains('backup')) {
+    asset = 'assets/images/power_backup.png';
+    fallbackIcon = Icons.bolt;
+  } else if (key.contains('hospital')) {
+    // No custom asset in project, use Material icon
+    fallbackIcon = Icons.local_hospital;
+  }
 
   if (asset != null) {
-    return SizedBox(width: 36, height: 36, child: Image.asset(asset, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.check, size: 24)));
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: Image.asset(
+        asset,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) =>
+            Icon(fallbackIcon ?? Icons.check, size: 24, color: Colors.black54),
+      ),
+    );
   }
-  return const Icon(Icons.check, size: 24, color: Colors.black54);
+
+  return Icon(fallbackIcon ?? Icons.check, size: 24, color: Colors.black54);
 }
 
 // Highlight row styled like screenshot: left label column with pale bg, right value

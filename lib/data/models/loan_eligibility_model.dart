@@ -10,17 +10,25 @@ class LoanEligibilityModel {
     required this.message,
     required this.maximumEligibleAmount,
     required this.maximumEmi,
-    required this.loanRequired,
+    this.loanRequired = 0,
   });
 
   factory LoanEligibilityModel.fromJson(Map<String, dynamic> json) {
     return LoanEligibilityModel(
-      eligible: json['eligible'] as bool,
-      message: json['message'] as String,
-      maximumEligibleAmount: (json['maximum_eligible_amount'] as num).toInt(),
-      maximumEmi: (json['maximum_emi'] as num).toInt(),
-      loanRequired: (json['loan_required'] as num).toInt(),
+      eligible: json['eligible'] as bool? ?? false,
+      message: json['message'] as String? ?? '',
+      maximumEligibleAmount: _toInt(json['maximum_eligible_amount']),
+      maximumEmi: _toInt(json['maximum_emi']),
+      loanRequired: _toInt(json['loan_required']),
     );
+  }
+
+  static int _toInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
   }
 }
 

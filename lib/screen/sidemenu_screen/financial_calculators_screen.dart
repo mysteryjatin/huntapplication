@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/repository/financial_calculators_repository.dart';
@@ -17,13 +18,31 @@ class FinancialCalculatorsScreen extends StatefulWidget {
 class _FinancialCalculatorsScreenState extends State<FinancialCalculatorsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late List<UniqueKey> _tabKeys;
+  int _tabResetTrigger = 0;
+  int _prevTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this, initialIndex: widget.initialTabIndex);
-    _tabKeys = List.generate(4, (_) => UniqueKey());
+    _prevTabIndex = widget.initialTabIndex;
+    _tabController.addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    final current = _tabController.index;
+    if (current != _prevTabIndex) {
+      _prevTabIndex = current;
+      context.read<FinancialCalculatorsCubit>().resetAll();
+      setState(() => _tabResetTrigger++);
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
@@ -91,12 +110,6 @@ class _FinancialCalculatorsScreenState extends State<FinancialCalculatorsScreen>
                 color: Color(0xFF9E9E9E),
               ),
 
-              onTap: (i) {
-                // When user switches tabs, rebuild tab widgets so their input controllers reset.
-                setState(() {
-                  _tabKeys = List.generate(4, (_) => UniqueKey());
-                });
-              },
               tabs: const [
                 Tab(text: 'Loan Eligibility'),
                 Tab(text: 'Rental Value'),
@@ -111,10 +124,10 @@ class _FinancialCalculatorsScreenState extends State<FinancialCalculatorsScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          LoanEligibilityTab(key: _tabKeys[0]),
-          RentalValueTab(key: _tabKeys[1]),
-          FutureValueTab(key: _tabKeys[2]),
-          EmiTab(key: _tabKeys[3]),
+          LoanEligibilityTab(resetTrigger: _tabResetTrigger),
+          RentalValueTab(resetTrigger: _tabResetTrigger),
+          FutureValueTab(resetTrigger: _tabResetTrigger),
+          EmiTab(resetTrigger: _tabResetTrigger),
         ],
       ),
       )    );
@@ -127,8 +140,14 @@ class AppInput extends StatelessWidget {
   final String label;
   final TextEditingController controller;
   final TextInputType keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
 
-  const AppInput(this.label, {required this.controller, this.keyboardType = TextInputType.number, super.key});
+  const AppInput(this.label, {
+    required this.controller,
+    this.keyboardType = TextInputType.number,
+    this.inputFormatters,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -156,6 +175,7 @@ class AppInput extends StatelessWidget {
             child: TextField(
               controller: controller,
               keyboardType: keyboardType,
+              inputFormatters: inputFormatters,
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -167,6 +187,12 @@ class AppInput extends StatelessWidget {
     );
   }
 }
+
+/// Max 2 digits (1-99) for Year/Rate fields
+final _max2Digits = [
+  FilteringTextInputFormatter.digitsOnly,
+  LengthLimitingTextInputFormatter(2),
+];
 
 // ================= GREEN BUTTON =================
 
@@ -199,8 +225,9 @@ class GreenButton extends StatelessWidget {
 
 // ================= RESULT CARD =================
 
-Widget resultCard({required Widget child}) {
+Widget resultCard({required Widget child, Key? key}) {
   return Container(
+    key: key,
     width: double.infinity,
     margin: const EdgeInsets.only(top: 20),
     padding: const EdgeInsets.all(18),
@@ -216,7 +243,8 @@ Widget resultCard({required Widget child}) {
 // ================= LOAN ELIGIBILITY =================
 
 class LoanEligibilityTab extends StatefulWidget {
-  const LoanEligibilityTab({super.key});
+  final int resetTrigger;
+  const LoanEligibilityTab({super.key, required this.resetTrigger});
 
   @override
   State<LoanEligibilityTab> createState() => _LoanEligibilityTabState();
@@ -226,15 +254,30 @@ class _LoanEligibilityTabState extends State<LoanEligibilityTab> {
   final _loanRequired = TextEditingController();
   final _netIncome = TextEditingController();
   final _existingCommitments = TextEditingController();
-  final _tenure = TextEditingController();
+  final _tenureYears = TextEditingController();
+  final _tenureMonths = TextEditingController();
   final _rate = TextEditingController();
+
+  @override
+  void didUpdateWidget(covariant LoanEligibilityTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.resetTrigger != widget.resetTrigger) {
+      _loanRequired.clear();
+      _netIncome.clear();
+      _existingCommitments.clear();
+      _tenureYears.clear();
+      _tenureMonths.clear();
+      _rate.clear();
+    }
+  }
 
   @override
   void dispose() {
     _loanRequired.dispose();
     _netIncome.dispose();
     _existingCommitments.dispose();
-    _tenure.dispose();
+    _tenureYears.dispose();
+    _tenureMonths.dispose();
     _rate.dispose();
     super.dispose();
   }
@@ -249,25 +292,147 @@ class _LoanEligibilityTabState extends State<LoanEligibilityTab> {
           AppInput('Loan Required (₹)', controller: _loanRequired),
           AppInput('Net income per month (₹)', controller: _netIncome),
           AppInput('Existing loan commitments (₹)', controller: _existingCommitments),
-          AppInput('Loan Tenure (years)', controller: _tenure),
-          AppInput('Rate of Interest (%)', controller: _rate, keyboardType: TextInputType.number),
+          // Loan Tenure with Years + Months (design as per screenshot)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Loan Tenure',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    // Years box
+                    Expanded(
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE3E3E3)),
+                        ),
+                        child: TextField(
+                          controller: _tenureYears,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: _max2Digits,
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
+                            ),
+                            hintText: 'Years',
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Months box
+                    Expanded(
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE3E3E3)),
+                        ),
+                        child: TextField(
+                          controller: _tenureMonths,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: _max2Digits,
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
+                            ),
+                            hintText: 'Months',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          AppInput('Rate of Interest (%)', controller: _rate, keyboardType: TextInputType.number, inputFormatters: _max2Digits),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               GestureDetector(
                 onTap: () {
-                  final loanRequired = int.tryParse(_loanRequired.text) ?? 0;
-                  final netIncome = int.tryParse(_netIncome.text) ?? 0;
-                  final existing = int.tryParse(_existingCommitments.text) ?? 0;
-                  final tenure = int.tryParse(_tenure.text) ?? 0;
-                  final rate = num.tryParse(_rate.text) ?? 0;
+                  if (cubit.state.status == CalcStatus.loading) return;
+                  // Basic validation so backend ko 0 values na jayein.
+                  String? error;
+
+                  final loanRequired =
+                      int.tryParse(_loanRequired.text.trim());
+                  if (loanRequired == null || loanRequired <= 0) {
+                    error = 'Please enter Loan Required greater than 0';
+                  }
+
+                  final netIncome =
+                      int.tryParse(_netIncome.text.trim());
+                  if (error == null &&
+                      (netIncome == null || netIncome <= 0)) {
+                    error = 'Please enter Net income per month greater than 0';
+                  }
+
+                  final existing = int.tryParse(
+                          _existingCommitments.text.trim()) ??
+                      0;
+
+                  final years =
+                      int.tryParse(_tenureYears.text.trim()) ?? 0;
+                  final months =
+                      int.tryParse(_tenureMonths.text.trim()) ?? 0;
+
+                  final totalYears =
+                      years + (months / 12.0);
+
+                  if (error == null && years <= 0 && months <= 0) {
+                    error = 'Please enter Loan Tenure (years or months)';
+                  }
+                  if (error == null && totalYears < 0.5) {
+                    error =
+                        'Loan tenure must be at least 6 months (0.5 years)';
+                  }
+
+                  final rate =
+                      num.tryParse(_rate.text.trim());
+                  if (error == null &&
+                      (rate == null || rate <= 0)) {
+                    error = 'Please enter Rate of Interest greater than 0';
+                  }
+                  if (error == null && rate != null && rate > 99) {
+                    error = 'Rate must be 1-99%';
+                  }
+                  if (error == null && months > 12) {
+                    error = 'Months must be 0-12';
+                  }
+
+                  if (error != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(error!)),
+                    );
+                    return;
+                  }
+
                   cubit.checkLoanEligibility(
-                    loanRequired: loanRequired,
-                    netIncomePerMonth: netIncome,
+                    loanRequired: loanRequired!,
+                    netIncomePerMonth: netIncome!,
                     existingLoanCommitments: existing,
-                    loanTenureYears: tenure,
-                    rateOfInterest: rate,
+                    loanTenureYears: totalYears,
+                    rateOfInterest: rate!,
                   );
                 },
                 child: const GreenButton('Check Eligibility'),
@@ -277,7 +442,8 @@ class _LoanEligibilityTabState extends State<LoanEligibilityTab> {
                   _loanRequired.clear();
                   _netIncome.clear();
                   _existingCommitments.clear();
-                  _tenure.clear();
+                  _tenureYears.clear();
+                  _tenureMonths.clear();
                   _rate.clear();
                   cubit.resetAll();
                 },
@@ -288,6 +454,9 @@ class _LoanEligibilityTabState extends State<LoanEligibilityTab> {
 
           BlocBuilder<FinancialCalculatorsCubit, FinancialCalculatorsState>(
             bloc: cubit,
+            buildWhen: (prev, curr) =>
+                prev.status != curr.status ||
+                prev.loanEligibility != curr.loanEligibility,
             builder: (context, state) {
               if (state.status == CalcStatus.loading) {
                 return const Padding(
@@ -333,6 +502,7 @@ class _LoanEligibilityTabState extends State<LoanEligibilityTab> {
 
               final d = state.loanEligibility!;
               return resultCard(
+                key: ValueKey('loan_${d.maximumEligibleAmount}_${d.maximumEmi}'),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -377,7 +547,8 @@ class _LoanEligibilityTabState extends State<LoanEligibilityTab> {
 // ================= RENTAL VALUE =================
 
 class RentalValueTab extends StatefulWidget {
-  const RentalValueTab({super.key});
+  final int resetTrigger;
+  const RentalValueTab({super.key, required this.resetTrigger});
 
   @override
   State<RentalValueTab> createState() => _RentalValueTabState();
@@ -387,6 +558,16 @@ class _RentalValueTabState extends State<RentalValueTab> {
   final _propertyValue = TextEditingController();
   final _years = TextEditingController();
   final _rate = TextEditingController();
+
+  @override
+  void didUpdateWidget(covariant RentalValueTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.resetTrigger != widget.resetTrigger) {
+      _propertyValue.clear();
+      _years.clear();
+      _rate.clear();
+    }
+  }
 
   @override
   void dispose() {
@@ -404,18 +585,55 @@ class _RentalValueTabState extends State<RentalValueTab> {
       child: Column(
         children: [
           AppInput('Property Value (₹)', controller: _propertyValue),
-          AppInput('Year (per month)', controller: _years),
-          AppInput('Rate of Rent (%)', controller: _rate),
+          AppInput('Year', controller: _years, inputFormatters: _max2Digits),
+          AppInput('Rate of Rent (%)', controller: _rate, inputFormatters: _max2Digits),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               GestureDetector(
                 onTap: () {
-                  final propertyValue = int.tryParse(_propertyValue.text) ?? 0;
-                  final years = int.tryParse(_years.text) ?? 1;
-                  final rate = num.tryParse(_rate.text) ?? 0;
-                  cubit.checkRentalValue(propertyValue: propertyValue, rateOfRent: rate, years: years);
+                  if (cubit.state.status == CalcStatus.loading) return;
+                  String? error;
+
+                  final propertyValue =
+                      int.tryParse(_propertyValue.text.trim());
+                  if (propertyValue == null || propertyValue <= 0) {
+                    error = 'Please enter Property Value greater than 0';
+                  }
+
+                  final years =
+                      int.tryParse(_years.text.trim());
+                  if (error == null &&
+                      (years == null || years < 1)) {
+                    error = 'Please enter Years at least 1';
+                  }
+                  if (error == null && years != null && years > 99) {
+                    error = 'Year must be 1-99';
+                  }
+
+                  final rate =
+                      num.tryParse(_rate.text.trim());
+                  if (error == null &&
+                      (rate == null || rate <= 0)) {
+                    error = 'Please enter Rate of Rent greater than 0';
+                  }
+                  if (error == null && rate != null && rate > 99) {
+                    error = 'Rate must be 1-99%';
+                  }
+
+                  if (error != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(error!)),
+                    );
+                    return;
+                  }
+
+                  cubit.checkRentalValue(
+                    propertyValue: propertyValue!,
+                    rateOfRent: rate!,
+                    years: years!,
+                  );
                 },
                 child: const GreenButton('Check Value'),
               ),
@@ -433,6 +651,9 @@ class _RentalValueTabState extends State<RentalValueTab> {
 
           BlocBuilder<FinancialCalculatorsCubit, FinancialCalculatorsState>(
             bloc: cubit,
+            buildWhen: (prev, curr) =>
+                prev.status != curr.status ||
+                prev.rentalValue != curr.rentalValue,
             builder: (context, state) {
               if (state.status == CalcStatus.loading) {
                 return const Padding(
@@ -473,6 +694,7 @@ class _RentalValueTabState extends State<RentalValueTab> {
 
               final d = state.rentalValue!;
               return resultCard(
+                key: ValueKey('rental_${d.rentalValueAnnual}_${d.rentalValueMonthly}'),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   child: Column(
@@ -498,7 +720,8 @@ class _RentalValueTabState extends State<RentalValueTab> {
 // ================= FUTURE VALUE =================
 
 class FutureValueTab extends StatefulWidget {
-  const FutureValueTab({super.key});
+  final int resetTrigger;
+  const FutureValueTab({super.key, required this.resetTrigger});
 
   @override
   State<FutureValueTab> createState() => _FutureValueTabState();
@@ -508,6 +731,16 @@ class _FutureValueTabState extends State<FutureValueTab> {
   final _currentValue = TextEditingController();
   final _years = TextEditingController();
   final _appreciation = TextEditingController();
+
+  @override
+  void didUpdateWidget(covariant FutureValueTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.resetTrigger != widget.resetTrigger) {
+      _currentValue.clear();
+      _years.clear();
+      _appreciation.clear();
+    }
+  }
 
   @override
   void dispose() {
@@ -525,19 +758,56 @@ class _FutureValueTabState extends State<FutureValueTab> {
       child: Column(
         children: [
           AppInput('Current property value (₹)', controller: _currentValue),
-          AppInput('No. of year', controller: _years),
-          AppInput('Average appreciation (%)', controller: _appreciation),
+          AppInput('No. of year', controller: _years, inputFormatters: _max2Digits),
+          AppInput('Average appreciation (%)', controller: _appreciation, inputFormatters: _max2Digits),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               GestureDetector(
                 onTap: () {
+                  if (cubit.state.status == CalcStatus.loading) return;
+                  String? error;
+
+                  final currentValue =
+                      int.tryParse(_currentValue.text.trim());
+                  if (currentValue == null || currentValue <= 0) {
+                    error =
+                        'Please enter Current property value greater than 0';
+                  }
+
+                  final years =
+                      int.tryParse(_years.text.trim());
+                  if (error == null &&
+                      (years == null || years < 1)) {
+                    error = 'Please enter Years at least 1';
+                  }
+
+                  final appreciation =
+                      num.tryParse(_appreciation.text.trim());
+                  if (error == null &&
+                      (appreciation == null || appreciation <= 0)) {
+                    error = 'Please enter Average appreciation greater than 0';
+                  }
+                  if (error == null && years != null && years > 99) {
+                    error = 'Year must be 1-99';
+                  }
+                  if (error == null && appreciation != null && appreciation > 99) {
+                    error = 'Rate must be 1-99%';
+                  }
+
+                  if (error != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(error!)),
+                    );
+                    return;
+                  }
+
                   final payload = {
                     // backend expects 'current_property_value'
-                    'current_property_value': int.tryParse(_currentValue.text) ?? 0,
-                    'years': int.tryParse(_years.text) ?? 1,
-                    'average_appreciation': num.tryParse(_appreciation.text) ?? 0,
+                    'current_property_value': currentValue,
+                    'years': years,
+                    'average_appreciation': appreciation,
                   };
                   cubit.checkFutureValue(payload);
                 },
@@ -557,6 +827,9 @@ class _FutureValueTabState extends State<FutureValueTab> {
 
           BlocBuilder<FinancialCalculatorsCubit, FinancialCalculatorsState>(
             bloc: cubit,
+            buildWhen: (prev, curr) =>
+                prev.status != curr.status ||
+                prev.futureValue != curr.futureValue,
             builder: (context, state) {
               if (state.status == CalcStatus.loading) {
                 return const Padding(
@@ -588,6 +861,7 @@ class _FutureValueTabState extends State<FutureValueTab> {
               final d = state.futureValue!;
               final display = d['future_value'] ?? d;
               return resultCard(
+                key: ValueKey('future_$display'),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -608,7 +882,8 @@ class _FutureValueTabState extends State<FutureValueTab> {
 // ================= EMI =================
 
 class EmiTab extends StatefulWidget {
-  const EmiTab({super.key});
+  final int resetTrigger;
+  const EmiTab({super.key, required this.resetTrigger});
 
   @override
   State<EmiTab> createState() => _EmiTabState();
@@ -618,6 +893,16 @@ class _EmiTabState extends State<EmiTab> {
   final _loanAmount = TextEditingController();
   final _tenure = TextEditingController();
   final _rate = TextEditingController();
+
+  @override
+  void didUpdateWidget(covariant EmiTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.resetTrigger != widget.resetTrigger) {
+      _loanAmount.clear();
+      _tenure.clear();
+      _rate.clear();
+    }
+  }
 
   @override
   void dispose() {
@@ -635,18 +920,55 @@ class _EmiTabState extends State<EmiTab> {
       child: Column(
         children: [
           AppInput('Loan Amount (₹)', controller: _loanAmount),
-          AppInput('Loan Tenure (years)', controller: _tenure),
-          AppInput('Rate of Interest (%)', controller: _rate),
+          AppInput('Loan Tenure (years)', controller: _tenure, inputFormatters: _max2Digits),
+          AppInput('Rate of Interest (%)', controller: _rate, inputFormatters: _max2Digits),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               GestureDetector(
                 onTap: () {
-                  final loanAmount = int.tryParse(_loanAmount.text) ?? 0;
-                  final tenure = int.tryParse(_tenure.text) ?? 0;
-                  final rate = num.tryParse(_rate.text) ?? 0;
-                  cubit.checkEmi(loanAmount: loanAmount, loanTenureYears: tenure, rateOfInterest: rate);
+                  if (cubit.state.status == CalcStatus.loading) return;
+                  String? error;
+
+                  final loanAmount =
+                      int.tryParse(_loanAmount.text.trim());
+                  if (loanAmount == null || loanAmount <= 0) {
+                    error = 'Please enter Loan Amount greater than 0';
+                  }
+
+                  final tenure =
+                      int.tryParse(_tenure.text.trim());
+                  if (error == null &&
+                      (tenure == null || tenure < 1)) {
+                    error = 'Loan tenure must be at least 1 year';
+                  }
+                  if (error == null && tenure != null && tenure > 99) {
+                    error = 'Tenure must be 1-99 years';
+                  }
+
+                  final rate =
+                      num.tryParse(_rate.text.trim());
+                  if (error == null &&
+                      (rate == null || rate <= 0)) {
+                    error = 'Please enter Rate of Interest greater than 0';
+                  }
+                  if (error == null && rate != null && rate > 99) {
+                    error = 'Rate must be 1-99%';
+                  }
+
+                  if (error != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(error!)),
+                    );
+                    return;
+                  }
+
+                  cubit.checkEmi(
+                    loanAmount: loanAmount!,
+                    loanTenureYears: tenure!,
+                    rateOfInterest: rate!,
+                  );
                 },
                 child: const GreenButton('Check EMI'),
               ),
@@ -664,6 +986,9 @@ class _EmiTabState extends State<EmiTab> {
 
           BlocBuilder<FinancialCalculatorsCubit, FinancialCalculatorsState>(
             bloc: cubit,
+            buildWhen: (prev, curr) =>
+                prev.status != curr.status ||
+                prev.emi != curr.emi,
             builder: (context, state) {
               if (state.status == CalcStatus.loading) {
                 return const Padding(
@@ -708,6 +1033,7 @@ class _EmiTabState extends State<EmiTab> {
 
               final d = state.emi!;
               return resultCard(
+                key: ValueKey('emi_${d.monthlyEmi}'),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [

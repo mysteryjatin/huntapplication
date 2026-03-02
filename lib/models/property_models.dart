@@ -41,6 +41,14 @@ class PropertyDraft {
   String tenantsYouPrefer;
   String laundry;
 
+  // Extra meta fields from Step 2 (previously not sent to backend)
+  String possessionStatus;   // maps to possession_status
+  String availableFrom;      // maps to availability_month / text label
+  String ageOfConstruction;  // maps to age_of_construction
+  bool carParking;           // maps to car_parking
+  bool lift;                 // maps to lift
+  String typeOfOwnership;    // maps to type_of_ownership
+
   List<String> amenities;
   List<String> imageUrls;
 
@@ -83,6 +91,12 @@ class PropertyDraft {
     this.commonArea = false,
     this.tenantsYouPrefer = '',
     this.laundry = '',
+    this.possessionStatus = '',
+    this.availableFrom = '',
+    this.ageOfConstruction = '',
+    this.carParking = false,
+    this.lift = false,
+    this.typeOfOwnership = '',
     List<String>? amenities,
     List<String>? imageUrls,
   })  : amenities = amenities ?? [],
@@ -133,6 +147,19 @@ class PropertyDraft {
       }
     }
 
+    int? _availabilityMonthInt() {
+      final label = availableFrom.trim();
+      if (label.isEmpty) return null;
+      // Backend ke error se pata chala: value >= 1 honi chahiye,
+      // isliye "Immediately" bhi 1 bhej rahe hain.
+      if (label.toLowerCase().contains('immediately')) return 1;
+      if (label.contains('1')) return 1;
+      if (label.contains('3')) return 3;
+      if (label.contains('7')) return 7;
+      if (label.contains('9')) return 9;
+      return null;
+    }
+
     final Map<String, dynamic> data = {
       "title": title,
       "description": description,
@@ -175,6 +202,14 @@ class PropertyDraft {
       "common_area": commonArea,
       "tenants_you_prefer": tenantsYouPrefer,
       "laundry": laundry,
+      // Newly added fields so backend me null na jaye:
+      "possession_status": possessionStatus,
+      // Backend expects integer for availability_month; map UI label to months offset.
+      "availability_month": _availabilityMonthInt(),
+      "age_of_construction": ageOfConstruction,
+      "car_parking": carParking,
+      "lift": lift,
+      "type_of_ownership": typeOfOwnership,
       "images": imagesPayload,
       "amenities": amenities,
       "owner_id": effectiveOwnerId,

@@ -378,7 +378,7 @@ class PropertyCard extends StatelessWidget {
                     const SizedBox(height: 6),
 
                     Text(
-                      _formatPrice(property.price),
+                      _formatPrice(property.price, property.transactionType),
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -426,6 +426,7 @@ class PropertyCard extends StatelessWidget {
                           tag: null,
                           price: property.price > 0 ? property.price.toString() : null,
                           location: '${property.locality.isNotEmpty ? property.locality + ', ' : ''}${property.city}',
+                          initialIsFavorite: false,
                         ),
                       ),
                     );
@@ -565,10 +566,24 @@ class PropertyCard extends StatelessWidget {
   }
 }
 
-String _formatPrice(num price) {
+String _formatPrice(num price, String transactionType) {
   if (price <= 0) return 'Price on request';
-  final formatter = NumberFormat('#,##,##0');
-  return '₹ ${formatter.format(price)}';
+  final isRent = transactionType.toLowerCase().contains('rent');
+  if (isRent) {
+    return '₹ ${NumberFormat('#,##,##0').format(price)}/month';
+  }
+  // Sale: show in Lac or Cr
+  if (price >= 10000000) {
+    final cr = price / 10000000;
+    final crStr = cr % 1 == 0 ? cr.toStringAsFixed(0) : cr.toStringAsFixed(1);
+    return '₹ $crStr Cr';
+  }
+  if (price >= 100000) {
+    final lac = price / 100000;
+    final lacStr = lac % 1 == 0 ? lac.toStringAsFixed(0) : lac.toStringAsFixed(1);
+    return '₹ $lacStr Lac';
+  }
+  return '₹ ${NumberFormat('#,##,##0').format(price)}';
 }
 
 String _formatPostedDate(DateTime? date) {

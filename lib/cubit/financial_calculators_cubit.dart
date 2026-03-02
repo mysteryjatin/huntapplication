@@ -14,7 +14,7 @@ class FinancialCalculatorsCubit extends Cubit<FinancialCalculatorsState> {
     required num loanTenureYears,
     required num rateOfInterest,
   }) async {
-    emit(state.copyWith(status: CalcStatus.loading));
+    emit(state.copyWith(status: CalcStatus.loading, error: null));
     try {
       final res = await repository.loanEligibility(
         loanRequired: loanRequired,
@@ -23,7 +23,11 @@ class FinancialCalculatorsCubit extends Cubit<FinancialCalculatorsState> {
         loanTenureYears: loanTenureYears,
         rateOfInterest: rateOfInterest,
       );
-      emit(state.copyWith(status: CalcStatus.success, loanEligibility: res));
+      emit(state.copyWith(
+        status: CalcStatus.success,
+        loanEligibility: res,
+        error: null,
+      ));
     } catch (e) {
       emit(state.copyWith(status: CalcStatus.failure, error: e.toString()));
     }
@@ -34,14 +38,18 @@ class FinancialCalculatorsCubit extends Cubit<FinancialCalculatorsState> {
     required num rateOfRent,
     required int years,
   }) async {
-    emit(state.copyWith(status: CalcStatus.loading));
+    emit(state.copyWith(status: CalcStatus.loading, error: null));
     try {
       final res = await repository.rentalValue(
         propertyValue: propertyValue,
         rateOfRent: rateOfRent,
         years: years,
       );
-      emit(state.copyWith(status: CalcStatus.success, rentalValue: res));
+      emit(state.copyWith(
+        status: CalcStatus.success,
+        rentalValue: res,
+        error: null,
+      ));
     } catch (e) {
       emit(state.copyWith(status: CalcStatus.failure, error: e.toString()));
     }
@@ -52,24 +60,32 @@ class FinancialCalculatorsCubit extends Cubit<FinancialCalculatorsState> {
     required int loanTenureYears,
     required num rateOfInterest,
   }) async {
-    emit(state.copyWith(status: CalcStatus.loading));
+    emit(state.copyWith(status: CalcStatus.loading, error: null));
     try {
       final res = await repository.emi(
         loanAmount: loanAmount,
         loanTenureYears: loanTenureYears,
         rateOfInterest: rateOfInterest,
       );
-      emit(state.copyWith(status: CalcStatus.success, emi: res));
+      emit(state.copyWith(
+        status: CalcStatus.success,
+        emi: res,
+        error: null,
+      ));
     } catch (e) {
       emit(state.copyWith(status: CalcStatus.failure, error: e.toString()));
     }
   }
 
   Future<void> checkFutureValue(Map<String, dynamic> payload) async {
-    emit(state.copyWith(status: CalcStatus.loading));
+    emit(state.copyWith(status: CalcStatus.loading, error: null));
     try {
       final res = await repository.futureValue(payload);
-      emit(state.copyWith(status: CalcStatus.success, futureValue: res));
+      emit(state.copyWith(
+        status: CalcStatus.success,
+        futureValue: res,
+        error: null,
+      ));
     } catch (e) {
       emit(state.copyWith(status: CalcStatus.failure, error: e.toString()));
     }

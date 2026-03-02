@@ -7,6 +7,65 @@ import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/models/property_models.dart';
 import 'package:hunt_property/models/filter_models.dart';
 
+/// Converts month name (e.g. "April") or "1"-"12" to backend integer 1-12.
+/// Also understands relative labels from the filter UI like:
+/// "Any Time", "Immediately", "Within 1 Month", "After 1 Month",
+/// "Within 3 Month", "After 3 Month".
+/// Returns null if it cannot determine a value (meaning: don't filter).
+int? _monthNameToInt(String name) {
+  final s = name.trim();
+  if (s.isEmpty) return null;
+
+  // Direct numeric "1".."12"
+  final parsed = int.tryParse(s);
+  if (parsed != null && parsed >= 1 && parsed <= 12) return parsed;
+
+  final lower = s.toLowerCase();
+
+  // Relative availability labels used in filter sheet
+  if (lower.contains('any time')) {
+    // Any time = no filter
+    return null;
+  }
+  if (lower.contains('immediately')) {
+    return 1;
+  }
+  if (lower.contains('within') && lower.contains('1') && lower.contains('month')) {
+    return 1;
+  }
+  if (lower.contains('after') && lower.contains('1') && lower.contains('month')) {
+    return 2;
+  }
+  if (lower.contains('within') && lower.contains('3') && lower.contains('month')) {
+    return 3;
+  }
+  if (lower.contains('after') && lower.contains('3') && lower.contains('month')) {
+    return 4;
+  }
+  if (lower.contains('after') && lower.contains('7') && lower.contains('month')) {
+    return 7;
+  }
+  if (lower.contains('after') && lower.contains('9') && lower.contains('month')) {
+    return 9;
+  }
+
+  // Calendar month names
+  const months = [
+    'january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december',
+  ];
+  final i = months.indexOf(lower);
+  return i >= 0 ? i + 1 : null;
+}
+
+/// Backend expects possession_status as value (e.g. under_construction). Converts label if needed.
+String _normalizePossessionStatus(String s) {
+  final lower = s.toLowerCase().trim();
+  if (lower.contains('under') && lower.contains('construction')) return 'under_construction';
+  if (lower.contains('ready') && lower.contains('move')) return 'ready_to_move';
+  return s.contains(' ') ? lower.replaceAll(' ', '_') : s;
+}
+
 class PropertyService {
   // Re‑use the same base URL as auth
   static const String baseUrl = AuthService.baseUrl;
@@ -233,8 +292,10 @@ class PropertyService {
 
       if (query.trim().isNotEmpty) params['search'] = query.trim();
 
-      // Map UI type to backend transaction_type (buy/rent)
-      final txn = type.toLowerCase() == 'rent' ? 'rent' : 'buy';
+      // Map UI type to backend transaction_type.
+      // Backend uses "sale" / "rent" (same as filter-screen API).
+      final lower = type.toLowerCase();
+      final txn = lower == 'rent' ? 'rent' : 'sale';
       params['transaction_type'] = txn;
 
       if (filters != null) {
@@ -262,16 +323,43 @@ class PropertyService {
         }
         if (filters.bathrooms != null) params['bathrooms'] = filters.bathrooms!.toString();
         if (filters.furnishing != null && filters.furnishing!.isNotEmpty) {
-          params['furnishing'] = filters.furnishing!;
+          // Backend often expects lowercase (e.g. semi-furnished)
+          params['furnishing'] = filters.furnishing!.trim().toLowerCase().replaceAll(' ', '-');
         }
         if (filters.facing != null && filters.facing!.isNotEmpty) {
-          params['facing'] = filters.facing!;
+          params['facing'] = filters.facing!.trim().toLowerCase();
+        }
+        if (filters.possessionStatus != null &&
+            filters.possessionStatus!.isNotEmpty) {
+          // Backend expects value e.g. under_construction, ready_to_move
+          params['possession_status'] = _normalizePossessionStatus(filters.possessionStatus!.trim());
+        }
+        if (filters.availabilityMonth != null &&
+            filters.availabilityMonth!.isNotEmpty) {
+          // Backend expects integer 1-12; filter screen sends month name e.g. "April"
+          final monthInt = _monthNameToInt(filters.availabilityMonth!);
+          if (monthInt != null) {
+            params['availability_month'] = monthInt.toString();
+          }
+        }
+        if (filters.availabilityYear != null &&
+            filters.availabilityYear!.isNotEmpty) {
+          params['availability_year'] = filters.availabilityYear!;
+        }
+        if (filters.ageOfConstruction != null &&
+            filters.ageOfConstruction!.isNotEmpty) {
+          // Send comma-separated list of selected age-of-construction labels.
+          params['age_of_construction'] =
+              filters.ageOfConstruction!.join(',');
         }
         if (filters.storeRoom != null) params['store_room'] = filters.storeRoom! ? '1' : '0';
         if (filters.servantRoom != null) params['servant_room'] = filters.servantRoom! ? '1' : '0';
       }
 
       final uri = Uri.parse('$baseUrl/api/properties/').replace(queryParameters: params);
+
+      // ignore: avoid_print
+      print('🔎 SEARCH PROPERTIES URI: $uri');
 
       final response = await http.get(
         uri,
@@ -298,12 +386,41 @@ class PropertyService {
           }
         }
 
+        List<Property> result = [];
         if (list is List) {
-          return list
+          result = list
               .whereType<Map<String, dynamic>>()
               .map((e) => Property.fromJson(e))
               .toList();
         }
+
+        // Fallback: if empty and we had strict filters, retry with relaxed filters
+        // (drop furnishing, possession, availability, age) so user sees some results
+        if (result.isEmpty &&
+            filters != null &&
+            (filters.furnishing != null ||
+                filters.possessionStatus != null ||
+                filters.availabilityMonth != null ||
+                filters.availabilityYear != null ||
+                (filters.ageOfConstruction != null &&
+                    filters.ageOfConstruction!.isNotEmpty))) {
+          final relaxed = filters.copyWith(
+            clearFurnishing: true,
+            clearPossessionStatus: true,
+            clearAvailabilityMonth: true,
+            clearAvailabilityYear: true,
+            clearAgeOfConstruction: true,
+          );
+          return searchProperties(
+            query: query,
+            filters: relaxed,
+            type: type,
+            page: page,
+            limit: limit,
+          );
+        }
+
+        return result;
       }
 
       return [];

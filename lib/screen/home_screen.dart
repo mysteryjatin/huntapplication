@@ -1,4 +1,5 @@
 // home_screen.dart
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/property_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/models/property_models.dart';
+import 'package:hunt_property/models/filter_models.dart';
 import 'filter_screen.dart';
 import 'widget/custombottomnavbar.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -26,6 +28,7 @@ import 'package:hunt_property/cubit/shortlist_cubit.dart';
 import 'package:hunt_property/cubit/home_cubit.dart';
 import 'package:hunt_property/cubit/home_state.dart';
 import 'package:hunt_property/repositories/home_repository.dart';
+import 'package:intl/intl.dart';
 // Service target screens
 import 'package:hunt_property/screen/sidemenu_screen/home_loan_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/property_cost_calculator.dart';
@@ -34,6 +37,7 @@ import 'package:hunt_property/screen/sidemenu_screen/channel_partner_screen.dart
 import 'package:hunt_property/screen/sidemenu_screen/legal_advisory_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/nri_center_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/rera_service_screen.dart';
+import 'package:hunt_property/screen/sidemenu_screen/search_agent_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -45,7 +49,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   int selectedIndex = 0;
-  int _selectedCategoryIndex = 0;
+  // -1 means "no top tab filter (show all)" when coming from bottom Home
+  int _selectedCategoryIndex = -1;
+  // BUY/RENT toggle when Projects, Residential, or Commercial tab is selected (0=Buy, 1=Rent)
+  int _categoryBuyRentIndex = 0;
   int _carouselPage = 0;
   bool _isSearchFocused = false;
 
@@ -54,12 +61,18 @@ class _HomeScreenState extends State<HomeScreen>
   final FocusNode _searchFocusNode = FocusNode();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final PropertyService _propertyService = PropertyService();
+  Timer? _searchTimer;
+  FilterSelection? _activeFilters;
+  // All latest properties from API
+  List<Property> _allProperties = [];
+  // Currently visible properties after filters (Buy/Rent etc.) or search results
   List<Property> _properties = [];
   HomeCubit? _homeCubit;
   final ShortlistService _shortlistService = ShortlistService();
   Set<String> _favoriteIds = {};
   String _selectedCity = 'Chennai';
   bool _isLoadingProperties = false;
+  // Top tab labels (without "All"; All is controlled by bottom Home)
   final categories = [
     'Buy',
     'Rent',
@@ -149,6 +162,7 @@ class _HomeScreenState extends State<HomeScreen>
     _loadProperties();
     _loadSelectedCity();
     _initHomeCubit();
+    _loadFavorites(); // ensure favorites loaded when home opens
   }
 
   Future<void> _loadSelectedCity() async {
@@ -161,7 +175,22 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _onCategorySelected(int idx) async {
-    setState(() => _selectedCategoryIndex = idx);
+    // If "Agents" tab is tapped, open SearchAgentsScreen instead of filtering properties
+    if (categories[idx] == 'Agents') {
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const SearchAgentsScreen(),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _selectedCategoryIndex = idx; // 0=Buy,1=Rent, others = sections only
+      if (idx >= 2 && idx <= 4) _categoryBuyRentIndex = 0; // Reset BUY/RENT when switching to Projects/Residential/Commercial
+    });
 
     String? txn;
     String? category;
@@ -173,13 +202,38 @@ class _HomeScreenState extends State<HomeScreen>
     if (label == 'commercial') category = 'Commercial';
 
     final userId = await StorageService.getUserId();
-    _homeCubit?.fetchHomeWithFilters(city: _selectedCity, userId: userId, limit: 10, transactionType: txn, propertyCategory: category);
+    _homeCubit?.fetchHomeWithFilters(
+      city: _selectedCity,
+      userId: userId,
+      limit: 10,
+      transactionType: txn,
+      propertyCategory: category,
+    );
+
+    // For Latest list: only Buy/Rent filter karein; Projects/Residential/Commercial pe latest list "all" hi rahe.
+    final hasSearchOrFilter = _searchController.text.trim().isNotEmpty ||
+        (_activeFilters?.hasAnyFilter ?? false);
+    if (hasSearchOrFilter && (idx == 0 || idx == 1)) {
+      _performSearch(_searchController.text);
+    } else {
+      setState(() {
+        if (txn == null) {
+          _properties = List<Property>.from(_allProperties);
+        } else {
+          _properties = _allProperties
+              .where(
+                (p) => p.transactionType.toLowerCase() == txn,
+              )
+              .toList();
+        }
+      });
+    }
   }
 
   void _initHomeCubit() async {
     _homeCubit = HomeCubit(HomeRepository(service: _propertyService));
     final userId = await StorageService.getUserId();
-    _homeCubit?.fetchHome(city: 'Chennai', userId: userId, limit: 10);
+    _homeCubit?.fetchHome(city: _selectedCity, userId: userId, limit: 10);
   }
 
   Future<void> _loadFavorites() async {
@@ -223,6 +277,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    _searchTimer?.cancel();
     _carouselController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
@@ -311,10 +366,22 @@ class _HomeScreenState extends State<HomeScreen>
             if (i == 2) {
               await _handleAddButtonClick();
             } else {
-              setState(() => selectedIndex = i);
+              setState(() {
+                selectedIndex = i;
+              if (i == 0) {
+                // Bottom Home tab: show ALL properties, clear search/filter
+                _selectedCategoryIndex = -1;
+                _activeFilters = null;
+                _searchController.clear();
+                _properties = List<Property>.from(_allProperties);
+              }
+              });
               // When returning to Home tab, refresh favorites so heart states update.
               if (i == 0) {
                 _loadFavorites();
+                // Reset home sections to unfiltered "All" when coming back via bottom Home.
+                final userId = await StorageService.getUserId();
+                _homeCubit?.fetchHome(city: _selectedCity, userId: userId, limit: 10);
               }
             }
           },
@@ -352,16 +419,27 @@ class _HomeScreenState extends State<HomeScreen>
           searchController: _searchController,
           searchFocusNode: _searchFocusNode,
           onTuneTap: _openFilter,
+          onSearchChanged: _performSearch,
           categories: categories,
           selectedCategoryIndex: _selectedCategoryIndex,
           onCategorySelected: (i) => _onCategorySelected(i),
+          selectedCity: _selectedCity,
+          onLocationTap: _selectCityDialog,
         ),
 
-        /// ALL CONTENT SCROLLS — NO OVERFLOW POSSIBLE
+        /// ALL CONTENT — category list view for Projects/Residential/Commercial
         Expanded(
           child: SafeArea(
             top: false,
-            child: SingleChildScrollView(
+            child: _selectedCategoryIndex >= 2 && _selectedCategoryIndex <= 4
+                ? _CategoryListContent(
+                    buyRentIndex: _categoryBuyRentIndex,
+                    onBuyRentChanged: (i) => setState(() => _categoryBuyRentIndex = i),
+                    properties: _categoryFilteredProperties,
+                    favoriteIds: _favoriteIds,
+                    isLoading: _isLoadingProperties,
+                  )
+                : SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,8 +454,14 @@ class _HomeScreenState extends State<HomeScreen>
 
                   const SizedBox(height: 20),
 
-                  // Latest Properties (from API)
-                  _sectionTitle("Latest Properties"),
+                  // Latest Properties (from API) - show which type is active (Buy/Rent/All)
+                  _sectionTitle(
+                    _selectedCategoryIndex == 1
+                        ? "Latest Rent Properties"
+                        : _selectedCategoryIndex == 0
+                            ? "Latest Buy Properties"
+                            : "Latest Properties",
+                  ),
                   if (_isLoadingProperties)
                     const Center(
                       child: Padding(
@@ -399,7 +483,9 @@ class _HomeScreenState extends State<HomeScreen>
                   const SizedBox(height: 14),
 
                   // Show sections depending on selected tab (driven by HomeCubit)
-                  if (_selectedCategoryIndex == 0 || _selectedCategoryIndex == 1) ...[
+                  if (_selectedCategoryIndex == -1 ||
+                      _selectedCategoryIndex == 0 ||
+                      _selectedCategoryIndex == 1) ...[
                     BlocBuilder<HomeCubit, HomeState>(
                       bloc: _homeCubit,
                       builder: (context, state) {
@@ -438,7 +524,8 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ],
 
-                  if (_selectedCategoryIndex == 0) ...[
+                  if (_selectedCategoryIndex == -1 ||
+                      _selectedCategoryIndex == 0) ...[
                     BlocBuilder<HomeCubit, HomeState>(
                       bloc: _homeCubit,
                       builder: (context, state) {
@@ -528,7 +615,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-
   // simple section title
   Widget _sectionTitle(String t) {
     return Padding(
@@ -553,21 +639,90 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  void _openFilter() {
-    showModalBottomSheet(
+  void _openFilter() async {
+    final result = await showModalBottomSheet<FilterSelection>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.black.withOpacity(0.5),
+      backgroundColor: Colors.black.withOpacity(0.4),
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.9,
-        maxChildSize: 0.95,
         minChildSize: 0.5,
+        maxChildSize: 0.95,
         builder: (context, scrollController) => BlocProvider(
           create: (_) => FilterCubit(FilterService()),
-          child: FilterScreen(scrollController: scrollController),
+          child: FilterScreen(
+            scrollController: scrollController,
+            initialSelection: _activeFilters,
+          ),
         ),
       ),
     );
+
+    if (result != null && mounted) {
+      setState(() {
+        _activeFilters = result;
+        if (result.category == 'RENT') {
+          _selectedCategoryIndex = 1;
+        } else {
+          _selectedCategoryIndex = 0;
+        }
+      });
+      _performSearch(_searchController.text);
+    }
+  }
+
+  void _performSearch(String query) {
+    _searchTimer?.cancel();
+
+    final hasRealFilters = (_activeFilters?.hasAnyFilter ?? false);
+    final hasFilterObject = _activeFilters != null;
+    final hasFilters = hasRealFilters || hasFilterObject;
+
+    if (query.trim().isEmpty && !hasFilters) {
+      setState(() {
+        _properties = List<Property>.from(_allProperties);
+        if (_selectedCategoryIndex == 0 || _selectedCategoryIndex == 1) {
+          final txn = _selectedCategoryIndex == 1 ? 'rent' : 'sale';
+          _properties = _allProperties
+              .where((p) => p.transactionType.toLowerCase() == txn)
+              .toList();
+        }
+      });
+      return;
+    }
+
+    setState(() => _isLoadingProperties = true);
+
+    _searchTimer = Timer(const Duration(milliseconds: 400), () async {
+      try {
+        final type = _selectedCategoryIndex == 1 ? 'RENT' : 'BUY';
+        // Use active filters; add city from home's selected location when set
+        FilterSelection? filters = _activeFilters;
+        if (_selectedCity.isNotEmpty) {
+          filters = (filters ?? FilterSelection(category: type))
+              .copyWith(city: filters?.city ?? _selectedCity);
+        }
+        final results = await _propertyService.searchProperties(
+          query: query,
+          filters: filters,
+          type: type,
+          page: 1,
+          limit: 50,
+        );
+
+        if (!mounted) return;
+        setState(() {
+          _properties = results;
+          _isLoadingProperties = false;
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _properties = [];
+          _isLoadingProperties = false;
+        });
+      }
+    });
   }
 
   Future<void> _loadProperties() async {
@@ -579,7 +734,9 @@ class _HomeScreenState extends State<HomeScreen>
       final props = await _propertyService.getProperties();
       if (!mounted) return;
       setState(() {
-        _properties = props;
+        _allProperties = props;
+        // Initial view: show all properties (Home tab)
+        _properties = List<Property>.from(_allProperties);
         _isLoadingProperties = false;
       });
     } catch (e) {
@@ -589,6 +746,73 @@ class _HomeScreenState extends State<HomeScreen>
       });
     }
   }
+
+  /// Properties filtered by Projects/Residential/Commercial category and BUY/RENT
+  List<Property> get _categoryFilteredProperties {
+    if (_selectedCategoryIndex < 2 || _selectedCategoryIndex > 4) return [];
+    final txn = _categoryBuyRentIndex == 0 ? 'sale' : 'rent';
+    final catLabel = categories[_selectedCategoryIndex].toLowerCase();
+    return _allProperties.where((p) {
+      final matchTxn = p.transactionType.toLowerCase() == txn;
+      if (catLabel == 'projects') return matchTxn; // Projects: show all matching txn
+      if (catLabel == 'residential') return matchTxn && p.propertyCategory.toLowerCase().contains('residential');
+      if (catLabel == 'commercial') return matchTxn && p.propertyCategory.toLowerCase().contains('commercial');
+      return matchTxn;
+    }).toList();
+  }
+}
+
+/// Returns icon for amenity label (bed, bathroom, kitchen, etc.)
+IconData _getAmenityIcon(String label) {
+  final lower = label.toLowerCase();
+  if (lower.contains('bedroom')) return Icons.bed_outlined;
+  if (lower.contains('bathroom')) return Icons.bathtub_outlined;
+  if (lower.contains('kitchen')) return Icons.kitchen_outlined;
+  if (lower.contains('lounge') || lower.contains('sofa') || lower.contains('living')) return Icons.weekend_outlined;
+  if (lower.contains('balcony') || lower.contains('terrace')) return Icons.deck_outlined;
+  if (lower.contains('gym') || lower.contains('fitness')) return Icons.fitness_center_outlined;
+  if (lower.contains('parking') || lower.contains('car')) return Icons.local_parking_outlined;
+  if (lower.contains('lift') || lower.contains('elevator')) return Icons.elevator_outlined;
+  if (lower.contains('pool') || lower.contains('swimming')) return Icons.pool_outlined;
+  if (lower.contains('garden') || lower.contains('lawn')) return Icons.grass_outlined;
+  if (lower.contains('furnish') || lower.contains('semi') || lower.contains('fully')) return Icons.chair_outlined;
+  return Icons.check_circle_outline;
+}
+
+// Common price formatter used in home cards
+String _formatPropertyPriceHome(Property p) {
+  final price = p.price;
+  final isRent = p.transactionType.toLowerCase() == 'rent';
+  final formatter = NumberFormat.decimalPattern('en_IN');
+
+  if (isRent) {
+    // Try numeric monthlyRent first if backend price is 0
+    num effective = price;
+    if (effective <= 0 && p.monthlyRent.isNotEmpty) {
+      final cleaned =
+          p.monthlyRent.replaceAll(RegExp(r'[^0-9.]'), '');
+      effective = num.tryParse(cleaned) ?? 0;
+    }
+    if (effective <= 0) return '₹ 0/month';
+    return '₹ ${formatter.format(effective)}/month';
+  }
+
+  // Sale price
+  if (price <= 0) return '₹ 0';
+
+  if (price >= 10000000) {
+    final cr = price / 10000000;
+    final crStr =
+        cr % 1 == 0 ? cr.toStringAsFixed(0) : cr.toStringAsFixed(1);
+    return '₹ $crStr Cr';
+  } else if (price >= 100000) {
+    final lac = price / 100000;
+    final lacStr =
+        lac % 1 == 0 ? lac.toStringAsFixed(0) : lac.toStringAsFixed(1);
+    return '₹ $lacStr Lac';
+  }
+
+  return '₹ ${formatter.format(price)}';
 }
 
 // ------------------------
@@ -600,9 +824,12 @@ class _HeaderArea extends StatelessWidget {
   final TextEditingController searchController;
   final FocusNode searchFocusNode;
   final VoidCallback onTuneTap;
+  final void Function(String)? onSearchChanged;
   final List<String> categories;
   final int selectedCategoryIndex;
   final Function(int) onCategorySelected;
+  final String selectedCity;
+  final VoidCallback onLocationTap;
 
   const _HeaderArea({
     required this.scaffoldKey,
@@ -610,9 +837,12 @@ class _HeaderArea extends StatelessWidget {
     required this.searchController,
     required this.searchFocusNode,
     required this.onTuneTap,
+    this.onSearchChanged,
     required this.categories,
     required this.selectedCategoryIndex,
     required this.onCategorySelected,
+    required this.selectedCity,
+    required this.onLocationTap,
   });
 
   @override
@@ -686,9 +916,45 @@ class _HeaderArea extends StatelessWidget {
               ),
             ),
 
+            // Selected location row (logo ke niche)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: GestureDetector(
+                  onTap: onLocationTap,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.location_on_outlined,
+                        size: 18,
+                        color: Colors.black,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        selectedCity,
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: Colors.black,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
             // Search bar
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
               child: Container(
                 height: 58,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -712,6 +978,7 @@ class _HeaderArea extends StatelessWidget {
                       child: TextField(
                         controller: searchController,
                         focusNode: searchFocusNode,
+                        onChanged: onSearchChanged,
                         cursorColor: AppColors.primaryColor,
                         decoration: const InputDecoration(
                           border: InputBorder.none,
@@ -809,6 +1076,305 @@ class _CategoryChip extends StatelessWidget {
               color: Colors.black,
             ),
         ],
+      ),
+    );
+  }
+}
+
+// ------------------------
+// CATEGORY LIST CONTENT — same design as image for Projects/Residential/Commercial
+// ------------------------
+class _CategoryListContent extends StatelessWidget {
+  final int buyRentIndex;
+  final Function(int) onBuyRentChanged;
+  final List<Property> properties;
+  final Set<String> favoriteIds;
+  final bool isLoading;
+
+  const _CategoryListContent({
+    required this.buyRentIndex,
+    required this.onBuyRentChanged,
+    required this.properties,
+    required this.favoriteIds,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // BUY/RENT toggle
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
+            children: ['BUY', 'RENT'].asMap().entries.map((e) {
+              final selected = buyRentIndex == e.key;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => onBuyRentChanged(e.key),
+                  child: Container(
+                    margin: EdgeInsets.only(left: e.key == 1 ? 8 : 0, right: e.key == 0 ? 8 : 0),
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: selected ? const Color(0xFF2FED9A) : Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Center(
+                      child: Text(
+                        e.value,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: selected ? Colors.black : Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        // Property list
+        Expanded(
+          child: isLoading
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF2FED9A)))
+              : properties.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'No properties found. Try adding one from "Post Your Property".',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: properties.length,
+                      itemBuilder: (context, i) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: _VerticalPropertyCard(
+                            property: properties[i],
+                            isFavorite: favoriteIds.contains(properties[i].id) || properties[i].isFavorite,
+                          ),
+                        );
+                      },
+                    ),
+        ),
+      ],
+    );
+  }
+}
+
+// ------------------------
+// VERTICAL PROPERTY CARD — full-width design matching image
+// ------------------------
+class _VerticalPropertyCard extends StatefulWidget {
+  final Property property;
+  final bool isFavorite;
+
+  const _VerticalPropertyCard({required this.property, required this.isFavorite});
+
+  @override
+  State<_VerticalPropertyCard> createState() => _VerticalPropertyCardState();
+}
+
+class _VerticalPropertyCardState extends State<_VerticalPropertyCard> {
+  late bool _isFavorite;
+  final ShortlistService _shortlistService = ShortlistService();
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorite = widget.isFavorite;
+  }
+
+  @override
+  void didUpdateWidget(covariant _VerticalPropertyCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isFavorite != widget.isFavorite) _isFavorite = widget.isFavorite;
+  }
+
+  Future<void> _toggleFavorite() async {
+    final userId = await StorageService.getUserId();
+    if (userId == null || userId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please login to save favorites')));
+      }
+      return;
+    }
+    setState(() => _isFavorite = !_isFavorite);
+    final success = _isFavorite
+        ? await _shortlistService.addToShortlist(widget.property.id)
+        : await _shortlistService.removeFromShortlist(widget.property.id);
+    if (!success) {
+      setState(() => _isFavorite = !_isFavorite);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update favorites')));
+      return;
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_isFavorite ? 'Added to favorites' : 'Removed from favorites')));
+    }
+    try {
+      BlocProvider.of<ShortlistCubit>(context, listen: false).load();
+    } catch (_) {}
+    try {
+      final homeState = context.findAncestorStateOfType<_HomeScreenState>();
+      await homeState?._loadFavorites();
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.property;
+    final imageUrl = p.images.isNotEmpty ? p.images.first : null;
+    final priceStr = _formatPropertyPriceHome(p);
+    final location = '${p.locality}${p.city.isNotEmpty ? ', ${p.city}' : ''}';
+    final dateStr = p.postedAt != null ? DateFormat('dd MMMM yyyy').format(p.postedAt!) : '';
+
+    // Build amenity pills
+    final List<String> amenityPills = [];
+    if (p.bedrooms > 0) amenityPills.add('${p.bedrooms} Bedrooms');
+    if (p.bathrooms > 0) amenityPills.add('${p.bathrooms} Bathroom${p.bathrooms > 1 ? 's' : ''}');
+    if (p.furnishing.isNotEmpty) amenityPills.add(p.furnishing);
+    if (p.balconies > 0) amenityPills.add('Balcony');
+    if (p.amenities.isNotEmpty) {
+      for (final a in p.amenities.take(3)) {
+        if (a.isNotEmpty && !amenityPills.any((x) => x.toLowerCase().contains(a.toLowerCase()))) {
+          amenityPills.add(a);
+        }
+      }
+    }
+    if (amenityPills.isEmpty) amenityPills.addAll(['Open Kitchen', 'Lounge Area', 'Balcony', 'Gym Access']);
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PropertyDetailsScreen(
+              propertyId: p.id,
+              initialIsFavorite: _isFavorite,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              child: Stack(
+                children: [
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: imageUrl != null && imageUrl.isNotEmpty
+                        ? Image.network(imageUrl, fit: BoxFit.cover)
+                        : Image.asset('assets/images/onboarding1.png', fit: BoxFit.cover),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: _toggleFavorite,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                        child: _isFavorite
+                            ? const Icon(Icons.favorite, size: 22, color: AppColors.primaryColor)
+                            : const Icon(Icons.favorite_border, size: 22, color: Colors.black87),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          p.title.isNotEmpty ? p.title : 'Flat in best offer',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: _toggleFavorite,
+                        child: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border, size: 22, color: _isFavorite ? AppColors.primaryColor : Colors.grey.shade400),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.location_on_outlined, size: 16, color: AppColors.primaryColor),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(location, style: const TextStyle(fontSize: 12, color: Colors.black54), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                      Text('Freehold', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      if (p.areaSqft > 0) ...[
+                        Text(' • ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                        Text('${p.areaSqft.toInt()} Sq Ft', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: amenityPills.take(6).map((label) {
+                      final icon = _getAmenityIcon(label);
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(icon, size: 16, color: Colors.grey.shade600),
+                            const SizedBox(width: 6),
+                            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(priceStr, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
+                      if (dateStr.isNotEmpty) Text(dateStr, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -936,17 +1502,7 @@ class _HorizontalPropertyList extends StatelessWidget {
         ? apiProperties!
             .map((p) {
               final firstImage = p.images.isNotEmpty ? p.images.first : null;
-              String priceStr;
-              if (p.price is num && p.price > 0) {
-                priceStr = '₹${p.price}';
-              } else if (p.transactionType.toLowerCase() == 'rent' &&
-                  p.monthlyRent.isNotEmpty) {
-                final cleaned = p.monthlyRent.replaceAll(RegExp(r'[^0-9.]'), '');
-                final numVal = num.tryParse(cleaned) ?? 0;
-                priceStr = numVal > 0 ? '₹${numVal}' : '₹0';
-              } else {
-                priceStr = '₹${p.price}';
-              }
+              final priceStr = _formatPropertyPriceHome(p);
 
               final isFav = favIds.contains(p.id) || p.isFavorite;
 
@@ -1026,6 +1582,16 @@ class _PropertyCardState extends State<_PropertyCard> {
     _isFavorite = widget.isFavorite;
   }
 
+  @override
+  void didUpdateWidget(covariant _PropertyCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Agar parent ne isFavorite state update ki ho (favoriteIds badalne ke baad),
+    // to local _isFavorite ko bhi sync kar do.
+    if (oldWidget.isFavorite != widget.isFavorite) {
+      _isFavorite = widget.isFavorite;
+    }
+  }
+
   Future<void> _toggleFavorite() async {
     final userId = await StorageService.getUserId();
     if (userId == null || userId.isEmpty) {
@@ -1081,6 +1647,7 @@ class _PropertyCardState extends State<_PropertyCard> {
           MaterialPageRoute(
             builder: (context) => PropertyDetailsScreen(
               propertyId: widget.propertyId ?? '',
+              initialIsFavorite: _isFavorite,
             ),
           ),
         );
@@ -1125,24 +1692,39 @@ class _PropertyCardState extends State<_PropertyCard> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(widget.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(widget.location, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(widget.price, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: const Color(0xFF2FED9A), borderRadius: BorderRadius.circular(20)),
-                        child: const Icon(Icons.arrow_forward, size: 16, color: Colors.black),
+                  const SizedBox(height: 6),
+                  // Price full width on first line, green arrow slightly below
+                  Text(
+                    widget.price,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2FED9A),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                    ],
+                      child: const Icon(
+                        Icons.arrow_forward,
+                        size: 16,
+                        color: Colors.black,
+                      ),
+                    ),
                   ),
                 ],
               ),

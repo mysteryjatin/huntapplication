@@ -56,7 +56,13 @@ class _SearchScreenState extends State<SearchScreen> {
   void _performSearch(String query) {
     _searchTimer?.cancel();
 
-    final hasFilters = (_activeFilters?.hasAnyFilter ?? false);
+    // Treat any returned FilterSelection (even if only category/transaction type)
+    // as an active filter so that tapping "Apply" in the bottom sheet always
+    // triggers a search, even when the query is empty.
+    final hasRealFilters = (_activeFilters?.hasAnyFilter ?? false);
+    final hasFilterObject = _activeFilters != null;
+    final hasFilters = hasRealFilters || hasFilterObject;
+
     if (query.trim().isEmpty && !hasFilters) {
       setState(() {
         _searchResults.clear();
@@ -69,13 +75,73 @@ class _SearchScreenState extends State<SearchScreen> {
 
     _searchTimer = Timer(const Duration(milliseconds: 400), () async {
       try {
-        final results = await _propertyService.searchProperties(
-          query: query,
-          filters: _activeFilters,
+        // Always base search on the latest text in the field
+        final currentText = _searchController.text;
+        final qLower = currentText.toLowerCase().trim();
+
+        // If user types "2bhk", "3 bhk" etc., also apply a bedrooms filter
+        FilterSelection? effectiveFilters = _activeFilters;
+        final bhkMatch = RegExp(r'(\d+)\s*bhk').firstMatch(qLower);
+        final bhk = bhkMatch != null ? int.tryParse(bhkMatch.group(1)!) : null;
+        if (bhk != null && bhk > 0) {
+          if (effectiveFilters == null) {
+            effectiveFilters = FilterSelection(
+              category: _selectedType,
+              bedrooms: bhk,
+              bedroomsList: [bhk],
+              city: null,
+              locality: null,
+              propertyCategory: null,
+              propertySubtype: null,
+              furnishing: null,
+              facing: null,
+              possessionStatus: null,
+              availabilityMonth: null,
+              availabilityYear: null,
+              ageOfConstruction: null,
+              budgetMin: null,
+              budgetMax: null,
+              areaMin: null,
+              areaMax: null,
+              bathrooms: null,
+              storeRoom: null,
+              servantRoom: null,
+            );
+          } else {
+            effectiveFilters = effectiveFilters.copyWith(
+              bedrooms: bhk,
+              bedroomsList: [bhk],
+            );
+          }
+        }
+
+        var results = await _propertyService.searchProperties(
+          query: currentText,
+          filters: effectiveFilters,
           type: _selectedType,
           page: 1,
           limit: 50,
         );
+
+        // Extra safety: if backend ignores bedrooms filter, enforce BHK on client side too
+        if (bhk != null && bhk > 0) {
+          results = results.where((p) => p.bedrooms == bhk).toList();
+        }
+
+        // If user has already changed the text again, ignore this older response
+        final latestText = _searchController.text.toLowerCase().trim();
+        if (latestText != qLower) {
+          return;
+        }
+
+        // Debug log: print final results being shown in UI
+        // Helpful to verify filters like "2bhk" etc.
+        // ignore: avoid_print
+        print('🔎 FINAL SEARCH RESULTS (${results.length}) for "$currentText" (bhk=$bhk):');
+        for (final p in results) {
+          // ignore: avoid_print
+          print(' • ${p.title} | bedrooms=${p.bedrooms} | city=${p.city}');
+        }
 
         setState(() {
           _searchResults = results;
@@ -155,7 +221,11 @@ class _SearchScreenState extends State<SearchScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => PropertyDetailsScreen(propertyId: property.id),
+            builder: (_) => PropertyDetailsScreen(
+              propertyId: property.id,
+              // Search results me abhi favorite state directly available nahi,
+              // isliye yahan initialIsFavorite false hi rahega.
+            ),
           ),
         );
       },
@@ -238,6 +308,11 @@ class _SearchScreenState extends State<SearchScreen> {
         controller: _searchController,
         focusNode: _searchFocusNode,
         onChanged: _performSearch,
+        textInputAction: TextInputAction.search,
+        onSubmitted: (value) {
+          _searchFocusNode.unfocus(); // hide keyboard when user hits search/done
+          _performSearch(value);
+        },
         decoration: InputDecoration(
           hintText: "Search your area, project",
           prefixIcon: const Icon(Icons.search),
@@ -258,6 +333,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       create: (_) => FilterCubit(FilterService()),
                       child: FilterScreen(
                         scrollController: scrollController,
+                        initialSelection: _activeFilters,
                       ),
                     );
                   },

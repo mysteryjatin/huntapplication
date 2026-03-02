@@ -10,6 +10,7 @@ class MyListingItem {
   final int saves;
   final String listingStatus;
   final DateTime? postedAt;
+  final String transactionType;
 
   const MyListingItem({
     required this.id,
@@ -23,6 +24,7 @@ class MyListingItem {
     required this.saves,
     required this.listingStatus,
     required this.postedAt,
+    this.transactionType = 'sale',
   });
 
   factory MyListingItem.fromJson(Map<String, dynamic> json) {
@@ -72,6 +74,7 @@ class MyListingItem {
       saves: _toInt(json['saves']),
       listingStatus: json['listing_status']?.toString() ?? '',
       postedAt: _toDate(json['posted_at']),
+      transactionType: json['transaction_type']?.toString().toLowerCase() ?? 'sale',
     );
   }
 }

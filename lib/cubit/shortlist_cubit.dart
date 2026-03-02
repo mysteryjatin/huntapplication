@@ -59,6 +59,11 @@ class ShortlistCubit extends Cubit<ShortlistState> {
   final ShortlistService _service;
   final String? _transactionType;
 
+  /// App-session level cache of properties that user ne shortlist se hata diye hain.
+  /// Isse kya hoga: agar backend remove API abhi sahi kaam nahi bhi kar rahi,
+  /// to bhi current app session me woh properties dobara shortlist me show nahi hongi.
+  static final Set<String> _sessionRemovedIds = {};
+
   ShortlistCubit(this._service, {String? transactionType})
       : _transactionType = transactionType,
         super(ShortlistInitial());
@@ -71,9 +76,15 @@ class ShortlistCubit extends Cubit<ShortlistState> {
         transactionType: _transactionType,
         page: 1,
       );
+
+      // Filter out session-removed properties
+      final filtered = res.properties
+          .where((p) => !_sessionRemovedIds.contains(p.id))
+          .toList();
+
       emit(
         ShortlistLoaded(
-          properties: res.properties,
+          properties: filtered,
           page: res.page,
           hasNext: res.hasNext,
         ),
@@ -98,8 +109,12 @@ class ShortlistCubit extends Cubit<ShortlistState> {
         page: nextPage,
       );
 
+      final pageFiltered = res.properties
+          .where((p) => !_sessionRemovedIds.contains(p.id))
+          .toList();
+
       final combined = List<Property>.from(current.properties)
-        ..addAll(res.properties);
+        ..addAll(pageFiltered);
 
       emit(
         current.copyWith(
@@ -114,6 +129,32 @@ class ShortlistCubit extends Cubit<ShortlistState> {
       // ignore: avoid_print
       print('❌ SHORTLIST LOAD MORE ERROR: $e');
       emit(current.copyWith(isLoadingMore: false));
+    }
+  }
+
+  /// Remove a single property from the shortlist (both locally and on server).
+  /// UI me turant list se item hata diya jayega (optimistic update).
+  Future<void> removeProperty(String propertyId) async {
+    final current = state;
+    if (current is! ShortlistLoaded) return;
+    if (propertyId.isEmpty) return;
+
+    // Optimistic local update – remove from current list
+    final updated = List<Property>.from(current.properties)
+      ..removeWhere((p) => p.id == propertyId);
+    emit(current.copyWith(properties: updated));
+
+    // Mark as removed for the rest of the app session, so agar Shortlist
+    // dobara load ho bhi, to ye property filter ho jaaye.
+    _sessionRemovedIds.add(propertyId);
+
+    // Backend se bhi shortlist se hatao; agar API fail ho jaye to
+    // current session me list waise hi trimmed rahegi.
+    // (Fresh reload/visit par server se latest shortlist aa jayegi.)
+    final ok = await _service.removeFromShortlist(propertyId);
+    if (!ok) {
+      // ignore failure for now – future me exact API path ke hisaab se
+      // yahan better error handling add kiya ja sakta hai.
     }
   }
 }

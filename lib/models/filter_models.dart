@@ -167,6 +167,16 @@ class FilterSelection {
   final String? furnishing;
   final String? facing;
 
+  // Extra filters from filter sheet
+  // e.g. "Under Construction" / "Ready to move"
+  final String? possessionStatus;
+  // e.g. "January", "February"
+  final String? availabilityMonth;
+  // e.g. "2026"
+  final String? availabilityYear;
+  // Age-of-construction selected labels, e.g. ["New Construction", "5 to 10 Years"]
+  final List<String>? ageOfConstruction;
+
   final num? budgetMin;
   final num? budgetMax;
   final num? areaMin;
@@ -187,6 +197,10 @@ class FilterSelection {
     this.propertySubtype,
     this.furnishing,
     this.facing,
+    this.possessionStatus,
+    this.availabilityMonth,
+    this.availabilityYear,
+    this.ageOfConstruction,
     this.budgetMin,
     this.budgetMax,
     this.areaMin,
@@ -206,6 +220,10 @@ class FilterSelection {
     String? propertySubtype,
     String? furnishing,
     String? facing,
+    String? possessionStatus,
+    String? availabilityMonth,
+    String? availabilityYear,
+    List<String>? ageOfConstruction,
     num? budgetMin,
     num? budgetMax,
     num? areaMin,
@@ -221,6 +239,10 @@ class FilterSelection {
     bool clearPropertySubtype = false,
     bool clearFurnishing = false,
     bool clearFacing = false,
+    bool clearPossessionStatus = false,
+    bool clearAvailabilityMonth = false,
+    bool clearAvailabilityYear = false,
+    bool clearAgeOfConstruction = false,
     bool clearBedrooms = false,
     bool clearBedroomsList = false,
     bool clearBathrooms = false,
@@ -237,6 +259,10 @@ class FilterSelection {
       propertySubtype: clearPropertySubtype ? null : (propertySubtype ?? this.propertySubtype),
       furnishing: clearFurnishing ? null : (furnishing ?? this.furnishing),
       facing: clearFacing ? null : (facing ?? this.facing),
+      possessionStatus: clearPossessionStatus ? null : (possessionStatus ?? this.possessionStatus),
+      availabilityMonth: clearAvailabilityMonth ? null : (availabilityMonth ?? this.availabilityMonth),
+      availabilityYear: clearAvailabilityYear ? null : (availabilityYear ?? this.availabilityYear),
+      ageOfConstruction: clearAgeOfConstruction ? null : (ageOfConstruction ?? this.ageOfConstruction),
       budgetMin: clearBudget ? null : (budgetMin ?? this.budgetMin),
       budgetMax: clearBudget ? null : (budgetMax ?? this.budgetMax),
       areaMin: clearArea ? null : (areaMin ?? this.areaMin),
@@ -258,6 +284,10 @@ class FilterSelection {
         propertySubtype != null ||
         furnishing != null ||
         facing != null ||
+        possessionStatus != null ||
+        availabilityMonth != null ||
+        availabilityYear != null ||
+        (ageOfConstruction != null && ageOfConstruction!.isNotEmpty) ||
         budgetMin != null ||
         budgetMax != null ||
         areaMin != null ||

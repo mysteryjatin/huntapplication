@@ -58,13 +58,13 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
-
     try {
       // Check both login status and user ID
       final isLoggedIn = await StorageService.isLoggedIn();
       final userId = await StorageService.getUserId();
       
       if (!isLoggedIn || userId == null || userId.isEmpty || userId == '000000000000000000000000') {
+        if (!mounted) return;
         setState(() {
           _isLoading = false;
           _errorMessage = 'User not logged in';
@@ -74,7 +74,35 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
 
       final result = await _profileService.getProfile(userId);
       if (result['success']) {
-        final profileData = result['data'];
+        dynamic profileData = result['data'];
+
+        // -------- PROFILE PICTURE FALLBACK (temp cache) --------
+        String? profilePic;
+        if (profileData is Map) {
+          profilePic = profileData['profile_picture']?.toString() ??
+              profileData['profilePicture']?.toString();
+        }
+
+        // Agar backend se profile_picture field nahi aa rahi,
+        // to Personal Information screen ne jo temp image URL save kiya hai
+        // use yahan use kar lo, taaki side menu me bhi updated photo dikh jaye.
+        if ((profilePic == null || profilePic.isEmpty) &&
+            userId != null &&
+            userId.isNotEmpty) {
+          final tempPic =
+              await StorageService.getTempProfilePicture(userId);
+          if (tempPic != null && tempPic.isNotEmpty) {
+            if (profileData is Map) {
+              profileData = Map<String, dynamic>.from(profileData);
+              profileData['profile_picture'] = tempPic;
+            }
+          }
+        } else if (profilePic != null && profilePic.isNotEmpty &&
+            userId != null &&
+            userId.isNotEmpty) {
+          // Backend ne agar pic bhej diya ho to temp cache hata do.
+          await StorageService.removeTempProfilePicture(userId);
+        }
         
         // Save user type to storage if available
         if (profileData is Map) {
@@ -86,17 +114,22 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
           }
         }
         
+        if (!mounted) return;
         setState(() {
-          _profileData = profileData;
+          _profileData = profileData is Map<String, dynamic>
+              ? Map<String, dynamic>.from(profileData)
+              : null;
           _isLoading = false;
         });
       } else {
+        if (!mounted) return;
         setState(() {
           _errorMessage = result['error'] ?? 'Failed to load profile';
           _isLoading = false;
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;

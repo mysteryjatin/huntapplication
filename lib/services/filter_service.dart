@@ -21,7 +21,10 @@ class FilterService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic>) {
-          return FilterScreenResponse.fromJson(decoded);
+          // API returns {"success":true,"data":{...}} — parse from "data"
+          final data = decoded['data'];
+          final map = data is Map<String, dynamic> ? data : decoded;
+          return FilterScreenResponse.fromJson(map);
         }
       }
 

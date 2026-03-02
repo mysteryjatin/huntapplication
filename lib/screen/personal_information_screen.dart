@@ -286,8 +286,13 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
           _uploadedProfileUrl = url;
         });
         // persist temp url so it survives navigation if backend hasn't saved it yet
-        if (_userId != null && _userId!.isNotEmpty) {
-          await StorageService.saveTempProfilePicture(_userId!, url);
+        // Always fetch latest userId from storage so null _userId ki wajah se
+        // image cache miss na ho.
+        String? currentUserId = _userId;
+        currentUserId ??= await StorageService.getUserId();
+        if (currentUserId != null && currentUserId.isNotEmpty) {
+          _userId = currentUserId;
+          await StorageService.saveTempProfilePicture(currentUserId, url);
         }
       } else {
         if (mounted) {
