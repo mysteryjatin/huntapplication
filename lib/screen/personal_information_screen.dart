@@ -66,13 +66,26 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
           await StorageService.saveUserType(userType);
         }
         
+        // Prefer backend data; if some fields missing (like address),
+        // fall back to locally cached values so user doesn't lose edits.
+        final cachedAddress = await StorageService.getUserAddress();
+
         setState(() {
-          _fullNameController.text = data['full_name']?.toString() ?? 
-                                     data['name']?.toString() ?? '';
-          _emailController.text = data['email']?.toString() ?? '';
-          _mobileController.text = data['phone_number']?.toString() ?? 
-                                   data['phone']?.toString() ?? '';
-          _addressController.text = data['address']?.toString() ?? '';
+          _fullNameController.text = data['full_name']?.toString() ??
+              data['name']?.toString() ??
+              _fullNameController.text;
+          _emailController.text =
+              data['email']?.toString() ?? _emailController.text;
+          _mobileController.text = data['phone_number']?.toString() ??
+              data['phone']?.toString() ??
+              _mobileController.text;
+
+          final addrFromApi = data['address']?.toString();
+          if (addrFromApi != null && addrFromApi.isNotEmpty) {
+            _addressController.text = addrFromApi;
+          } else if (cachedAddress != null && cachedAddress.isNotEmpty) {
+            _addressController.text = cachedAddress;
+          }
           // load profile picture if available
           _uploadedProfileUrl = data['profile_picture']?.toString() ?? data['profilePicture']?.toString();
           _pickedImage = null;
@@ -126,12 +139,23 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
     });
 
     try {
-      final profileData = {
-        'full_name': _fullNameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'phone_number': _mobileController.text.trim(),
-        'address': _addressController.text.trim(),
-        if (_uploadedProfileUrl != null) 'profile_picture': _uploadedProfileUrl,
+      final fullName = _fullNameController.text.trim();
+      final email = _emailController.text.trim();
+      final phone = _mobileController.text.trim();
+      final address = _addressController.text.trim();
+
+      // Send both old & new field names so backend kisi bhi format me accept kar sake.
+      final profileData = <String, dynamic>{
+        'full_name': fullName,
+        'name': fullName,
+        'email': email,
+        'phone_number': phone,
+        'phone': phone,
+        'address': address,
+        if (_uploadedProfileUrl != null && _uploadedProfileUrl!.isNotEmpty) ...{
+          'profile_picture': _uploadedProfileUrl,
+          'profilePicture': _uploadedProfileUrl,
+        },
       };
 
       final result = await _profileService.updateProfile(_userId!, profileData);
@@ -158,8 +182,16 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
               _mobileController.text = data['phone_number']?.toString() ??
                   data['phone']?.toString() ??
                   _mobileController.text;
-              _addressController.text =
-                  data['address']?.toString() ?? _addressController.text;
+              final addrFromApi = data['address']?.toString();
+              if (addrFromApi != null && addrFromApi.isNotEmpty) {
+                _addressController.text = addrFromApi;
+              } else {
+                _addressController.text = address;
+              }
+
+              // Cache address locally so that even if backend ignores it,
+              // we can restore it next time.
+              StorageService.saveUserAddress(_addressController.text);
 
               // Only update uploaded profile URL if backend returned one.
               final returnedPic = data['profile_picture']?.toString() ??

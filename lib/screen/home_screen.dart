@@ -29,6 +29,8 @@ import 'package:hunt_property/cubit/home_cubit.dart';
 import 'package:hunt_property/cubit/home_state.dart';
 import 'package:hunt_property/repositories/home_repository.dart';
 import 'package:intl/intl.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 // Service target screens
 import 'package:hunt_property/screen/sidemenu_screen/home_loan_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/property_cost_calculator.dart';
@@ -70,8 +72,30 @@ class _HomeScreenState extends State<HomeScreen>
   HomeCubit? _homeCubit;
   final ShortlistService _shortlistService = ShortlistService();
   Set<String> _favoriteIds = {};
-  String _selectedCity = 'Chennai';
+  String _selectedCity = '';
+  String _selectedState = '';
   bool _isLoadingProperties = false;
+
+  // Simple state → cities mapping for location picker (subset of Indian cities)
+  final List<String> _states = const [
+    'Delhi',
+    'Uttar Pradesh',
+    'Maharashtra',
+    'Karnataka',
+    'Tamil Nadu',
+    'Telangana',
+    'West Bengal',
+  ];
+
+  final Map<String, List<String>> _citiesByState = const {
+    'Delhi': ['New Delhi', 'Dwarka', 'Rohini', 'Saket'],
+    'Uttar Pradesh': ['Noida', 'Greater Noida', 'Ghaziabad', 'Lucknow', 'Kanpur'],
+    'Maharashtra': ['Mumbai', 'Pune', 'Nagpur', 'Thane'],
+    'Karnataka': ['Bengaluru', 'Mysuru', 'Mangaluru'],
+    'Tamil Nadu': ['Chennai', 'Coimbatore', 'Madurai'],
+    'Telangana': ['Hyderabad', 'Warangal'],
+    'West Bengal': ['Kolkata', 'Howrah'],
+  };
   // Top tab labels (without "All"; All is controlled by bottom Home)
   final categories = [
     'Buy',
@@ -172,6 +196,34 @@ class _HomeScreenState extends State<HomeScreen>
         _selectedCity = c;
       });
     }
+
+    // Har app launch par try karo current location detect karne ka.
+    // Agar permission deny ho ya detect fail ho, to stored city hi rahegi.
+    await _detectUserCity();
+  }
+
+  bool _cityMatches(String propertyCity, String selectedCity) {
+    final pc = propertyCity.trim().toLowerCase();
+    final sc = selectedCity.trim().toLowerCase();
+    if (sc.isEmpty) return true;
+    if (pc.isEmpty) return false;
+    return pc == sc || pc.contains(sc) || sc.contains(pc);
+  }
+
+  void _applySelectedLocationToLatestList() {
+    final selectedCity = _selectedCity.trim();
+    final txn = _selectedCategoryIndex == 1 ? 'rent' : (_selectedCategoryIndex == 0 ? 'sale' : null);
+
+    var list = List<Property>.from(_allProperties);
+    if (selectedCity.isNotEmpty) {
+      list = list.where((p) => _cityMatches(p.city, selectedCity)).toList();
+    }
+    if (txn != null) {
+      list = list.where((p) => p.transactionType.toLowerCase() == txn).toList();
+    }
+    setState(() {
+      _properties = list;
+    });
   }
 
   Future<void> _onCategorySelected(int idx) async {
@@ -210,23 +262,80 @@ class _HomeScreenState extends State<HomeScreen>
       propertyCategory: category,
     );
 
-    // For Latest list: only Buy/Rent filter karein; Projects/Residential/Commercial pe latest list "all" hi rahe.
+    // For Latest list: apply city + txn filter. If user is actively searching, re-run search.
     final hasSearchOrFilter = _searchController.text.trim().isNotEmpty ||
         (_activeFilters?.hasAnyFilter ?? false);
     if (hasSearchOrFilter && (idx == 0 || idx == 1)) {
       _performSearch(_searchController.text);
     } else {
+      _applySelectedLocationToLatestList();
+    }
+  }
+
+  /// Detect user's current city from GPS once, and use it as the default city
+  /// for home screen. If permission denied or lookup fails, keep existing city.
+  Future<void> _detectUserCity() async {
+    try {
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        // Silent fallback: user ne permission deny ki, to default city hi rahegi.
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.best,
+      );
+
+      final placemarks =
+          await placemarkFromCoordinates(pos.latitude, pos.longitude);
+      if (placemarks.isEmpty) return;
+
+      final p = placemarks.first;
+      // Prefer locality/city fields from placemark
+      final detectedCity =
+          (p.locality?.trim().isNotEmpty == true ? p.locality : null) ??
+              (p.subAdministrativeArea?.trim().isNotEmpty == true
+                  ? p.subAdministrativeArea
+                  : null) ??
+              (p.administrativeArea?.trim().isNotEmpty == true
+                  ? p.administrativeArea
+                  : null);
+
+      final detectedState =
+          (p.administrativeArea?.trim().isNotEmpty == true
+              ? p.administrativeArea
+              : null) ??
+          (p.subAdministrativeArea?.trim().isNotEmpty == true
+              ? p.subAdministrativeArea
+              : null);
+
+      if (detectedCity == null || detectedCity.trim().isEmpty) return;
+
+      final cityName = detectedCity.trim();
+      final stateName = detectedState?.trim() ?? '';
+
+      if (!mounted) return;
       setState(() {
-        if (txn == null) {
-          _properties = List<Property>.from(_allProperties);
-        } else {
-          _properties = _allProperties
-              .where(
-                (p) => p.transactionType.toLowerCase() == txn,
-              )
-              .toList();
-        }
+        _selectedCity = cityName;
+        _selectedState = stateName;
       });
+      await StorageService.saveSelectedCity(cityName);
+
+      // Apply selected city to latest list immediately (no search query)
+      if (_searchController.text.trim().isEmpty && (_activeFilters?.hasAnyFilter != true)) {
+        _applySelectedLocationToLatestList();
+      }
+
+      // Refresh home sections for this detected city
+      final userId = await StorageService.getUserId();
+      _homeCubit?.fetchHome(city: cityName, userId: userId, limit: 10);
+    } catch (e) {
+      // ignore: avoid_print
+      print('❌ DETECT USER CITY FAILED: $e');
     }
   }
 
@@ -250,25 +359,147 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _selectCityDialog() async {
-    final controller = TextEditingController(text: _selectedCity);
-    final res = await showDialog<String>(
+    String? tempState = _selectedState.isNotEmpty ? _selectedState : null;
+    String? tempCity = _selectedCity.isNotEmpty ? _selectedCity : null;
+
+    final res = await showDialog<Map<String, String>>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select City'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(hintText: 'Enter city name'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Save')),
-        ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          final stateItems = List<String>.from(_states)..sort();
+          final cityItems = tempState != null
+              ? (() {
+                  final list = List<String>.from(_citiesByState[tempState] ?? []);
+                  if (tempCity != null &&
+                      tempCity!.isNotEmpty &&
+                      !list.any((c) => c.toLowerCase() == tempCity!.toLowerCase())) {
+                    list.insert(0, tempCity!);
+                  }
+                  list.sort();
+                  return list;
+                })()
+              : <String>[];
+
+          return AlertDialog(
+            title: const Text('Select City'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'State',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  value: tempState,
+                  decoration: const InputDecoration(
+                    hintText: 'Select State',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: stateItems
+                      .map(
+                        (s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(
+                            s,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[900],
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    setStateDialog(() {
+                      tempState = v;
+                      tempCity = null;
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'City',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  value: tempCity,
+                  decoration: const InputDecoration(
+                    hintText: 'Select City',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: cityItems
+                      .map(
+                        (c) => DropdownMenuItem(
+                          value: c,
+                          child: Text(
+                            c,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[900],
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    setStateDialog(() => tempCity = v);
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (tempCity == null || tempCity!.isEmpty) {
+                    Navigator.pop(context);
+                    return;
+                  }
+                  Navigator.pop(context, {
+                    'city': tempCity!,
+                    'state': tempState ?? '',
+                  });
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
-    if (res != null && res.isNotEmpty) {
-      await StorageService.saveSelectedCity(res);
-      setState(() => _selectedCity = res);
+    if (res != null && (res['city']?.isNotEmpty ?? false)) {
+      final newCity = res['city']!.trim();
+      final newState = (res['state'] ?? '').trim();
+
+      await StorageService.saveSelectedCity(newCity);
+      setState(() {
+        _selectedCity = newCity;
+        _selectedState = newState;
+      });
+
+      // Update latest list immediately for selected city
+      if (_searchController.text.trim().isEmpty && (_activeFilters?.hasAnyFilter != true)) {
+        _applySelectedLocationToLatestList();
+      } else {
+        _performSearch(_searchController.text);
+      }
       // refetch home with new city
       final userId = await StorageService.getUserId();
       _homeCubit?.fetchHomeWithFilters(city: _selectedCity, userId: userId, limit: 10);
@@ -424,6 +655,7 @@ class _HomeScreenState extends State<HomeScreen>
           selectedCategoryIndex: _selectedCategoryIndex,
           onCategorySelected: (i) => _onCategorySelected(i),
           selectedCity: _selectedCity,
+          selectedState: _selectedState,
           onLocationTap: _selectCityDialog,
         ),
 
@@ -688,6 +920,10 @@ class _HomeScreenState extends State<HomeScreen>
               .toList();
         }
       });
+      // Home search me text clear hote hi keyboard bhi hide kar do
+      if (_searchFocusNode.hasFocus) {
+        _searchFocusNode.unfocus();
+      }
       return;
     }
 
@@ -696,25 +932,72 @@ class _HomeScreenState extends State<HomeScreen>
     _searchTimer = Timer(const Duration(milliseconds: 400), () async {
       try {
         final type = _selectedCategoryIndex == 1 ? 'RENT' : 'BUY';
-        // Use active filters; add city from home's selected location when set
-        FilterSelection? filters = _activeFilters;
-        if (_selectedCity.isNotEmpty) {
-          filters = (filters ?? FilterSelection(category: type))
-              .copyWith(city: filters?.city ?? _selectedCity);
+
+        // Hamesha latest text field ka value lo
+        final currentText =
+            _searchController.text.isNotEmpty ? _searchController.text : query;
+        final qLower = currentText.toLowerCase().trim();
+
+        // Agar user "2bhk", "3 bhk" likhe to bedrooms filter bhi apply karo
+        FilterSelection? effectiveFilters = _activeFilters;
+        final bhkMatch = RegExp(r'(\d+)\s*bhk').firstMatch(qLower);
+        final bhk =
+            bhkMatch != null ? int.tryParse(bhkMatch.group(1)!) : null;
+        if (bhk != null && bhk > 0) {
+          if (effectiveFilters == null) {
+            effectiveFilters = FilterSelection(
+              category: type,
+              bedrooms: bhk,
+              bedroomsList: [bhk],
+              city: null,
+              locality: null,
+              propertyCategory: null,
+              propertySubtype: null,
+              furnishing: null,
+              facing: null,
+              possessionStatus: null,
+              availabilityMonth: null,
+              availabilityYear: null,
+              ageOfConstruction: null,
+              budgetMin: null,
+              budgetMax: null,
+              areaMin: null,
+              areaMax: null,
+              bathrooms: null,
+              storeRoom: null,
+              servantRoom: null,
+            );
+          } else {
+            effectiveFilters = effectiveFilters.copyWith(
+              bedrooms: bhk,
+              bedroomsList: [bhk],
+            );
+          }
         }
-        final results = await _propertyService.searchProperties(
-          query: query,
-          filters: filters,
+
+        var results = await _propertyService.searchProperties(
+          query: currentText,
+          filters: effectiveFilters,
           type: type,
           page: 1,
           limit: 50,
         );
+
+        // Backend agar bedrooms filter ignore kare to client-side bhi filter kar do
+        if (bhk != null && bhk > 0) {
+          results = results.where((p) => p.bedrooms == bhk).toList();
+        }
 
         if (!mounted) return;
         setState(() {
           _properties = results;
           _isLoadingProperties = false;
         });
+
+        // Search complete hone ke baad keyboard hide kar do
+        if (_searchFocusNode.hasFocus) {
+          _searchFocusNode.unfocus();
+        }
       } catch (e) {
         if (!mounted) return;
         setState(() {
@@ -735,10 +1018,14 @@ class _HomeScreenState extends State<HomeScreen>
       if (!mounted) return;
       setState(() {
         _allProperties = props;
-        // Initial view: show all properties (Home tab)
+        // Initial view: show properties by selected city (and buy/rent if selected)
         _properties = List<Property>.from(_allProperties);
         _isLoadingProperties = false;
       });
+      // Apply location filter once data is loaded
+      if (mounted && _searchController.text.trim().isEmpty && (_activeFilters?.hasAnyFilter != true)) {
+        _applySelectedLocationToLatestList();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -754,10 +1041,11 @@ class _HomeScreenState extends State<HomeScreen>
     final catLabel = categories[_selectedCategoryIndex].toLowerCase();
     return _allProperties.where((p) {
       final matchTxn = p.transactionType.toLowerCase() == txn;
+      final matchCity = _selectedCity.trim().isEmpty ? true : _cityMatches(p.city, _selectedCity);
       if (catLabel == 'projects') return matchTxn; // Projects: show all matching txn
-      if (catLabel == 'residential') return matchTxn && p.propertyCategory.toLowerCase().contains('residential');
-      if (catLabel == 'commercial') return matchTxn && p.propertyCategory.toLowerCase().contains('commercial');
-      return matchTxn;
+      if (catLabel == 'residential') return matchTxn && matchCity && p.propertyCategory.toLowerCase().contains('residential');
+      if (catLabel == 'commercial') return matchTxn && matchCity && p.propertyCategory.toLowerCase().contains('commercial');
+      return matchTxn && matchCity;
     }).toList();
   }
 }
@@ -829,6 +1117,7 @@ class _HeaderArea extends StatelessWidget {
   final int selectedCategoryIndex;
   final Function(int) onCategorySelected;
   final String selectedCity;
+  final String selectedState;
   final VoidCallback onLocationTap;
 
   const _HeaderArea({
@@ -842,6 +1131,7 @@ class _HeaderArea extends StatelessWidget {
     required this.selectedCategoryIndex,
     required this.onCategorySelected,
     required this.selectedCity,
+    required this.selectedState,
     required this.onLocationTap,
   });
 
@@ -923,28 +1213,44 @@ class _HeaderArea extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: GestureDetector(
                   onTap: onLocationTap,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        size: 18,
-                        color: Colors.black,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        selectedCity,
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                      const Text(
+                        'Current location',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textLight,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(width: 2),
-                      const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 18,
-                        color: Colors.black,
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.location_on_outlined,
+                            size: 18,
+                            color: Colors.black,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            selectedState.isNotEmpty
+                                ? '$selectedCity, $selectedState'
+                                : selectedCity,
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 18,
+                            color: Colors.black,
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -979,6 +1285,14 @@ class _HeaderArea extends StatelessWidget {
                         controller: searchController,
                         focusNode: searchFocusNode,
                         onChanged: onSearchChanged,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (value) {
+                          // Keyboard hide + explicit search trigger
+                          searchFocusNode.unfocus();
+                          if (onSearchChanged != null) {
+                            onSearchChanged!(value);
+                          }
+                        },
                         cursorColor: AppColors.primaryColor,
                         decoration: const InputDecoration(
                           border: InputBorder.none,

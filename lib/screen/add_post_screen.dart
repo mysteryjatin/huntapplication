@@ -116,9 +116,12 @@ class _AddPostScreenState extends State<AddPostScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
-          onPressed: widget.onBackPressed ?? () {
-            Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
-          },
+          onPressed: widget.onBackPressed ??
+              () {
+                FocusScope.of(context).unfocus();
+                Navigator.of(context)
+                    .pushNamedAndRemoveUntil('/home', (route) => false);
+              },
         ),
         title: Column(
           children: [
@@ -143,17 +146,25 @@ class _AddPostScreenState extends State<AddPostScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.close, color: Colors.black, size: 24),
-            onPressed: widget.onBackPressed ?? () {
-              Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
-            },
+            onPressed: widget.onBackPressed ??
+                () {
+                  FocusScope.of(context).unfocus();
+                  Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/home', (route) => false);
+                },
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 20),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () {
+          FocusScope.of(context).unfocus();
+        },
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Property Info Section
@@ -165,6 +176,15 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: _propertyNameController,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) {
+                      FocusScope.of(context).unfocus();
+                    },
+                    onChanged: (value) {
+                      if (value.isEmpty) {
+                        FocusScope.of(context).unfocus();
+                      }
+                    },
                     decoration: InputDecoration(
                       hintText: 'Eg 2BHK Apartment for sale',
                       hintStyle: GoogleFonts.poppins(
@@ -267,6 +287,16 @@ class _AddPostScreenState extends State<AddPostScreen> {
                     controller: _buildingDescriptionController,
                     maxLines: 5,
                     maxLength: _maxDescriptionLength,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.done,
+                    onChanged: (value) {
+                      if (value.isEmpty) {
+                        FocusScope.of(context).unfocus();
+                      }
+                    },
+                    onSubmitted: (_) {
+                      FocusScope.of(context).unfocus();
+                    },
                     decoration: InputDecoration(
                       hintText: 'Enter building description...',
                       hintStyle: GoogleFonts.poppins(
@@ -313,6 +343,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   // Property Location & Features Section
                   InkWell(
                     onTap: () {
+                      FocusScope.of(context).unfocus();
                       // Validate that a property type is selected
                       if (_selectedPropertyType == null || _selectedPropertyType!.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -400,6 +431,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
               ),
             ),
           ),
+        ),
     );
   }
 

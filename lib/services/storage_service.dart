@@ -9,6 +9,7 @@ class StorageService {
   static const String _keyIsLoggedIn = 'is_logged_in';
   static const String _keyUserType = 'user_type';
   static const String _keySpinPopupShown = 'spin_popup_shown';
+  static const String _keyUserAddress = 'user_address';
 
   // Cache for SharedPreferences instance
   static SharedPreferences? _prefsInstance;
@@ -203,6 +204,30 @@ class StorageService {
     } catch (e) {
       print('Error getting user phone: $e');
       return _memoryStorage[_keyUserPhone] as String?;
+    }
+  }
+
+  // Save user address
+  static Future<void> saveUserAddress(String address) async {
+    try {
+      await _getPreferences();
+      await _setValue(_keyUserAddress, address);
+    } catch (e) {
+      print('Error saving user address: $e');
+      _memoryStorage[_keyUserAddress] = address;
+      _useMemoryStorage = true;
+    }
+  }
+
+  // Get user address
+  static Future<String?> getUserAddress() async {
+    try {
+      await _getPreferences();
+      final value = _getValue(_keyUserAddress);
+      return value is String ? value : null;
+    } catch (e) {
+      print('Error getting user address: $e');
+      return _memoryStorage[_keyUserAddress] as String?;
     }
   }
 

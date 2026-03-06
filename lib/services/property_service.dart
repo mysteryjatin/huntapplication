@@ -58,12 +58,97 @@ int? _monthNameToInt(String name) {
   return i >= 0 ? i + 1 : null;
 }
 
-/// Backend expects possession_status as value (e.g. under_construction). Converts label if needed.
-String _normalizePossessionStatus(String s) {
-  final lower = s.toLowerCase().trim();
-  if (lower.contains('under') && lower.contains('construction')) return 'under_construction';
-  if (lower.contains('ready') && lower.contains('move')) return 'ready_to_move';
-  return s.contains(' ') ? lower.replaceAll(' ', '_') : s;
+String _possessionStatusToLabel(String s) {
+  final raw = s.trim();
+  final lower = raw.toLowerCase();
+
+  // If already label-like, return a consistent label
+  if (lower.contains('under') && lower.contains('construction')) {
+    return 'Under Construction';
+  }
+  if (lower.contains('ready') && lower.contains('move')) {
+    return 'Ready to move';
+  }
+
+  // Handle backend "value" form too
+  if (lower == 'under_construction') return 'Under Construction';
+  if (lower == 'ready_to_move') return 'Ready to move';
+
+  return raw;
+}
+
+String _possessionStatusToValue(String s) {
+  final raw = s.trim();
+  final lower = raw.toLowerCase();
+  if (lower.contains('under') && lower.contains('construction')) {
+    return 'under_construction';
+  }
+  if (lower.contains('ready') && lower.contains('move')) {
+    return 'ready_to_move';
+  }
+  if (lower == 'under_construction' || lower == 'ready_to_move') return lower;
+  return lower.replaceAll(' ', '_');
+}
+
+String _ageOfConstructionToLabel(String s) {
+  final raw = s.trim();
+  final lower = raw.toLowerCase();
+
+  switch (lower) {
+    case 'new_construction':
+      return 'New Construction';
+    case 'less_than_5_years':
+      return 'Less than 5 Years';
+    case '5_to_10_years':
+      return '5 to 10 Years';
+    case '10_to_15_years':
+      return '10 to 15 Years';
+    case '15_to_20_years':
+      return '15 to 20 Years';
+    case '15_to_20_plus_years':
+      return '15 to 20+ Years';
+  }
+
+  return raw;
+}
+
+String _ageOfConstructionToValue(String s) {
+  final raw = s.trim();
+  final lower = raw.toLowerCase();
+
+  if (lower == 'new construction') return 'new_construction';
+  if (lower == 'less than 5 years') return 'less_than_5_years';
+  if (lower == '5 to 10 years') return '5_to_10_years';
+  if (lower == '10 to 15 years') return '10_to_15_years';
+  if (lower == '15 to 20 years') return '15_to_20_years';
+  if (lower == '15 to 20+ years') return '15_to_20_plus_years';
+
+  if (lower.contains('new') && lower.contains('construction')) {
+    return 'new_construction';
+  }
+
+  if (lower.contains('less') && lower.contains('5')) return 'less_than_5_years';
+  if (lower.contains('5') && lower.contains('10')) return '5_to_10_years';
+  if (lower.contains('10') && lower.contains('15')) return '10_to_15_years';
+  if (lower.contains('15') && lower.contains('20') && lower.contains('+')) {
+    return '15_to_20_plus_years';
+  }
+  if (lower.contains('15') && lower.contains('20')) return '15_to_20_years';
+
+  if (lower == 'new_construction' ||
+      lower == 'less_than_5_years' ||
+      lower == '5_to_10_years' ||
+      lower == '10_to_15_years' ||
+      lower == '15_to_20_years' ||
+      lower == '15_to_20_plus_years') {
+    return lower;
+  }
+
+  return lower.replaceAll(' ', '_');
+}
+
+String _furnishingToKebabLower(String s) {
+  return s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '-');
 }
 
 class PropertyService {
@@ -285,91 +370,142 @@ class PropertyService {
     int limit = 50,
   }) async {
     try {
-      final params = <String, String>{
-        'page': page.toString(),
-        'limit': limit.toString(),
-      };
+      Map<String, String> buildParams({
+        required bool useLabelEncoding,
+        required bool furnishingKebabLower,
+      }) {
+        final params = <String, String>{
+          'page': page.toString(),
+          'limit': limit.toString(),
+        };
 
-      if (query.trim().isNotEmpty) params['search'] = query.trim();
+        if (query.trim().isNotEmpty) params['search'] = query.trim();
 
-      // Map UI type to backend transaction_type.
-      // Backend uses "sale" / "rent" (same as filter-screen API).
-      final lower = type.toLowerCase();
-      final txn = lower == 'rent' ? 'rent' : 'sale';
-      params['transaction_type'] = txn;
+        // Map UI type to backend transaction_type.
+        final lower = type.toLowerCase();
+        final txn = lower == 'rent' ? 'rent' : 'sale';
+        params['transaction_type'] = txn;
 
-      if (filters != null) {
-        if (filters.city != null && filters.city!.isNotEmpty) {
-          params['city'] = filters.city!;
-        }
-        if (filters.locality != null && filters.locality!.isNotEmpty) {
-          params['locality'] = filters.locality!;
-        }
-        if (filters.propertyCategory != null && filters.propertyCategory!.isNotEmpty) {
-          params['property_category'] = filters.propertyCategory!;
-        }
-        if (filters.propertySubtype != null && filters.propertySubtype!.isNotEmpty) {
-          params['property_subtype'] = filters.propertySubtype!;
-        }
-        if (filters.budgetMin != null) params['price_min'] = filters.budgetMin!.toString();
-        if (filters.budgetMax != null) params['price_max'] = filters.budgetMax!.toString();
-        if (filters.areaMin != null) params['area_min'] = filters.areaMin!.toString();
-        if (filters.areaMax != null) params['area_max'] = filters.areaMax!.toString();
-        if (filters.bedrooms != null) {
-          params['bedrooms'] = filters.bedrooms!.toString();
-        } else if (filters.bedroomsList != null && filters.bedroomsList!.isNotEmpty) {
-          // Send comma-separated bedrooms list, e.g. bedrooms=1,2,3
-          params['bedrooms'] = filters.bedroomsList!.join(',');
-        }
-        if (filters.bathrooms != null) params['bathrooms'] = filters.bathrooms!.toString();
-        if (filters.furnishing != null && filters.furnishing!.isNotEmpty) {
-          // Backend often expects lowercase (e.g. semi-furnished)
-          params['furnishing'] = filters.furnishing!.trim().toLowerCase().replaceAll(' ', '-');
-        }
-        if (filters.facing != null && filters.facing!.isNotEmpty) {
-          params['facing'] = filters.facing!.trim().toLowerCase();
-        }
-        if (filters.possessionStatus != null &&
-            filters.possessionStatus!.isNotEmpty) {
-          // Backend expects value e.g. under_construction, ready_to_move
-          params['possession_status'] = _normalizePossessionStatus(filters.possessionStatus!.trim());
-        }
-        if (filters.availabilityMonth != null &&
-            filters.availabilityMonth!.isNotEmpty) {
-          // Backend expects integer 1-12; filter screen sends month name e.g. "April"
-          final monthInt = _monthNameToInt(filters.availabilityMonth!);
-          if (monthInt != null) {
-            params['availability_month'] = monthInt.toString();
+        if (filters != null) {
+          if (filters.city != null && filters.city!.isNotEmpty) {
+            params['city'] = filters.city!;
+          }
+          if (filters.locality != null && filters.locality!.isNotEmpty) {
+            params['locality'] = filters.locality!;
+          }
+          if (filters.propertyCategory != null &&
+              filters.propertyCategory!.isNotEmpty) {
+            params['property_category'] = filters.propertyCategory!;
+          }
+          if (filters.propertySubtype != null &&
+              filters.propertySubtype!.isNotEmpty) {
+            params['property_subtype'] = filters.propertySubtype!;
+          }
+          if (filters.budgetMin != null) {
+            params['min_price'] = filters.budgetMin!.toString();
+          }
+          if (filters.budgetMax != null) {
+            params['max_price'] = filters.budgetMax!.toString();
+          }
+          if (filters.areaMin != null) {
+            params['min_area'] = filters.areaMin!.toString();
+          }
+          if (filters.areaMax != null) {
+            params['max_area'] = filters.areaMax!.toString();
+          }
+
+          if (filters.bedrooms != null) {
+            params['min_bedrooms'] = filters.bedrooms!.toString();
+          } else if (filters.bedroomsList != null &&
+              filters.bedroomsList!.isNotEmpty) {
+            final minBhk = filters.bedroomsList!
+                .where((v) => v > 0)
+                .fold<int>(0, (min, v) {
+              if (min == 0) return v;
+              return v < min ? v : min;
+            });
+            if (minBhk > 0) {
+              params['min_bedrooms'] = minBhk.toString();
+            }
+          }
+
+          if (filters.bathrooms != null) {
+            params['bathrooms'] = filters.bathrooms!.toString();
+          }
+
+          if (filters.furnishing != null && filters.furnishing!.isNotEmpty) {
+            final raw = filters.furnishing!.trim();
+            params['furnishing'] =
+                furnishingKebabLower ? _furnishingToKebabLower(raw) : raw;
+          }
+
+          if (filters.facing != null && filters.facing!.isNotEmpty) {
+            params['facing'] = filters.facing!.trim().toLowerCase();
+          }
+
+          if (filters.possessionStatus != null &&
+              filters.possessionStatus!.isNotEmpty) {
+            final raw = filters.possessionStatus!;
+            params['possession_status'] = useLabelEncoding
+                ? _possessionStatusToLabel(raw)
+                : _possessionStatusToValue(raw);
+          }
+
+          if (filters.availabilityMonth != null &&
+              filters.availabilityMonth!.isNotEmpty) {
+            final monthInt = _monthNameToInt(filters.availabilityMonth!);
+            if (monthInt != null) {
+              params['availability_month'] = monthInt.toString();
+            }
+          }
+          if (filters.availabilityYear != null &&
+              filters.availabilityYear!.isNotEmpty) {
+            params['availability_year'] = filters.availabilityYear!;
+          }
+
+          if (filters.ageOfConstruction != null &&
+              filters.ageOfConstruction!.isNotEmpty) {
+            final raw = filters.ageOfConstruction!.first;
+            params['age_of_construction'] = useLabelEncoding
+                ? _ageOfConstructionToLabel(raw)
+                : _ageOfConstructionToValue(raw);
+          }
+
+          if (filters.storeRoom != null) {
+            params['store_room'] = filters.storeRoom! ? '1' : '0';
+          }
+          if (filters.servantRoom != null) {
+            params['servant_room'] = filters.servantRoom! ? '1' : '0';
           }
         }
-        if (filters.availabilityYear != null &&
-            filters.availabilityYear!.isNotEmpty) {
-          params['availability_year'] = filters.availabilityYear!;
-        }
-        if (filters.ageOfConstruction != null &&
-            filters.ageOfConstruction!.isNotEmpty) {
-          // Send comma-separated list of selected age-of-construction labels.
-          params['age_of_construction'] =
-              filters.ageOfConstruction!.join(',');
-        }
-        if (filters.storeRoom != null) params['store_room'] = filters.storeRoom! ? '1' : '0';
-        if (filters.servantRoom != null) params['servant_room'] = filters.servantRoom! ? '1' : '0';
+
+        return params;
       }
 
-      final uri = Uri.parse('$baseUrl/api/properties/').replace(queryParameters: params);
+      Future<List<Property>> fetchOnce(
+        Map<String, String> params, {
+        String? tag,
+      }) async {
+        final uri =
+            Uri.parse('$baseUrl/api/properties/').replace(queryParameters: params);
 
-      // ignore: avoid_print
-      print('🔎 SEARCH PROPERTIES URI: $uri');
+        // ignore: avoid_print
+        print(tag == null
+            ? '🔎 SEARCH PROPERTIES URI: $uri'
+            : '🔎 SEARCH PROPERTIES URI [$tag]: $uri');
 
-      final response = await http.get(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-      );
+        final response = await http.get(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+        );
 
-      // ignore: avoid_print
-      print('📥 SEARCH PROPERTIES RESPONSE: ${response.statusCode} ${response.body}');
+        // ignore: avoid_print
+        print('📥 SEARCH PROPERTIES RESPONSE: ${response.statusCode} ${response.body}');
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (response.statusCode != 200 && response.statusCode != 201) {
+          return [];
+        }
+
         final decoded = jsonDecode(response.body);
         dynamic list;
         if (decoded is List) {
@@ -386,44 +522,42 @@ class PropertyService {
           }
         }
 
-        List<Property> result = [];
         if (list is List) {
-          result = list
+          return list
               .whereType<Map<String, dynamic>>()
               .map((e) => Property.fromJson(e))
               .toList();
         }
 
-        // Fallback: if empty and we had strict filters, retry with relaxed filters
-        // (drop furnishing, possession, availability, age) so user sees some results
-        if (result.isEmpty &&
-            filters != null &&
-            (filters.furnishing != null ||
-                filters.possessionStatus != null ||
-                filters.availabilityMonth != null ||
-                filters.availabilityYear != null ||
-                (filters.ageOfConstruction != null &&
-                    filters.ageOfConstruction!.isNotEmpty))) {
-          final relaxed = filters.copyWith(
-            clearFurnishing: true,
-            clearPossessionStatus: true,
-            clearAvailabilityMonth: true,
-            clearAvailabilityYear: true,
-            clearAgeOfConstruction: true,
-          );
-          return searchProperties(
-            query: query,
-            filters: relaxed,
-            type: type,
-            page: page,
-            limit: limit,
-          );
-        }
-
-        return result;
+        return [];
       }
 
-      return [];
+      final hasSensitiveTextFilters = filters != null &&
+          ((filters!.furnishing != null && filters.furnishing!.isNotEmpty) ||
+              (filters.possessionStatus != null &&
+                  filters.possessionStatus!.isNotEmpty) ||
+              (filters.ageOfConstruction != null &&
+                  filters.ageOfConstruction!.isNotEmpty));
+
+      // Attempt 1: use "value" encoding (from filter API) + kebab-case furnishing
+      final res1 = await fetchOnce(
+        buildParams(useLabelEncoding: false, furnishingKebabLower: true),
+      );
+      if (res1.isNotEmpty || !hasSensitiveTextFilters) return res1;
+
+      // Attempt 2: use "label" encoding + raw furnishing
+      final res2 = await fetchOnce(
+        buildParams(useLabelEncoding: true, furnishingKebabLower: false),
+        tag: 'label',
+      );
+      if (res2.isNotEmpty) return res2;
+
+      // Attempt 3: label encoding + kebab furnishing (some backends store lowercase)
+      final res3 = await fetchOnce(
+        buildParams(useLabelEncoding: true, furnishingKebabLower: true),
+        tag: 'label+kebab',
+      );
+      return res3;
     } catch (e) {
       // ignore: avoid_print
       print('❌ SEARCH PROPERTIES ERROR: $e');

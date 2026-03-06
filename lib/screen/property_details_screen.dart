@@ -13,6 +13,8 @@ import 'package:hunt_property/models/property.dart';
 import 'package:hunt_property/repositories/property_repository.dart';
 import 'package:hunt_property/services/shortlist_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
+import 'package:hunt_property/services/auth_service.dart';
+import 'package:hunt_property/services/profile_service.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -202,6 +204,59 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     }
   }
 
+  Future<void> _handleContactOwner() async {
+    final formResult = await _showContactOwnerFormDialog(context);
+    if (formResult == null || !mounted) return;
+
+    final scaffold = ScaffoldMessenger.of(context);
+    final authService = AuthService();
+
+    // Step 1: Request OTP
+    final otpRes = await authService.requestOtp(formResult.phone);
+    if (otpRes['success'] != true) {
+      final msg = otpRes['error']?.toString() ?? 'Failed to send OTP';
+      scaffold.showSnackBar(SnackBar(content: Text(msg)));
+      return;
+    }
+
+    // Step 2: Verify OTP via dialog
+    final verified = await _showOtpDialog(context: context, phone: formResult.phone);
+    if (!verified || !mounted) return;
+
+    // Step 3: Fetch owner details using ownerId from property if available
+    String ownerName = 'Owner';
+    String ownerEmail = 'Not available';
+    String ownerPhone = 'Not available';
+
+    final ownerId = _currentProperty?.ownerId;
+    if (ownerId != null && ownerId.isNotEmpty) {
+      try {
+        final profileRes = await ProfileService().getProfile(ownerId);
+        if (profileRes['success'] == true) {
+          final data = profileRes['data'] as Map<String, dynamic>;
+          ownerName = (data['name'] ??
+                  data['full_name'] ??
+                  data['fullName'] ??
+                  data['username'] ??
+                  ownerName)
+              .toString();
+          ownerEmail =
+              (data['email'] ?? ownerEmail).toString();
+          ownerPhone =
+              (data['phone'] ?? data['phone_number'] ?? ownerPhone).toString();
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    await _showOwnerDetailsDialog(
+      context: context,
+      ownerName: ownerName,
+      ownerEmail: ownerEmail,
+      ownerPhone: ownerPhone,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
@@ -228,7 +283,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
             }
           },
         ),
-        bottomNavigationBar: buildBottomActionBar(),
+        bottomNavigationBar: _buildBottomActionBar(),
       ),
     );
   }
@@ -661,7 +716,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
           children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: () {},
+                onPressed: () {
+                  _showFraudAlertDialog(context);
+                },
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   side: const BorderSide(color: AppColors.primaryColor),
@@ -681,7 +738,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: ElevatedButton(
-                onPressed: () {},
+                onPressed: _handleContactOwner,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   backgroundColor: AppColors.primaryColor,
@@ -732,7 +789,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   }
 }
 
-Widget buildBottomActionBar() {
+Widget buildBottomActionBar(BuildContext context) {
   return Container(
     padding: const EdgeInsets.all(16),
     child: SafeArea(
@@ -741,7 +798,9 @@ Widget buildBottomActionBar() {
         children: [
           Expanded(
             child: OutlinedButton(
-              onPressed: () {},
+              onPressed: () {
+                _showFraudAlertDialog(context);
+              },
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 side: const BorderSide(color: AppColors.primaryColor),
@@ -782,6 +841,24 @@ Widget buildBottomActionBar() {
       ),
     ),
   );
+}
+
+class _ContactOwnerFormResult {
+  final String name;
+  final String email;
+  final String phone;
+  final String interestedIn;
+  final String userType; // individual | dealer
+  final bool allowSimilar;
+
+  _ContactOwnerFormResult({
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.interestedIn,
+    required this.userType,
+    required this.allowSimilar,
+  });
 }
 
 class _PropertyDetailsView extends StatefulWidget {
@@ -1232,6 +1309,777 @@ Widget _buildDescriptionItem(String label, String value) {
         ),
       ],
     ),
+  );
+}
+
+/// Fraud alert dialog matching the provided UI.
+Future<void> _showFraudAlertDialog(BuildContext context,
+    {String phoneNumber = '555-0199'}) async {
+  await showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (dialogCtx) {
+      bool agreed = false;
+      return StatefulBuilder(
+        builder: (ctx, setState) {
+          final bool canCall = agreed;
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const SizedBox(width: 24),
+                      Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF2FED9A),
+                            width: 2,
+                          ),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFFF1FFF7),
+                          ),
+                          child: const Icon(
+                            Icons.shield_outlined,
+                            color: Color(0xFFFE5B5B),
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        splashRadius: 20,
+                        onPressed: () => Navigator.of(dialogCtx).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Text(
+                        'Fraud Alert',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
+                        ),
+                      ),
+                      SizedBox(width: 6),
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        size: 20,
+                        color: Color(0xFFF59E0B),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Some owners or agents may ask\nfor advance payment before a property visit.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.4,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFBF2),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFFFE4B5)),
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Never pay any money before physically verifying the property.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Hunt Property does not control financial transactions outside our platform. '
+                          'Please exercise caution.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.4,
+                            color: AppColors.textLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Checkbox(
+                        value: agreed,
+                        activeColor: const Color(0xFF2FED9A),
+                        onChanged: (v) {
+                          setState(() {
+                            agreed = v ?? false;
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                      const Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 10),
+                          child: Text(
+                            'I understand and will not pay any\nadvance without verification',
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.4,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  AbsorbPointer(
+                    absorbing: !canCall,
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          if (!canCall) return;
+                          Navigator.of(dialogCtx).pop();
+                          await _launchPhoneCall(phoneNumber);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          backgroundColor: canCall
+                              ? const Color(0xFF2FED9A)
+                              : const Color(0xFFE5E7EB),
+                          foregroundColor:
+                              canCall ? Colors.white : const Color(0xFF9CA3AF),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          elevation: canCall ? 1 : 0,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.call, size: 18,color: AppColors.primaryColor,),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Call $phoneNumber',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Verified Contact',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: canCall
+                                        ? Colors.white.withOpacity(0.9)
+                                        : const Color(0xFF9CA3AF),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.check_circle,
+                                  size: 14,
+                                  color: canCall
+                                      ? Colors.white
+                                      : const Color(0xFF9CA3AF),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogCtx).pop(),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: AppColors.textDark,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+Future<void> _launchPhoneCall(String phoneNumber) async {
+  final uri = Uri(scheme: 'tel', path: phoneNumber);
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri);
+  }
+}
+
+Future<_ContactOwnerFormResult?> _showContactOwnerFormDialog(
+  BuildContext context,
+) async {
+  return showDialog<_ContactOwnerFormResult>(
+    context: context,
+    barrierDismissible: true,
+    builder: (dialogCtx) {
+      final nameController = TextEditingController();
+      final emailController = TextEditingController();
+      final phoneController = TextEditingController();
+      String selectedInterest = '';
+      String userType = 'individual';
+      bool allowSimilar = true;
+
+      final interests = <String>[
+        'Immediate Purchase',
+        'Site Visit',
+        'Home Loan',
+        'Vaastu',
+        'Interior',
+      ];
+
+      return StatefulBuilder(
+        builder: (ctx, setState) {
+          void submit() {
+            final name = nameController.text.trim();
+            final email = emailController.text.trim();
+            final phone = phoneController.text.trim();
+            if (name.isEmpty || email.isEmpty || phone.isEmpty) {
+              ScaffoldMessenger.of(dialogCtx).showSnackBar(
+                const SnackBar(content: Text('Please fill all required fields')),
+              );
+              return;
+            }
+            Navigator.of(dialogCtx).pop(
+              _ContactOwnerFormResult(
+                name: name,
+                email: email,
+                phone: phone,
+                interestedIn: selectedInterest,
+                userType: userType,
+                allowSimilar: allowSimilar,
+              ),
+            );
+          }
+
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Contact Owner',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        splashRadius: 20,
+                        onPressed: () => Navigator.of(dialogCtx).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Please share your details to contact the Owner.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textLight,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Email Address',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedInterest.isEmpty ? null : selectedInterest,
+                    decoration: const InputDecoration(
+                      labelText: 'Interested in (Optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: interests
+                        .map(
+                          (e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(e),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (val) {
+                      setState(() {
+                        selectedInterest = val ?? '';
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'You are',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              userType = 'individual';
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: userType == 'individual'
+                                    ? AppColors.primaryColor
+                                    : const Color(0xFFE5E7EB),
+                              ),
+                              color: userType == 'individual'
+                                  ? const Color(0xFFEBFFF6)
+                                  : Colors.white,
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Individual',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: userType == 'individual'
+                                      ? Colors.black
+                                      : AppColors.textDark,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              userType = 'dealer';
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: userType == 'dealer'
+                                    ? AppColors.primaryColor
+                                    : const Color(0xFFE5E7EB),
+                              ),
+                              color: userType == 'dealer'
+                                  ? const Color(0xFFEBFFF6)
+                                  : Colors.white,
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Dealer',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: userType == 'dealer'
+                                      ? Colors.black
+                                      : AppColors.textDark,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: allowSimilar,
+                        activeColor: AppColors.primaryColor,
+                        onChanged: (v) {
+                          setState(() {
+                            allowSimilar = v ?? false;
+                          });
+                        },
+                      ),
+                      const Expanded(
+                        child: Text(
+                          'I agree to be contacted for similar properties',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: submit,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: AppColors.primaryColor,
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
+                        'Get Owner Details',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+Future<bool> _showOtpDialog({
+  required BuildContext context,
+  required String phone,
+}) async {
+  return await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogCtx) {
+          final List<TextEditingController> ctrls =
+              List.generate(4, (_) => TextEditingController());
+          final List<FocusNode> nodes = List.generate(4, (_) => FocusNode());
+          bool isLoading = false;
+          String? errorText;
+
+          String getOtp() =>
+              ctrls.map((c) => c.text.trim()).join();
+
+          return StatefulBuilder(
+            builder: (ctx, setState) {
+              Future<void> submit() async {
+                final code = getOtp();
+                if (code.length != 4) {
+                  setState(() {
+                    errorText = 'Please enter 4-digit code';
+                  });
+                  return;
+                }
+                setState(() {
+                  isLoading = true;
+                  errorText = null;
+                });
+
+                final res = await AuthService().verifyOtp(phone, code);
+                if (res['success'] == true) {
+                  Navigator.of(dialogCtx).pop(true);
+                } else {
+                  setState(() {
+                    isLoading = false;
+                    errorText =
+                        res['error']?.toString() ?? 'Invalid OTP, please try again';
+                  });
+                }
+              }
+
+              Widget _otpBox(int index) {
+                return SizedBox(
+                  width: 46,
+                  child: TextField(
+                    controller: ctrls[index],
+                    focusNode: nodes[index],
+                    maxLength: 1,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    decoration: const InputDecoration(
+                      counterText: '',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (val) {
+                      if (val.length == 1 && index < 3) {
+                        nodes[index + 1].requestFocus();
+                      } else if (val.isEmpty && index > 0) {
+                        nodes[index - 1].requestFocus();
+                      }
+                    },
+                  ),
+                );
+              }
+
+              return Dialog(
+                insetPadding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const SizedBox(width: 24),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Color(0xFFF1FFF7),
+                            ),
+                            child: const Icon(
+                              Icons.shield_outlined,
+                              color: AppColors.primaryColor,
+                              size: 24,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 20),
+                            splashRadius: 20,
+                            onPressed: () => Navigator.of(dialogCtx).pop(false),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Center(
+                        child: Text(
+                          'Verify OTP',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Enter the 4-digit code sent to $phone',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: List.generate(4, _otpBox),
+                      ),
+                      if (errorText != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          errorText!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: isLoading ? null : submit,
+                          style: ElevatedButton.styleFrom(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 14),
+                            backgroundColor: AppColors.primaryColor,
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: isLoading
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  'Verify Code',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () async {
+                          // re-send OTP
+                          await AuthService().requestOtp(phone);
+                          ScaffoldMessenger.of(dialogCtx).showSnackBar(
+                            const SnackBar(
+                                content: Text('OTP resent successfully')),
+                          );
+                        },
+                        child: const Text(
+                          'RESEND OTP',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ) ??
+      false;
+}
+
+Future<void> _showOwnerDetailsDialog({
+  required BuildContext context,
+  required String ownerName,
+  required String ownerEmail,
+  required String ownerPhone,
+}) async {
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (dialogCtx) {
+      return Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Property Info',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    splashRadius: 18,
+                    onPressed: () => Navigator.of(dialogCtx).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Name : $ownerName',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Email id : $ownerEmail',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Mobile No : $ownerPhone',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
   );
 }
 

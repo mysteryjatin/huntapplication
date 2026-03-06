@@ -13,7 +13,13 @@ class PropertyRepository {
     final response = await http.get(url);
 
     if (response.statusCode == 200) {
-      final Map<String, dynamic> data = json.decode(response.body) as Map<String, dynamic>;
+      // Debug: print raw API response in console
+      // ignore: avoid_print
+      print(
+          '📥 FETCH PROPERTY [$propertyId] RESPONSE: ${response.statusCode} ${response.body}');
+
+      final Map<String, dynamic> data =
+          json.decode(response.body) as Map<String, dynamic>;
       return Property.fromJson(data);
     } else {
       throw Exception('Failed to load property (${response.statusCode})');

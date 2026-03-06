@@ -49,7 +49,8 @@ class _FilterScreenState extends State<FilterScreen> {
   List<Map<String, dynamic>> _availabilityMonths = [];
   List<int> _availabilityYears = [];
   List<Map<String, String>> _ageOfConstructionOptions = [];
-  String? _selectedFurnishing;
+  // Furnishing now supports multi‑select
+  final Set<String> _selectedFurnishings = {};
 
   static const Color kGreen = Color(0xFF2FED9A);
   static const Color kBorderGrey = Color(0xFFD1D1D1);
@@ -59,6 +60,74 @@ class _FilterScreenState extends State<FilterScreen> {
   // RENT: allow monthly rent slider up to 10 Lacs
   static const int RENT_CAP_LACS = 10;
   static const int AREA_CAP_SQFT = 4000;
+
+  int _prettyScore(String s) {
+    final hasUpper = RegExp(r'[A-Z]').hasMatch(s);
+    final hasLower = RegExp(r'[a-z]').hasMatch(s);
+    if (hasUpper && hasLower) return 3; // "Villa", "Semi-furnished"
+    if (hasLower) return 2; // "residential"
+    if (hasUpper) return 1; // "VILLA"
+    return 0;
+  }
+
+  List<String> _dedupePrettyStrings(List<String> input) {
+    final out = <String>[];
+    final indexByKey = <String, int>{};
+    final scoreByKey = <String, int>{};
+
+    for (final raw in input) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) continue;
+      final key = trimmed.toLowerCase();
+      final score = _prettyScore(trimmed);
+
+      final existingIndex = indexByKey[key];
+      if (existingIndex == null) {
+        indexByKey[key] = out.length;
+        scoreByKey[key] = score;
+        out.add(trimmed);
+        continue;
+      }
+
+      final bestScore = scoreByKey[key] ?? -1;
+      if (score > bestScore) {
+        out[existingIndex] = trimmed;
+        scoreByKey[key] = score;
+      }
+    }
+
+    return out;
+  }
+
+  List<FilterLocality> _dedupePrettyLocalities(List<FilterLocality> input) {
+    final out = <FilterLocality>[];
+    final indexByKey = <String, int>{};
+    final scoreByKey = <String, int>{};
+
+    for (final loc in input) {
+      final v = loc.value.trim();
+      final c = loc.city.trim();
+      if (v.isEmpty && c.isEmpty) continue;
+      final key = '${c.toLowerCase()}|${v.toLowerCase()}';
+      final score = _prettyScore(c) * 10 + _prettyScore(v);
+
+      final existingIndex = indexByKey[key];
+      if (existingIndex == null) {
+        indexByKey[key] = out.length;
+        scoreByKey[key] = score;
+        out.add(FilterLocality(value: v, city: c));
+        continue;
+      }
+
+      final bestScore = scoreByKey[key] ?? -1;
+      if (score > bestScore) {
+        out[existingIndex] = FilterLocality(value: v, city: c);
+        scoreByKey[key] = score;
+      }
+    }
+
+    return out;
+  }
 
   @override
   void initState() {
@@ -101,13 +170,13 @@ class _FilterScreenState extends State<FilterScreen> {
           final areaMax = data.areaRange.max;
 
           setState(() {
-            _transactionTypes = data.transactionTypes;
-            _propertyCategories = data.propertyCategories;
-            _propertySubtypes = data.propertySubtypes;
-            _furnishingOptions = data.furnishingOptions;
-            _facingOptions = data.facingOptions;
-            _cities = data.cities;
-            _localities = data.localities;
+            _transactionTypes = _dedupePrettyStrings(data.transactionTypes);
+            _propertyCategories = _dedupePrettyStrings(data.propertyCategories);
+            _propertySubtypes = _dedupePrettyStrings(data.propertySubtypes);
+            _furnishingOptions = _dedupePrettyStrings(data.furnishingOptions);
+            _facingOptions = _dedupePrettyStrings(data.facingOptions);
+            _cities = _dedupePrettyStrings(data.cities);
+            _localities = _dedupePrettyLocalities(data.localities);
 
             // Apply backend values, normalize units (API may return rupees or lacs).
             // Heuristic: if pmax >= 100000 treat incoming values as rupees, else treat as Lacs.
@@ -180,7 +249,9 @@ class _FilterScreenState extends State<FilterScreen> {
                 final f = init.furnishing!.trim().toLowerCase().replaceAll(' ', '-');
                 for (final opt in _furnishingOptions) {
                   if (opt.trim().toLowerCase().replaceAll(' ', '-') == f) {
-                    _selectedFurnishing = opt;
+                    _selectedFurnishings
+                      ..clear()
+                      ..add(opt);
                     break;
                   }
                 }
@@ -211,9 +282,21 @@ class _FilterScreenState extends State<FilterScreen> {
               if (init.availabilityYear != null && init.availabilityYear!.isNotEmpty) {
                 _selectedYear = int.tryParse(init.availabilityYear!.trim());
               }
-              if (init.ageOfConstruction != null && init.ageOfConstruction!.isNotEmpty) {
+              if (init.ageOfConstruction != null &&
+                  init.ageOfConstruction!.isNotEmpty) {
+                // init.ageOfConstruction holds backend *values* (e.g. "new_construction")
+                // but UI stores/compares user-facing labels in _selectedConstruction.
                 _selectedConstruction.clear();
-                _selectedConstruction.addAll(init.ageOfConstruction!);
+                for (final v in init.ageOfConstruction!) {
+                  for (final m in _ageOfConstructionOptions) {
+                    if ((m['value'] ?? '').toString() == v) {
+                      final label = (m['label'] ?? '').toString();
+                      if (label.isNotEmpty) {
+                        _selectedConstruction.add(label);
+                      }
+                    }
+                  }
+                }
               }
             }
           });
@@ -521,9 +604,15 @@ class _FilterScreenState extends State<FilterScreen> {
       spacing: 8,
       runSpacing: 8,
       children: _furnishingOptions.map((f) {
-        final selected = _selectedFurnishing == f;
+        final selected = _selectedFurnishings.contains(f);
         return GestureDetector(
-          onTap: () => setState(() => _selectedFurnishing = selected ? null : f),
+          onTap: () => setState(() {
+            if (selected) {
+              _selectedFurnishings.remove(f);
+            } else {
+              _selectedFurnishings.add(f);
+            }
+          }),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
@@ -531,7 +620,11 @@ class _FilterScreenState extends State<FilterScreen> {
               borderRadius: BorderRadius.circular(30),
               border: Border.all(color: selected ? kGreen : kBorderGrey),
             ),
-            child: Text(f, style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black)),
+            child: Text(
+              f,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w600, color: Colors.black),
+            ),
           ),
         );
       }).toList(),
@@ -853,11 +946,31 @@ class _FilterScreenState extends State<FilterScreen> {
                     availabilityMonthValue ??= _selectedMonth;
                   }
 
-                  // Backend stores age_of_construction as label (e.g. "Less than 5 yrs")
-                  // so send labels, not values
-                  List<String>? ageForSearch = _selectedConstruction.isNotEmpty
-                      ? _selectedConstruction.toList()
-                      : null;
+                  // Map selected age-of-construction labels -> backend values
+                  List<String>? ageForSearch;
+                  if (_selectedConstruction.isNotEmpty) {
+                    final values = <String>[];
+                    for (final label in _selectedConstruction) {
+                      for (final m in _ageOfConstructionOptions) {
+                        final optLabel = (m['label'] ?? '').toString();
+                        if (optLabel == label) {
+                          final v = (m['value'] ?? '').toString();
+                          if (v.isNotEmpty) values.add(v);
+                          break;
+                        }
+                      }
+                    }
+                    if (values.isNotEmpty) {
+                      ageForSearch = values;
+                    }
+                  }
+
+                  // Furnishing: multi‑select UI, but backend currently supports
+                  // a single value. For now, send the first selected option.
+                  String? furnishingForSearch;
+                  if (_selectedFurnishings.isNotEmpty) {
+                    furnishingForSearch = _selectedFurnishings.first;
+                  }
 
                   final selection = FilterSelection(
                     category: _selectedCategory,
@@ -868,7 +981,7 @@ class _FilterScreenState extends State<FilterScreen> {
                     areaMax: areaMax,
                     bedrooms: bedroomCount,
                     bedroomsList: bedroomsList,
-                    furnishing: _selectedFurnishing,
+                    furnishing: furnishingForSearch,
                     possessionStatus: possessionValue,
                     availabilityMonth: availabilityMonthValue,
                     availabilityYear:
@@ -901,7 +1014,7 @@ class _FilterScreenState extends State<FilterScreen> {
       _selectedYear = null;
       _selectedConstruction.clear();
       _selectedPossessionStatus = null;
-      _selectedFurnishing = null;
+      _selectedFurnishings.clear();
     });
     _loadFilters();
   }

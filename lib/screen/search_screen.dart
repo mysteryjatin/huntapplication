@@ -68,6 +68,10 @@ class _SearchScreenState extends State<SearchScreen> {
         _searchResults.clear();
         _isSearching = false;
       });
+      // User ne search text clear kar diya -> keyboard bhi hide kar do
+      if (_searchFocusNode.hasFocus) {
+        _searchFocusNode.unfocus();
+      }
       return;
     }
 
@@ -134,19 +138,15 @@ class _SearchScreenState extends State<SearchScreen> {
           return;
         }
 
-        // Debug log: print final results being shown in UI
-        // Helpful to verify filters like "2bhk" etc.
-        // ignore: avoid_print
-        print('🔎 FINAL SEARCH RESULTS (${results.length}) for "$currentText" (bhk=$bhk):');
-        for (final p in results) {
-          // ignore: avoid_print
-          print(' • ${p.title} | bedrooms=${p.bedrooms} | city=${p.city}');
-        }
-
         setState(() {
           _searchResults = results;
           _isSearching = false;
         });
+
+        // As soon as search complete and list updated, keyboard hide kar do
+        if (_searchFocusNode.hasFocus) {
+          _searchFocusNode.unfocus();
+        }
       } catch (e) {
         // ignore: avoid_print
         print('❌ SEARCH FAILED: $e');
@@ -189,10 +189,14 @@ class _SearchScreenState extends State<SearchScreen> {
       return _buildSearchResults();
     }
 
-    if (_searchController.text.isNotEmpty) {
+    // Agar search text ya active filters hain, lekin result 0 hai,
+    // to "No property found" dikhana hai.
+    final hasFilters = _activeFilters?.hasAnyFilter ?? false;
+    if (_searchController.text.isNotEmpty || hasFilters) {
       return _buildNotFoundScreen();
     }
 
+    // No query, no filters, no results -> kuch bhi mat dikhao
     return const SizedBox.shrink();
   }
 
@@ -211,7 +215,9 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _propertyItem(Property property) {
     // Prepare display values
     final imageUrl = property.images.isNotEmpty ? property.images.first : null;
-    final priceText = (property.price is num && property.price > 0) ? '₹ ${NumberFormat('#,###').format(property.price)}' : '₹ 0';
+    final priceText = (property.price is num && property.price > 0)
+        ? '₹ ${NumberFormat('#,###').format(property.price)}'
+        : '₹ 0';
     final dateText = property.postedAt != null ? DateFormat('dd MMM yyyy').format(property.postedAt!) : '';
     final location = '${property.locality}${property.city.isNotEmpty ? ', ${property.city}' : ''}';
 
@@ -256,7 +262,17 @@ class _SearchScreenState extends State<SearchScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Text(property.title.isNotEmpty ? property.title : 'Flat in best offer', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                        child: Text(
+                            // Prefer structured bedrooms field for BHK label to avoid mismatch
+                            property.bedrooms > 0
+                                ? '${property.bedrooms} BHK'
+                                : (property.title.isNotEmpty
+                                    ? property.title
+                                    : 'Flat in best offer'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w600)),
                       ),
                       const Icon(Icons.favorite_border, size: 18, color: Colors.black54),
                     ],

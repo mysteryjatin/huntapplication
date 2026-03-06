@@ -33,7 +33,6 @@ class _FinancialCalculatorsScreenState extends State<FinancialCalculatorsScreen>
     final current = _tabController.index;
     if (current != _prevTabIndex) {
       _prevTabIndex = current;
-      context.read<FinancialCalculatorsCubit>().resetAll();
       setState(() => _tabResetTrigger++);
     }
   }
@@ -268,6 +267,8 @@ class _LoanEligibilityTabState extends State<LoanEligibilityTab> {
       _tenureYears.clear();
       _tenureMonths.clear();
       _rate.clear();
+      // Clear any previous calculator results when switching tabs
+      context.read<FinancialCalculatorsCubit>().resetAll();
     }
   }
 
@@ -566,6 +567,7 @@ class _RentalValueTabState extends State<RentalValueTab> {
       _propertyValue.clear();
       _years.clear();
       _rate.clear();
+      context.read<FinancialCalculatorsCubit>().resetAll();
     }
   }
 
@@ -739,6 +741,7 @@ class _FutureValueTabState extends State<FutureValueTab> {
       _currentValue.clear();
       _years.clear();
       _appreciation.clear();
+      context.read<FinancialCalculatorsCubit>().resetAll();
     }
   }
 
@@ -901,6 +904,7 @@ class _EmiTabState extends State<EmiTab> {
       _loanAmount.clear();
       _tenure.clear();
       _rate.clear();
+      context.read<FinancialCalculatorsCubit>().resetAll();
     }
   }
 

@@ -174,7 +174,7 @@ class FilterSelection {
   final String? availabilityMonth;
   // e.g. "2026"
   final String? availabilityYear;
-  // Age-of-construction selected labels, e.g. ["New Construction", "5 to 10 Years"]
+  // Age-of-construction backend values, e.g. ["new_construction", "5_to_10_years"]
   final List<String>? ageOfConstruction;
 
   final num? budgetMin;
