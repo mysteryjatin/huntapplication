@@ -68,7 +68,7 @@ class Property {
     }
 
     return Property(
-      id: json['_id'] as String,
+      id: json['_id']?.toString() ?? '',
       title: json['title'] as String? ?? '',
       description: json['description'] as String? ?? '',
       transactionType: json['transaction_type'] as String? ?? '',

@@ -75,6 +75,7 @@ class _HomeScreenState extends State<HomeScreen>
   String _selectedCity = '';
   String _selectedState = '';
   bool _isLoadingProperties = false;
+  bool _isAutoLocation = true;
 
   // Simple state → cities mapping for location picker (subset of Indian cities)
   final List<String> _states = const [
@@ -194,12 +195,15 @@ class _HomeScreenState extends State<HomeScreen>
     if (c != null && c.isNotEmpty) {
       setState(() {
         _selectedCity = c;
+        _isAutoLocation = false;
       });
     }
 
-    // Har app launch par try karo current location detect karne ka.
-    // Agar permission deny ho ya detect fail ho, to stored city hi rahegi.
-    await _detectUserCity();
+    // Har app launch par try karo current location detect karne ka,
+    // sirf tab jab user ne manually location override nahi kiya ho.
+    if (_isAutoLocation) {
+      await _detectUserCity();
+    }
   }
 
   bool _cityMatches(String propertyCity, String selectedCity) {
@@ -322,6 +326,7 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() {
         _selectedCity = cityName;
         _selectedState = stateName;
+        _isAutoLocation = true;
       });
       await StorageService.saveSelectedCity(cityName);
 
@@ -492,6 +497,7 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() {
         _selectedCity = newCity;
         _selectedState = newState;
+        _isAutoLocation = false;
       });
 
       // Update latest list immediately for selected city
@@ -1956,11 +1962,18 @@ class _PropertyCardState extends State<_PropertyCard> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
+        final id = widget.propertyId ?? '';
+        if (id.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Property details not available')),
+          );
+          return;
+        }
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => PropertyDetailsScreen(
-              propertyId: widget.propertyId ?? '',
+              propertyId: id,
               initialIsFavorite: _isFavorite,
             ),
           ),

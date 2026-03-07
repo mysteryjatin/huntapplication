@@ -240,8 +240,9 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
 
   String _ownershipType = "Freehold";
 
-  // Preview label for Expected Price (e.g. "₹ 50 Lac")
+  // Preview labels for price fields (e.g. "₹ 50 Lac")
   String _expectedPricePreview = '';
+  String _bookingAmountPreview = '';
 
   final _expectedPriceController = TextEditingController();
   final _bookingAmountController = TextEditingController();
@@ -1252,6 +1253,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   }
 
   // Convert number to words using Indian system (Thousand / Lakh / Crore)
+  // Supports values comfortably beyond 300 Crore.
   String _numberToWordsIndian(int number) {
     if (number == 0) return 'Zero';
 
@@ -1311,7 +1313,13 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
 
     final crore = number ~/ 10000000;
     if (crore > 0) {
-      parts.add('${twoDigits(crore)} Crore');
+      // Use threeDigits so we can represent values like
+      // "One Hundred Crore", "Three Hundred Crore" etc.
+      if (crore < 100) {
+        parts.add('${twoDigits(crore)} Crore');
+      } else {
+        parts.add('${threeDigits(crore)} Crore');
+      }
       number %= 10000000;
     }
 
@@ -1376,7 +1384,28 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Booking Amount"),
         const SizedBox(height: 8),
-        _textField(_bookingAmountController, hint: "Enter booking amount", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
+        _textField(
+          _bookingAmountController,
+          hint: "Enter booking amount",
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (v) {
+            setState(() {
+              _bookingAmountPreview = _formatExpectedPriceLabel(v);
+            });
+          },
+        ),
+        if (_bookingAmountPreview.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            _bookingAmountPreview,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
         const SizedBox(height: _rowGap),
       ]);
     }
