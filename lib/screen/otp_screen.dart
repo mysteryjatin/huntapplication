@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/cubit/auth_cubit.dart';
+import 'package:sms_autofill/sms_autofill.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   const OtpVerificationScreen({super.key});
@@ -11,7 +12,8 @@ class OtpVerificationScreen extends StatefulWidget {
   State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
 }
 
-class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
+class _OtpVerificationScreenState extends State<OtpVerificationScreen>
+    with CodeAutoFill {
   final List<TextEditingController> _codes =
       List.generate(6, (_) => TextEditingController());
 
@@ -24,6 +26,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   void initState() {
     super.initState();
     _startTimer();
+    listenForCode(); // from CodeAutoFill mixin
     // Get phone number from arguments and check current state
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final args = ModalRoute.of(context)?.settings.arguments;
@@ -56,11 +59,23 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   @override
+  void codeUpdated() {
+    final code = this.code;
+    if (code == null || code.length < _codes.length) return;
+    for (var i = 0; i < _codes.length; i++) {
+      _codes[i].text = code[i];
+    }
+    // Automatically verify once all digits are filled
+    _verify();
+  }
+
+  @override
   void dispose() {
     for (final c in _codes) {
       c.dispose();
     }
     _timer?.cancel();
+    cancel(); // from CodeAutoFill mixin
     super.dispose();
   }
 
@@ -167,13 +182,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
               const SizedBox(height: 100),
 
-              /// OTP BOXES — FIXED, NO OVERLAP
+              /// OTP BOXES — SAME UI, WITH AUTO-FILL
               AutofillGroup(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: List.generate(
                     6,
-                        (i) => _OtpBox(controller: _codes[i]),
+                    (i) => _OtpBox(controller: _codes[i]),
                   ),
                 ),
               ),
@@ -290,7 +305,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 }
 
-/// PERFECT OTP BOX (no overflow)
+/// PERFECT OTP BOX (no overflow) - UI unchanged
 class _OtpBox extends StatelessWidget {
   final TextEditingController controller;
   const _OtpBox({required this.controller});
@@ -312,7 +327,6 @@ class _OtpBox extends StatelessWidget {
         controller: controller,
         maxLength: 1,
         keyboardType: TextInputType.number,
-        // Enable platform autofill for one-time codes (iOS & Android)
         autofillHints: const [AutofillHints.oneTimeCode],
         textAlign: TextAlign.center,
         style: const TextStyle(

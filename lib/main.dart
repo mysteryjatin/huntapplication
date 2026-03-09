@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:sms_autofill/sms_autofill.dart';
 import 'package:hunt_property/cubit/auth_cubit.dart';
 import 'package:hunt_property/screen/add_post_screen.dart';
 import 'package:hunt_property/screen/add_post_step2_screen.dart';
@@ -30,6 +31,14 @@ import 'package:hunt_property/models/property_models.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  
+  // TEMP: Print SMS app signature for OTP auto-fill setup
+  try {
+    final sig = await SmsAutoFill().getAppSignature;
+    print('📌 APP SIGNATURE (give this to backend for SMS template): $sig');
+  } catch (e) {
+    print('❌ Failed to get app signature: $e');
+  }
   
   // Load environment variables from .env file
   try {

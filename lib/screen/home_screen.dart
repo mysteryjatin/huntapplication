@@ -76,6 +76,7 @@ class _HomeScreenState extends State<HomeScreen>
   String _selectedState = '';
   bool _isLoadingProperties = false;
   bool _isAutoLocation = true;
+  int _autoLocationRequestId = 0; // invalidates in-flight GPS detection when user selects manually
 
   // Simple state → cities mapping for location picker (subset of Indian cities)
   final List<String> _states = const [
@@ -196,7 +197,10 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() {
         _selectedCity = c;
         _isAutoLocation = false;
+        _autoLocationRequestId++; // invalidate any in-flight auto-detect
       });
+      // Saved city exists → do NOT run GPS auto-detect on startup
+      return;
     }
 
     // Har app launch par try karo current location detect karne ka,
@@ -279,6 +283,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// Detect user's current city from GPS once, and use it as the default city
   /// for home screen. If permission denied or lookup fails, keep existing city.
   Future<void> _detectUserCity() async {
+    final int requestId = ++_autoLocationRequestId;
     try {
       LocationPermission perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) {
@@ -322,7 +327,8 @@ class _HomeScreenState extends State<HomeScreen>
       final cityName = detectedCity.trim();
       final stateName = detectedState?.trim() ?? '';
 
-      if (!mounted) return;
+      // If user has manually selected a city while GPS was in-flight, ignore GPS result.
+      if (!mounted || !_isAutoLocation || requestId != _autoLocationRequestId) return;
       setState(() {
         _selectedCity = cityName;
         _selectedState = stateName;
@@ -367,11 +373,26 @@ class _HomeScreenState extends State<HomeScreen>
     String? tempState = _selectedState.isNotEmpty ? _selectedState : null;
     String? tempCity = _selectedCity.isNotEmpty ? _selectedCity : null;
 
+    // If the current state (from GPS / backend) is not in our predefined list,
+    // clear it so DropdownButtonFormField doesn't throw (value must be in items).
+    if (tempState != null && tempState!.trim().isNotEmpty) {
+      final normalized = tempState!.trim().toLowerCase();
+      final match = _states.where((s) => s.toLowerCase() == normalized).toList();
+      tempState = match.isNotEmpty ? match.first : null;
+    }
+
     final res = await showDialog<Map<String, String>>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setStateDialog) {
           final stateItems = List<String>.from(_states)..sort();
+
+          // Re-validate state inside dialog (because stateItems is the actual source).
+          if (tempState != null &&
+              !stateItems.any((s) => s.toLowerCase() == tempState!.toLowerCase())) {
+            tempState = null;
+          }
+
           final cityItems = tempState != null
               ? (() {
                   final list = List<String>.from(_citiesByState[tempState] ?? []);
@@ -498,6 +519,7 @@ class _HomeScreenState extends State<HomeScreen>
         _selectedCity = newCity;
         _selectedState = newState;
         _isAutoLocation = false;
+        _autoLocationRequestId++; // stop/ignore any in-flight GPS auto-detect
       });
 
       // Update latest list immediately for selected city
@@ -662,6 +684,7 @@ class _HomeScreenState extends State<HomeScreen>
           onCategorySelected: (i) => _onCategorySelected(i),
           selectedCity: _selectedCity,
           selectedState: _selectedState,
+          showCurrentLocationLabel: _isAutoLocation,
           onLocationTap: _selectCityDialog,
         ),
 
@@ -1124,6 +1147,7 @@ class _HeaderArea extends StatelessWidget {
   final Function(int) onCategorySelected;
   final String selectedCity;
   final String selectedState;
+  final bool showCurrentLocationLabel;
   final VoidCallback onLocationTap;
 
   const _HeaderArea({
@@ -1138,6 +1162,7 @@ class _HeaderArea extends StatelessWidget {
     required this.onCategorySelected,
     required this.selectedCity,
     required this.selectedState,
+    required this.showCurrentLocationLabel,
     required this.onLocationTap,
   });
 
@@ -1222,15 +1247,17 @@ class _HeaderArea extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Current location',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textLight,
-                          fontWeight: FontWeight.w500,
+                      if (showCurrentLocationLabel) ...[
+                        const Text(
+                          'Current location',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textLight,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
+                        const SizedBox(height: 2),
+                      ],
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [

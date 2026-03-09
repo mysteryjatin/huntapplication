@@ -890,8 +890,14 @@ class _PropertyDetailsViewState extends State<_PropertyDetailsView> {
       // API provides [longitude, latitude]
       final double lng = coords[0];
       final double lat = coords[1];
-      _latLng = LatLng(lat, lng);
-      debugPrint('Property coords parsed: lat=$lat, lng=$lng');
+      // Treat (0,0) as invalid - Google Map on iOS can crash with null island
+      final bool isValid = (lat != 0.0 || lng != 0.0);
+      if (isValid) {
+        _latLng = LatLng(lat, lng);
+        debugPrint('Property coords parsed: lat=$lat, lng=$lng');
+      } else {
+        debugPrint('Property coords ignored (0,0) for ${widget.property.id}');
+      }
     } else {
       debugPrint('No geo coordinates for property ${widget.property.id}');
     }
