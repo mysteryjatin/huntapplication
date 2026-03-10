@@ -81,5 +81,8 @@
 	<!-- Location usage description for detecting user's location -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>We need your location to detect the property location.</string>
+	<!-- Push notification usage description -->
+	<key>NSUserNotificationUsageDescription</key>
+	<string>We use notifications to send you important property updates and offers.</string>
 </dict>
 </plist>

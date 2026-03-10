@@ -40,6 +40,7 @@ import 'package:hunt_property/screen/sidemenu_screen/legal_advisory_screen.dart'
 import 'package:hunt_property/screen/sidemenu_screen/nri_center_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/rera_service_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/search_agent_screen.dart';
+import 'package:hunt_property/repositories/notification_repository.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -77,6 +78,8 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isLoadingProperties = false;
   bool _isAutoLocation = true;
   int _autoLocationRequestId = 0; // invalidates in-flight GPS detection when user selects manually
+  int _unreadNotificationCount = 0;
+  final NotificationRepository _notificationRepository = NotificationRepository();
 
   // Simple state → cities mapping for location picker (subset of Indian cities)
   final List<String> _states = const [
@@ -189,6 +192,17 @@ class _HomeScreenState extends State<HomeScreen>
     _loadSelectedCity();
     _initHomeCubit();
     _loadFavorites(); // ensure favorites loaded when home opens
+    _loadUnreadNotifications();
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    final userId = await StorageService.getUserId();
+    if (userId == null || userId.isEmpty) return;
+    final count = await _notificationRepository.getUnreadCount(userId);
+    if (!mounted) return;
+    setState(() {
+      _unreadNotificationCount = count;
+    });
   }
 
   Future<void> _loadSelectedCity() async {
@@ -686,6 +700,16 @@ class _HomeScreenState extends State<HomeScreen>
           selectedState: _selectedState,
           showCurrentLocationLabel: _isAutoLocation,
           onLocationTap: _selectCityDialog,
+          unreadNotificationCount: _unreadNotificationCount,
+          onNotificationTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const NotificationScreen(),
+              ),
+            );
+            await _loadUnreadNotifications();
+          },
         ),
 
         /// ALL CONTENT — category list view for Projects/Residential/Commercial
@@ -1149,6 +1173,8 @@ class _HeaderArea extends StatelessWidget {
   final String selectedState;
   final bool showCurrentLocationLabel;
   final VoidCallback onLocationTap;
+  final int unreadNotificationCount;
+  final Future<void> Function()? onNotificationTap;
 
   const _HeaderArea({
     required this.scaffoldKey,
@@ -1164,6 +1190,8 @@ class _HeaderArea extends StatelessWidget {
     required this.selectedState,
     required this.showCurrentLocationLabel,
     required this.onLocationTap,
+    required this.unreadNotificationCount,
+    this.onNotificationTap,
   });
 
   @override
@@ -1195,13 +1223,17 @@ class _HeaderArea extends StatelessWidget {
                   ),
                   const Spacer(),
                   InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const NotificationScreen(),
-                        ),
-                      );
+                    onTap: () async {
+                      if (onNotificationTap != null) {
+                        await onNotificationTap!();
+                      } else {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const NotificationScreen(),
+                          ),
+                        );
+                      }
                     },
                     child: Stack(
                       children: [
@@ -1210,25 +1242,28 @@ class _HeaderArea extends StatelessWidget {
                           size: 26,
                           color: Colors.black,
                         ),
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Text(
-                              '0',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
+                        if (unreadNotificationCount > 0)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                unreadNotificationCount > 99
+                                    ? '99+'
+                                    : unreadNotificationCount.toString(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                   )
