@@ -26,6 +26,7 @@ import 'package:hunt_property/services/profile_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 
 import 'sidemenu_screen/order_history_screen.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 class SideMenuScreen extends StatefulWidget {
   final Function(int)? onMenuItemSelected;
@@ -462,32 +463,33 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
                         children: [
                           _buildSocialIcon(
                             svgPath: 'assets/icons/facebook.svg',
-                            onTap: () {},
+                            url: 'https://www.facebook.com/LetsHuntProperty/',
                           ),
                           const SizedBox(width: 12),
                           _buildSocialIcon(
                             svgPath: 'assets/icons/youtube.svg',
-                            onTap: () {},
+                            url: 'https://x.com/thehuntproperty?s=21',
                           ),
                           const SizedBox(width: 12),
                           _buildSocialIcon(
                             svgPath: 'assets/icons/linklnd.svg',
-                            onTap: () {},
+                            url:
+                                'https://www.linkedin.com/company/hunt-propert/?viewAsMember=true',
                           ),
                           const SizedBox(width: 12),
                           _buildSocialIcon(
                             svgPath: 'assets/icons/instagram.svg',
-                            onTap: () {},
+                            url: 'https://www.instagram.com/huntpropertyindia/',
                           ),
                           const SizedBox(width: 12),
                           _buildSocialIcon(
                             svgPath: 'assets/icons/whatsapp.svg',
-                            onTap: () {},
+                            url: 'https://wa.me/',
                           ),
                           const SizedBox(width: 12),
                           _buildSocialIcon(
                             svgPath: 'assets/icons/twitter.svg',
-                            onTap: () {},
+                            url: 'https://x.com/thehuntproperty?s=21',
                           ),
                         ],
                       ),
@@ -818,25 +820,37 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
 
   Widget _buildSocialIcon({
     required String svgPath,
-    required VoidCallback onTap,
+    required String url,
   }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () async {
+        await launchUrlString(url);
+      },
       child: Container(
-        width: 36,
-        height: 36,
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: Colors.grey[100],
+          color: Colors.grey[200],
         ),
         child: Center(
-          child: SvgPicture.asset(
-            svgPath,
-            width: 20,
-            height: 20,
-            colorFilter: const ColorFilter.mode(
-              Colors.black,
-              BlendMode.srcIn,
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.black,
+            ),
+            child: Center(
+              child: SvgPicture.asset(
+                svgPath,
+                width: 16,
+                height: 16,
+                colorFilter: const ColorFilter.mode(
+                  Colors.white,
+                  BlendMode.srcIn,
+                ),
+              ),
             ),
           ),
         ),
@@ -906,4 +920,261 @@ Widget sectionDivider() {
     height: 10,
     color: const Color(0xFFEDEDED), // light grey
   );
+}
+
+/// Custom curved bottom navigation bar inspired by provided design screenshot.
+///
+/// Usage example (wrap inside any `Scaffold`):
+/// ```dart
+/// Scaffold(
+///   body: _pages[_currentIndex],
+///   bottomNavigationBar: CurvedBottomNavBar(
+///     currentIndex: _currentIndex,
+///     onTap: (index) => setState(() => _currentIndex = index),
+///   ),
+/// );
+/// ```
+class CurvedBottomNavBar extends StatefulWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  const CurvedBottomNavBar({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+  });
+
+  @override
+  State<CurvedBottomNavBar> createState() => _CurvedBottomNavBarState();
+}
+
+class _CurvedBottomNavBarState extends State<CurvedBottomNavBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late Animation<double> _elevationAnimation;
+  late Animation<double> _positionAnimation;
+  late double _currentIndexAsDouble;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndexAsDouble = widget.currentIndex.toDouble();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    );
+    final curve = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOutCubic,
+    );
+    _elevationAnimation = curve;
+    _positionAnimation = Tween<double>(
+      begin: _currentIndexAsDouble,
+      end: _currentIndexAsDouble,
+    ).animate(curve);
+    _controller.forward();
+  }
+
+  @override
+  void didUpdateWidget(CurvedBottomNavBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentIndex != widget.currentIndex) {
+      final newIndex = widget.currentIndex.toDouble();
+      _positionAnimation = Tween<double>(
+        begin: _positionAnimation.value,
+        end: newIndex,
+      ).animate(
+        CurvedAnimation(
+          parent: _controller,
+          curve: Curves.easeInOutCubic,
+        ),
+      );
+      _currentIndexAsDouble = newIndex;
+      _controller
+        ..reset()
+        ..forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      _NavItemData(Icons.home_filled, 'Home'),
+      _NavItemData(Icons.search, 'Search'),
+      _NavItemData(Icons.add_circle_outline, 'Add'),
+      _NavItemData(Icons.favorite_border, 'Shortlist'),
+      _NavItemData(Icons.person_outline, 'Profile'),
+    ];
+
+    final itemCount = items.length.clamp(1, items.length);
+    final selectedPosition =
+        (_positionAnimation.value + 0.5) / itemCount; // 0..1 across width
+
+    return SizedBox(
+      height: 80,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Green background with small wave under selected icon
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _BubbleNavPainter(
+                color: const Color(0xFF00D08F),
+                position: selectedPosition.clamp(0.0, 1.0),
+              ),
+            ),
+          ),
+
+          // Icons & labels row
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12, left: 8, right: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: List.generate(items.length, (index) {
+                  final item = items[index];
+                  final isSelected = index == widget.currentIndex;
+
+                  return Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => widget.onTap(index),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedBuilder(
+                            animation: _elevationAnimation,
+                            builder: (context, child) {
+                              final elevation = isSelected
+                                  ? -22.0 * _elevationAnimation.value
+                                  : 0.0;
+
+                              Widget iconWidget;
+                              if (isSelected) {
+                                iconWidget = Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0xFF00D08F),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    item.icon,
+                                    size: 24,
+                                    color: Colors.black,
+                                  ),
+                                );
+                              } else {
+                                iconWidget = Icon(
+                                  item.icon,
+                                  size: 24,
+                                  color: Colors.black,
+                                );
+                              }
+
+                              return Transform.translate(
+                                offset: Offset(0, elevation),
+                                child: iconWidget,
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            item.label,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NavItemData {
+  final IconData icon;
+  final String label;
+
+  _NavItemData(this.icon, this.label);
+}
+
+class _BubbleNavPainter extends CustomPainter {
+  final Color color;
+  final double position; // 0..1 across the width
+
+  _BubbleNavPainter({
+    required this.color,
+    required this.position,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    // Flat top bar with a small "valley" cut around selected icon
+    final baseTop = 0.0;
+    final valleyDepth = 18.0;
+    final valleyWidth = 90.0;
+    final centerX = size.width * position;
+    final leftValley = (centerX - valleyWidth / 2).clamp(0.0, size.width);
+    final rightValley = (centerX + valleyWidth / 2).clamp(0.0, size.width);
+
+    final path = Path();
+    path.moveTo(0, baseTop);
+    path.lineTo(leftValley, baseTop);
+
+    // Valley dipping down beneath the selected icon
+    final controlDown1 =
+        Offset(centerX - valleyWidth / 4, baseTop + valleyDepth);
+    final controlDown2 =
+        Offset(centerX + valleyWidth / 4, baseTop + valleyDepth);
+
+    path.quadraticBezierTo(
+      controlDown1.dx,
+      controlDown1.dy,
+      centerX,
+      baseTop + valleyDepth,
+    );
+    path.quadraticBezierTo(
+      controlDown2.dx,
+      controlDown2.dy,
+      rightValley,
+      baseTop,
+    );
+
+    path.lineTo(size.width, baseTop);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BubbleNavPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.position != position;
+  }
 }

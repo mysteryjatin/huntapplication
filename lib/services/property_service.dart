@@ -435,20 +435,20 @@ class PropertyService {
 
           if (filters.furnishing != null && filters.furnishing!.isNotEmpty) {
             final raw = filters.furnishing!.trim();
-            params['furnishing'] =
-                furnishingKebabLower ? _furnishingToKebabLower(raw) : raw;
+            // Backend expects exact option values (e.g. "Semi-furnished")
+            params['furnishing'] = raw;
           }
 
           if (filters.facing != null && filters.facing!.isNotEmpty) {
-            params['facing'] = filters.facing!.trim().toLowerCase();
+            // Backend options are title-cased (e.g. "North"), keep exact value
+            params['facing'] = filters.facing!.trim();
           }
 
           if (filters.possessionStatus != null &&
               filters.possessionStatus!.isNotEmpty) {
             final raw = filters.possessionStatus!;
-            params['possession_status'] = useLabelEncoding
-                ? _possessionStatusToLabel(raw)
-                : _possessionStatusToValue(raw);
+            // Backend expects value (e.g. "under_construction", "ready_to_move")
+            params['possession_status'] = _possessionStatusToValue(raw);
           }
 
           if (filters.availabilityMonth != null &&
@@ -466,9 +466,8 @@ class PropertyService {
           if (filters.ageOfConstruction != null &&
               filters.ageOfConstruction!.isNotEmpty) {
             final raw = filters.ageOfConstruction!.first;
-            params['age_of_construction'] = useLabelEncoding
-                ? _ageOfConstructionToLabel(raw)
-                : _ageOfConstructionToValue(raw);
+            // Backend expects value (e.g. "new_construction")
+            params['age_of_construction'] = _ageOfConstructionToValue(raw);
           }
 
           if (filters.storeRoom != null) {

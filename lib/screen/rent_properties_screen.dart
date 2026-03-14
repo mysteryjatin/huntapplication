@@ -13,6 +13,8 @@ class RentPropertiesScreen extends StatefulWidget {
 
 class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -24,7 +26,27 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _clearSearchAndDismiss() {
+    _searchController.clear();
+    _searchFocusNode.unfocus();
+    setState(() {});
+  }
+
+  /// Filter shortlist by search query (title, locality, city).
+  List<Property> _filterBySearch(List<Property> list, String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return list;
+    return list.where((p) {
+      return (p.title.toLowerCase().contains(q)) ||
+          (p.locality.toLowerCase().contains(q)) ||
+          (p.city.toLowerCase().contains(q)) ||
+          (p.address.toLowerCase().contains(q));
+    }).toList();
   }
 
   void _onScroll() {
@@ -71,6 +93,12 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                onChanged: (v) {
+                  setState(() {});
+                  if (v.trim().isEmpty) _searchFocusNode.unfocus();
+                },
                 decoration: InputDecoration(
                   hintText: 'Search your shortlist',
                   hintStyle: TextStyle(
@@ -82,6 +110,12 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                     color: Colors.grey[400],
                     size: 22,
                   ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear, size: 20, color: Colors.grey[600]),
+                          onPressed: _clearSearchAndDismiss,
+                        )
+                      : null,
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -120,31 +154,51 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                   );
                 }
 
-                if (state is ShortlistLoaded &&
-                    state.properties.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Image.asset(
-                          "assets/images/no_proerty_found.png",
-                          width: 220,
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          "No shortlisted rent properties",
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
                 if (state is ShortlistLoaded) {
-                  final items = state.properties;
+                  final items = _filterBySearch(
+                    state.properties,
+                    _searchController.text,
+                  );
+                  if (state.properties.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.asset(
+                            "assets/images/no_proerty_found.png",
+                            width: 220,
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            "No shortlisted rent properties",
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  if (items.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No results for "${_searchController.text.trim()}"',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
                   return ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -152,7 +206,6 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                         items.length + (state.isLoadingMore ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index >= items.length) {
-                        // Load-more indicator
                         return const Padding(
                           padding: EdgeInsets.symmetric(vertical: 16),
                           child: Center(
@@ -179,12 +232,56 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
   Widget _buildPropertyCard(Property property) {
     final imageUrl = property.images.isNotEmpty
         ? property.images.first
-        : 'assets/images/onboarding1.png';
+        : null;
+    final isNetworkUrl = imageUrl != null &&
+        (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'));
 
     final priceText = property.price > 0 ? '₹ ${property.price}' : 'Price on request';
 
     final location =
         '${property.locality}${property.city.isNotEmpty ? ', ${property.city}' : ''}';
+
+    final Widget imageWidget = isNetworkUrl
+        ? Image.network(
+            imageUrl!,
+            fit: BoxFit.cover,
+            height: 160,
+            width: double.infinity,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                height: 160,
+                width: double.infinity,
+                color: const Color(0xFFE3F2FD),
+                child: const Center(
+                  child: Icon(
+                    Icons.home_work_outlined,
+                    size: 60,
+                    color: Colors.grey,
+                  ),
+                ),
+              );
+            },
+          )
+        : Image.asset(
+            'assets/images/onboarding1.png',
+            fit: BoxFit.cover,
+            height: 160,
+            width: double.infinity,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                height: 160,
+                width: double.infinity,
+                color: const Color(0xFFE3F2FD),
+                child: const Center(
+                  child: Icon(
+                    Icons.home_work_outlined,
+                    size: 60,
+                    color: Colors.grey,
+                  ),
+                ),
+              );
+            },
+          );
 
     return GestureDetector(
       onTap: () {
@@ -222,22 +319,7 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                 height: 160,
                 width: double.infinity,
                 color: const Color(0xFFF5F5F5),
-                child: Image.asset(
-                  imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: const Color(0xFFE3F2FD),
-                      child: const Center(
-                        child: Icon(
-                          Icons.home_work_outlined,
-                          size: 60,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                child: imageWidget,
               ),
             ),
 
@@ -397,6 +479,31 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
     );
   }
 
+  Widget _buildPreviewImage(dynamic image) {
+    final String? url = image is String ? image : null;
+    final isNetwork = url != null &&
+        url.isNotEmpty &&
+        (url.startsWith('http://') || url.startsWith('https://'));
+    if (isNetwork) {
+      return Image.network(
+        url!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.home, size: 40, color: Colors.grey),
+      );
+    }
+    return Image.asset(
+      'assets/images/onboarding1.png',
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      errorBuilder: (_, __, ___) =>
+          const Icon(Icons.home, size: 40, color: Colors.grey),
+    );
+  }
+
   // Show remove from shortlist bottom sheet
   void _showRemoveDialog(Map<String, dynamic> property) {
     showModalBottomSheet(
@@ -474,10 +581,7 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                           height: 100,
                           child: Transform.translate(
                             offset: const Offset(0, -10), // ⬅️ upar push
-                            child: Image.asset(
-                              property['image'],
-                              fit: BoxFit.cover,
-                            ),
+                            child: _buildPreviewImage(property['image']),
                           ),
                         ),
                       ),
@@ -495,7 +599,7 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    property['title'],
+                                    property['title']?.toString() ?? '',
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -518,7 +622,7 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
 
                             // Location
                             Text(
-                              property['location'],
+                              property['location']?.toString() ?? '',
                               style: TextStyle(
                                 fontSize: 12.5,
                                 fontStyle: FontStyle.italic,
@@ -530,7 +634,7 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
 
                             // Area + Type
                             Text(
-                              "${property['area']}  ${property['type']}",
+                              "${property['area']?.toString() ?? ''}  ${property['type']?.toString() ?? ''}",
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey.shade600,
@@ -544,7 +648,7 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    property['date'],
+                                    property['date']?.toString() ?? '',
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.grey.shade600,
@@ -563,7 +667,7 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
                                         ),
                                       ),
                                       TextSpan(
-                                        text: property['price'],
+                                        text: property['price']?.toString() ?? '',
                                         style: const TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w700,
