@@ -21,6 +21,7 @@ class _PropertyCostCalculatorScreenState
   final TextEditingController sizeCtrl = TextEditingController();
   int propertyTypeIndex = 0; // 0 res,1 com,2 others
   int unitIndex = 0; // 0 sqft,1 sqyrd,2 sqm
+  int paymentIndex = -1;
 
   // Annexure lists (model)
   late List<AnnexureRow> annexureI;
@@ -316,10 +317,12 @@ class _PropertyCostCalculatorScreenState
             spacing: 8,
             runSpacing: 8,
             children: [
-              _pill('Construction Link Plan'),
-              _pill('Down Payment Plan'),
-              _pill('Flexi Plan'),
-              _pill('Special Payment Plan (Specify)'),
+              for (var i = 0; i < _paymentPlans.length; i++)
+                _pill(
+                  _paymentPlans[i],
+                  selected: paymentIndex == i,
+                  onTap: () => setState(() => paymentIndex = i),
+                ),
             ],
           ),
           const SizedBox(height: 12),
@@ -442,17 +445,7 @@ class _PropertyCostCalculatorScreenState
     );
   }
 
-  Widget _pill(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.lightBorder),
-      ),
-      child: Text(text, style: const TextStyle(fontSize: 13)),
-    );
-  }
+  
 
   Widget _unitChoice(String label, int idx) {
     final bool active = unitIndex == idx;
@@ -471,6 +464,31 @@ class _PropertyCostCalculatorScreenState
                   color: active ? Colors.black : Colors.black87,
                   fontWeight: FontWeight.w600)),
         ),
+      ),
+    );
+  }
+
+  // payment plans list (for pills)
+  final List<String> _paymentPlans = const [
+    'Construction Link Plan',
+    'Down Payment Plan',
+    'Flexi Plan',
+    'Special Payment Plan (Specify)',
+  ];
+
+  Widget _pill(String text, {bool selected = false, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primaryColor : Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: selected ? AppColors.primaryColor : AppColors.lightBorder),
+        ),
+        child: Text(text,
+            style: TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w600, color: selected ? Colors.black : Colors.black87)),
       ),
     );
   }

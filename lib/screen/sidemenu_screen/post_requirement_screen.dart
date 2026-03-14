@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hunt_property/theme/app_theme.dart';
+import '../../cubit/requirement_cubit.dart';
+import '../../cubit/requirement_state.dart';
+import '../../data/repository/requirement_repository.dart';
 
 class PostRequirementScreen extends StatefulWidget {
   const PostRequirementScreen({super.key});
@@ -21,13 +26,76 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
   int propertyType = 0;
   int optionIndex = -1;
   int bhkIndex = 0;
+  final TextEditingController _customBhkController = TextEditingController();
   int finishingIndex = 0;
   int possessionIndex = 0;
   int paymentIndex = 0;
+  // controllers for API fields
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _mobileController = TextEditingController();
+  final _stateController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _localityController = TextEditingController();
+  final _minPriceController = TextEditingController();
+  final _maxPriceController = TextEditingController();
+  final List<String> _bhkOptions = ["1 BHK", "2 BHK", "3 BHK", "4 BHK", "5 BHK", "6 BHK", "6+ BHK"];
+
+  // Options by property type: 0 = Residential, 1 = Commercial, 2 = Agricultural
+  final Map<int, List<String>> _optionsByPropertyType = {
+    0: [
+      "House or Kothi",
+      "Builder Floor",
+      "Villa",
+      "Service Apartment",
+      "Penthouse",
+      "Studio Apartment",
+      "Flats",
+      "Duplex",
+      "Plot/Land",
+    ],
+    1: [
+      "Commercial Land",
+      "Office Space",
+      "Shop",
+      "Showroom",
+      "Warehouse / Godown",
+      "Industrial Land",
+      "Industrial Building",
+      "Industrial Shed",
+      "IT Space",
+      "Hostel / PG",
+      "Food Court",
+      "Restaurants",
+      "Banquet Hall",
+      "Cineplex / Cinema Hall",
+    ],
+    2: [
+      "Farm House",
+      "Agriculture Land",
+      "Farm Land",
+    ],
+  };
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _mobileController.dispose();
+    _stateController.dispose();
+    _cityController.dispose();
+    _localityController.dispose();
+    _minPriceController.dispose();
+    _maxPriceController.dispose();
+    _customBhkController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BlocProvider(
+      create: (_) => RequirementCubit(repository: RequirementRepository()),
+      child: Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
         child: SingleChildScrollView(
@@ -69,11 +137,11 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
                           (i) => setState(() => iamIndex = i),
                     ),
 
-                    inputField("Name"),
-                    inputField("Email"),
-                    inputField("Mobile"),
+                    inputField("Name", controller: _nameController),
+                    inputField("Email", controller: _emailController),
+                    inputField("Mobile", controller: _mobileController),
                     inputField("Country"),
-                    inputField("State"),
+                    inputField("State", controller: _stateController),
                     const SizedBox(height: 14),
 
                     pillWrap(
@@ -96,40 +164,43 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
                     pillWrap(
                       ["Residential", "Commercial", "Agricultural"],
                       propertyType,
-                          (i) => setState(() => propertyType = i),
+                          (i) => setState(() {
+                            propertyType = i;
+                            // reset option selection when property type changes
+                            optionIndex = -1;
+                          }),
                     ),
 
                     _label("Options"),
                     pillWrap(
-                      [
-                        "House or Kothi",
-                        "Builder Floor",
-                        "Villa",
-                        "Service Apartment",
-                        "Penthouse",
-                        "Studio Apartment",
-                        "Flats",
-                        "Duplex",
-                        "Plot/Land",
-                      ],
+                      _optionsByPropertyType[propertyType] ?? const [],
                       optionIndex,
                           (i) => setState(() => optionIndex = i),
                     ),
 
-                    dropdownField("State"),
-                    dropdownField("City"),
-                    inputField("Locality"),
+                    // use simple inputs for state/city to bind controllers
+                    inputField("State", controller: _stateController),
+                    inputField("City", controller: _cityController),
+                    inputField("Locality", controller: _localityController),
 
                     _label("Select BHK"),
                     pillWrap(
-                      ["1 BHK", "2 BHK", "3 BHK", "4 BHK"],
+                      _bhkOptions,
                       bhkIndex,
-                          (i) => setState(() => bhkIndex = i),
+                          (i) => setState(() {
+                            bhkIndex = i;
+                            if (i != _bhkOptions.length - 1) _customBhkController.clear();
+                          }),
                     ),
+                    if (bhkIndex == _bhkOptions.length - 1) ...[
+                      const SizedBox(height: 8),
+                      // show custom numeric input when user selects "6+ BHK"
+                      inputField("Enter number of BHK ( > 6 )", controller: _customBhkController),
+                    ],
 
                     _label("Type of Finishing"),
                     pillWrap(
-                      ["Bare Shell", "Semi Furnished", "Fully Furnished"],
+                      ["Bare Shell", "Unfurnished", "Semi-Furnished", "Fully Furnished"],
                       finishingIndex,
                           (i) => setState(() => finishingIndex = i),
                     ),
@@ -139,7 +210,13 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
                     possessionRow(),
 
                     twoInputRow("Min Area", "Max Area"),
-                    twoInputRow("Min Price", "Max Price"),
+                    Row(
+                      children: [
+                        Expanded(child: inputField("Min Price", controller: _minPriceController)),
+                        const SizedBox(width: 12),
+                        Expanded(child: inputField("Max Price", controller: _maxPriceController)),
+                      ],
+                    ),
 
                     _label("Payment Plan"),
                     pillWrap(
@@ -157,7 +234,7 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   // ---------------- APP BAR ----------------
@@ -242,7 +319,7 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
 
   // ---------------- INPUT ----------------
 
-  Widget inputField(String label) {
+  Widget inputField(String label, {TextEditingController? controller}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -254,8 +331,26 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: kBorder),
           ),
-          child: const TextField(
-            decoration: InputDecoration(
+          child: TextField(
+            controller: controller,
+            keyboardType: (label.toLowerCase().contains('mobile') || label.toLowerCase().contains('phone'))
+                ? TextInputType.phone
+                : (label.toLowerCase().contains('price') ||
+                        label.toLowerCase().contains('area') ||
+                        label.toLowerCase().contains('size') ||
+                        label.toLowerCase().contains('min') ||
+                        label.toLowerCase().contains('max') ||
+                        label.toLowerCase().contains('units') ||
+                        label.toLowerCase().contains('amount') ||
+                        label.toLowerCase().contains('loan') ||
+                        label.toLowerCase().contains('rate') ||
+                        label.toLowerCase().contains('year'))
+                    ? const TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.text,
+            inputFormatters: (label.toLowerCase().contains('mobile') || label.toLowerCase().contains('phone'))
+                ? [FilteringTextInputFormatter.digitsOnly]
+                : null,
+            decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding:
               EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -298,15 +393,15 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
   Widget pillWrap(
       List<String> items, int selected, Function(int) onTap) {
     return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+      spacing: 8,
+      runSpacing: 8,
       children: List.generate(items.length, (i) {
         final bool sel = selected == i;
         return GestureDetector(
           onTap: () => onTap(i),
           child: Container(
             padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: sel ? AppColors.primaryColor : Colors.transparent,
               borderRadius: BorderRadius.circular(22),
@@ -387,20 +482,99 @@ class _PostRequirementScreenState extends State<PostRequirementScreen> {
   // ---------------- SUBMIT ----------------
 
   Widget submitButton() {
-    return Container(
-      height: 52,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppColors.primaryColor,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: const Center(
-        child: Text(
-          "Submit",
-          style:
-          TextStyle(fontSize: 16, fontWeight: FontWeight.w700,color: Colors.black),
-        ),
-      ),
+    return BlocConsumer<RequirementCubit, RequirementState>(
+      listener: (context, state) {
+        if (state.status == RequirementStatus.success) {
+          // clear fields on success
+          _nameController.clear();
+          _emailController.clear();
+          _mobileController.clear();
+          _stateController.clear();
+          _cityController.clear();
+          _localityController.clear();
+          _minPriceController.clear();
+          _maxPriceController.clear();
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Requirement submitted')));
+        } else if (state.status == RequirementStatus.failure) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Submission failed: ${state.error}')));
+        }
+      },
+      builder: (context, state) {
+        final submitting = state.status == RequirementStatus.submitting;
+        return Container(
+          height: 52,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: AppColors.primaryColor,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: MaterialButton(
+            onPressed: submitting
+                ? null
+                : () {
+                    final name = _nameController.text.trim();
+                    final email = _emailController.text.trim();
+                    final mobile = _mobileController.text.trim();
+                    final propertyCity = _cityController.text.trim();
+                    final iam = iamIndex == 0 ? 'Individual' : 'Corporate';
+                    final want = ['To Buy', 'To Rent', 'Other Services'][wantIndex];
+                    final propertyTypeStr = ['Residential', 'Commercial', 'Agricultural'][propertyType];
+                    final minP = num.tryParse(_minPriceController.text) ?? 0;
+                    final maxP = num.tryParse(_maxPriceController.text) ?? 0;
+
+                    bool isValidEmail(String e) {
+                      final regex = RegExp(r"^[^\s@]+@[^\s@]+\.[^\s@]+$");
+                      return regex.hasMatch(e);
+                    }
+
+                    String? error;
+                    if (name.isEmpty) {
+                      error = 'Please enter name';
+                    } else if (email.isEmpty) {
+                      error = 'Please enter email';
+                    } else if (!isValidEmail(email)) {
+                      error = 'Please enter a valid email';
+                    } else if (mobile.isEmpty) {
+                      error = 'Please enter mobile number';
+                    } else if (propertyCity.isEmpty) {
+                      error = 'Please enter property city';
+                    }
+
+                    String bhkStr = '';
+                    if (bhkIndex < _bhkOptions.length - 1) {
+                      bhkStr = _bhkOptions[bhkIndex];
+                    } else {
+                      final custom = int.tryParse(_customBhkController.text) ?? 0;
+                      if (custom <= 6) {
+                        error = 'Please enter a number greater than 6 for custom BHK';
+                      } else {
+                        bhkStr = '$custom BHK';
+                      }
+                    }
+
+                    if (error != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+                      return;
+                    }
+
+                    final cubit = context.read<RequirementCubit>();
+                    cubit.submit(
+                      iam: iam,
+                      want: want,
+                      name: name,
+                      email: email,
+                      mobile: mobile,
+                      propertyType: propertyTypeStr,
+                      propertyCity: propertyCity,
+                      bhk: bhkStr,
+                      minPrice: minP,
+                      maxPrice: maxP,
+                    );
+                  },
+            child: submitting ? const CircularProgressIndicator() : const Text('Submit', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black)),
+          ),
+        );
+      },
     );
   }
 }

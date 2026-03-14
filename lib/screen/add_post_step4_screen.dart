@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/property_service.dart';
+import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/models/property_models.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hunt_property/cubit/auth_cubit.dart';
@@ -41,6 +42,7 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
   ];
 
   String? _coverImage = "cover";
+  int? _coverIndex; // which picked image is cover
 
   final List<String> demoImages = [
     'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400',
@@ -60,6 +62,9 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
       if (images.isNotEmpty) {
         setState(() {
           _pickedImages.addAll(images);
+          // If no cover selected yet, default to first image
+          _coverIndex ??= 0;
+          _coverImage ??= "cover";
         });
       }
     } catch (_) {
@@ -70,13 +75,38 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
   void _removeImage(int index) {
     setState(() {
       _pickedImages.removeAt(index);
+      if (_pickedImages.isEmpty) {
+        _coverIndex = null;
+        _coverImage = null;
+      } else if (_coverIndex != null) {
+        if (_coverIndex == index) {
+          // If removed image was cover, shift cover to first image
+          _coverIndex = 0;
+        } else if (index < _coverIndex!) {
+          // Shift cover index left if earlier image removed
+          _coverIndex = _coverIndex! - 1;
+        }
+      }
     });
   }
 
   void _chooseCover() {
+    if (_pickedImages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please upload at least one photo first')),
+      );
+      return;
+    }
+    // Just ensure cover mode is enabled and guide user
     setState(() {
       _coverImage = "cover";
+      _coverIndex ??= 0;
     });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Tap any uploaded photo to set it as cover picture'),
+      ),
+    );
   }
 
   void _removeCover() {
@@ -310,14 +340,28 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
         mainAxisSpacing: 12,
       ),
       itemBuilder: (context, index) {
+        final bool isCover = _coverIndex == index && _coverImage != null;
         return Stack(
           children: [
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                image: DecorationImage(
-                  image: FileImage(File(_pickedImages[index].path)),
-                  fit: BoxFit.cover,
+            GestureDetector(
+              onTap: () {
+                // User selects this image as cover
+                setState(() {
+                  _coverIndex = index;
+                  _coverImage ??= "cover";
+                });
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isCover ? AppColors.primaryColor : Colors.transparent,
+                    width: isCover ? 2 : 0,
+                  ),
+                  image: DecorationImage(
+                    image: FileImage(File(_pickedImages[index].path)),
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
             ),
@@ -335,6 +379,28 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
                 ),
               ),
             )
+            ,
+            if (isCover)
+              Positioned(
+                bottom: 4,
+                left: 4,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Cover',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
           ],
         );
       },
@@ -368,6 +434,11 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
   Widget _coverPreview() {
     if (_coverImage == null || _pickedImages.isEmpty) return const SizedBox();
 
+    final int index =
+        (_coverIndex != null && _coverIndex! >= 0 && _coverIndex! < _pickedImages.length)
+            ? _coverIndex!
+            : 0;
+
     return Stack(
       children: [
         Container(
@@ -375,7 +446,7 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             image: DecorationImage(
-              image: FileImage(File(_pickedImages.first.path)),
+              image: FileImage(File(_pickedImages[index].path)),
               fit: BoxFit.cover,
             ),
           ),
@@ -423,19 +494,63 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
     });
 
     // NOTE:
-    // Backend expects each item in "images" to be an object/dictionary,
-    // not a plain string. Our current UI only has local image files and
-    // we don't yet have an upload endpoint or agreed JSON shape for images.
-    // To avoid 422 validation errors, we temporarily send an empty list for
-    // "images" and only save the property metadata. When the backend image
-    // model / upload API is ready, we can wire picked images accordingly.
-    widget.draft.imageUrls = [];
+    // We do NOT clear draft.imageUrls here. If draft.imageUrls contains
+    // http/https URLs they will be sent. Local file paths (picked images)
+    // are skipped by the payload builder until an upload flow exists.
+    //
+    // If the user picked local images, upload them first and replace
+    // draft.imageUrls with the returned full URLs from the server.
+    List<String> uploadedUrls = [];
+    if (_pickedImages.isNotEmpty) {
+      // Show a temporary SnackBar to indicate upload progress (non-blocking)
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Uploading images...')),
+      );
 
-    // Get logged in user id from AuthCubit, if available
-    String? ownerId;
-    final authState = context.read<AuthCubit>().state;
-    if (authState is SignupSuccess) {
-      ownerId = authState.user.id;
+      for (final xfile in _pickedImages) {
+        try {
+          final file = File(xfile.path);
+          final url = await _propertyService.uploadImage(file);
+          if (url != null && url.isNotEmpty) {
+            uploadedUrls.add(url);
+          } else {
+            // ignore individual upload failure - continue with others
+            // (optionally we could abort and show error)
+            // ignore: avoid_print
+            print('⚠️ Image upload returned null for ${xfile.path}');
+          }
+        } catch (e) {
+          // ignore: avoid_print
+          print('❌ Exception while uploading ${xfile.path}: $e');
+        }
+      }
+
+      // If any uploads succeeded, use them
+      if (uploadedUrls.isNotEmpty) {
+        // Reorder so that selected cover image URL is first
+        if (_coverIndex != null &&
+            _coverIndex! >= 0 &&
+            _coverIndex! < uploadedUrls.length) {
+          final coverUrl = uploadedUrls[_coverIndex!];
+          uploadedUrls.removeAt(_coverIndex!);
+          uploadedUrls.insert(0, coverUrl);
+        }
+        widget.draft.imageUrls = uploadedUrls;
+      } else {
+        // If all uploads failed, leave draft.imageUrls as-is (could be empty)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image upload failed, proceeding without images')),
+        );
+      }
+    }
+
+    // Get logged in user id from storage first; fall back to auth cubit.
+    String? ownerId = await StorageService.getUserId();
+    if (ownerId == null || ownerId.isEmpty) {
+      final authState = context.read<AuthCubit>().state;
+      if (authState is SignupSuccess) {
+        ownerId = authState.user.id;
+      }
     }
 
     final payload = widget.draft.toApiPayload(ownerId: ownerId);

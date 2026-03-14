@@ -45,5 +45,44 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Allow insecure HTTP to NimbusIT SMS gateway (domain-specific ATS exception) -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>nimbusit.biz</key>
+			<dict>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSExceptionRequiresForwardSecrecy</key>
+				<false/>
+			</dict>
+		</dict>
+	</dict>
+	<!-- Google Sign-In: required to prevent app crash on iOS -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.664325488184-gftnnhlsg7tlt8ikaq24cb4eg1ueshjs</string>
+			</array>
+		</dict>
+	</array>
+	<key>GIDClientID</key>
+	<string>664325488184-gftnnhlsg7tlt8ikaq24cb4eg1ueshjs.apps.googleusercontent.com</string>
+	<!-- Google Maps API Key -->
+	<key>GMSApiKey</key>
+	<string>AIzaSyCRdp9XgSwmQ3zVkTyg4kxAYXompT81GqU</string>
+	<!-- Location usage description for detecting user's location -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your location to detect the property location.</string>
+	<!-- Push notification usage description -->
+	<key>NSUserNotificationUsageDescription</key>
+	<string>We use notifications to send you important property updates and offers.</string>
 </dict>
 </plist>

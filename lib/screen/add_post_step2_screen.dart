@@ -1,11 +1,17 @@
 // add_post_step2_screen.dart
 
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/screen/add_post_step3_screen.dart';
 import 'package:hunt_property/models/property_models.dart';
 import 'package:hunt_property/models/property_field_config.dart';
+import 'package:url_launcher/url_launcher.dart';
 class AddPostStep2Screen extends StatefulWidget {
   final VoidCallback? onBackPressed;
   final PropertyDraft draft;
@@ -23,20 +29,27 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   String? _selectedState;
   String? _selectedCity;
 
-  // Indian states and major cities (can be extended from backend later)
+  // Indian states and union territories (alphabetical)
   final List<String> _states = const [
+    'Andaman and Nicobar Islands',
     'Andhra Pradesh',
     'Arunachal Pradesh',
     'Assam',
     'Bihar',
+    'Chandigarh',
     'Chhattisgarh',
+    'Dadra and Nagar Haveli and Daman and Diu',
+    'Delhi',
     'Goa',
     'Gujarat',
     'Haryana',
     'Himachal Pradesh',
+    'Jammu and Kashmir',
     'Jharkhand',
     'Karnataka',
     'Kerala',
+    'Ladakh',
+    'Lakshadweep',
     'Madhya Pradesh',
     'Maharashtra',
     'Manipur',
@@ -44,6 +57,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     'Mizoram',
     'Nagaland',
     'Odisha',
+    'Puducherry',
     'Punjab',
     'Rajasthan',
     'Sikkim',
@@ -53,14 +67,6 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     'Uttar Pradesh',
     'Uttarakhand',
     'West Bengal',
-    'Andaman and Nicobar Islands',
-    'Chandigarh',
-    'Dadra and Nagar Haveli and Daman and Diu',
-    'Delhi',
-    'Jammu and Kashmir',
-    'Ladakh',
-    'Lakshadweep',
-    'Puducherry',
   ];
 
   final Map<String, List<String>> _citiesByState = const {
@@ -89,7 +95,78 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     'Tamil Nadu': ['Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli'],
     'Telangana': ['Hyderabad', 'Warangal', 'Karimnagar'],
     'Tripura': ['Agartala'],
-    'Uttar Pradesh': ['Lucknow', 'Noida', 'Ghaziabad', 'Kanpur', 'Varanasi'],
+    'Uttar Pradesh': [
+      'Agra',
+      'Aligarh',
+      'Ambedkar Nagar',
+      'Amethi',
+      'Amroha',
+      'Auraiya',
+      'Azamgarh',
+      'Baghpat',
+      'Bahraich',
+      'Ballia',
+      'Balrampur',
+      'Banda',
+      'Barabanki',
+      'Bareilly',
+      'Basti',
+      'Bijnor',
+      'Budaun',
+      'Bulandshahr',
+      'Chandauli',
+      'Chitrakoot',
+      'Deoria',
+      'Etah',
+      'Etawah',
+      'Farrukhabad',
+      'Fatehpur',
+      'Firozabad',
+      'Noida',
+      'Greater Noida',
+      'Ghaziabad',
+      'Gonda',
+      'Gorakhpur',
+      'Hamirpur',
+      'Hardoi',
+      'Hathras',
+      'Jalaun',
+      'Jaunpur',
+      'Jhansi',
+      'Kannauj',
+      'Kanpur',
+      'Kasganj',
+      'Kaushambi',
+      'Kushinagar',
+      'Lakhimpur Kheri',
+      'Lalitpur',
+      'Lucknow',
+      'Maharajganj',
+      'Mahoba',
+      'Mainpuri',
+      'Mathura',
+      'Mau',
+      'Meerut',
+      'Mirzapur',
+      'Moradabad',
+      'Muzaffarnagar',
+      'Pilibhit',
+      'Pratapgarh',
+      'Prayagraj (Allahabad)',
+      'Rae Bareli',
+      'Rampur',
+      'Saharanpur',
+      'Sambhal',
+      'Sant Kabir Nagar',
+      'Shahjahanpur',
+      'Shamli',
+      'Shravasti',
+      'Sitapur',
+      'Sonbhadra',
+      'Sultanpur',
+      'Unnao',
+      'Varanasi'
+    ],
     'Uttarakhand': ['Dehradun', 'Haridwar', 'Rishikesh'],
     'West Bengal': ['Kolkata', 'Howrah', 'Durgapur', 'Siliguri'],
     'Andaman and Nicobar Islands': ['Port Blair'],
@@ -120,6 +197,11 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
 
   String _selectedFacing = "East";
 
+  // Map related state
+  LatLng? _mapPosition;
+  GoogleMapController? _mapController;
+  bool _mapLoading = false;
+
   bool _storeRoom = true;
   bool _servantRoom = true;
   bool _boundaryWallMade = false;
@@ -142,6 +224,12 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   final _builtUpAreaController = TextEditingController();
   final _carpetAreaController = TextEditingController();
 
+  // Area validation state
+  String? _areaErrorMessage;
+  bool _superAreaHasError = false;
+  bool _builtUpAreaHasError = false;
+  bool _carpetAreaHasError = false;
+
   String _transactionType = "New Property";
   String _possessionStatus = "Under Construction";
   String _availableFrom = "After 1 Month";
@@ -151,6 +239,10 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   bool _lift = true;
 
   String _ownershipType = "Freehold";
+
+  // Preview labels for price fields (e.g. "₹ 50 Lac")
+  String _expectedPricePreview = '';
+  String _bookingAmountPreview = '';
 
   final _expectedPriceController = TextEditingController();
   final _bookingAmountController = TextEditingController();
@@ -187,6 +279,9 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     if (widget.draft.monthlyRent.isNotEmpty) {
       _monthlyRentController.text = widget.draft.monthlyRent;
       _monthlyRent = widget.draft.monthlyRent;
+    }
+    if (widget.draft.expectedPrice.isNotEmpty) {
+      _expectedPriceController.text = widget.draft.expectedPrice;
     }
     _sharedOfficeSpace = widget.draft.sharedOfficeSpace;
     _personalWashroom = widget.draft.personalWashroom;
@@ -236,6 +331,42 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     );
     if (!config.showBedrooms) {
       _bedrooms = 0;
+    }
+    // If draft already has address/locality/city, attempt to load map preview
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final hasAddress = widget.draft.address.isNotEmpty ||
+          widget.draft.locality.isNotEmpty ||
+          widget.draft.city.isNotEmpty;
+      if (hasAddress) {
+        _loadMapForAddress();
+      }
+    });
+    // If draft contains city but state not set, try to infer state from our cities map
+    if (widget.draft.city.isNotEmpty && (_selectedState == null || _selectedState!.isEmpty)) {
+      final detectedCity = widget.draft.city;
+      String matchedState = '';
+      String matchedCity = detectedCity;
+      // Try exact match first, then more fuzzy matches
+      _citiesByState.forEach((state, cities) {
+        for (var c in cities) {
+          final lc = c.toLowerCase();
+          final tk = detectedCity.toLowerCase();
+          if (lc == tk || lc.contains(tk) || tk.contains(lc) || lc.startsWith(tk) || tk.startsWith(lc)) {
+            if (matchedState.isEmpty) {
+              matchedState = state;
+              matchedCity = c;
+              break;
+            }
+          }
+        }
+      });
+      if (matchedState.isNotEmpty) {
+        _selectedState = matchedState;
+        _selectedCity = matchedCity;
+      } else {
+        // If no exact match, still set selectedCity so it appears in dropdown helper in build
+        _selectedCity = detectedCity;
+      }
     }
   }
 
@@ -356,7 +487,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
         _dropdown(
           "Select State",
           _selectedState,
-          _states,
+          List<String>.from(_states)..sort(),
           (v) => setState(() {
             _selectedState = v;
             _selectedCity = null;
@@ -370,9 +501,41 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
           "Select City",
           _selectedCity,
           _selectedState != null
-              ? (_citiesByState[_selectedState] ?? [])
+              ? (() {
+                  final list = List<String>.from(_citiesByState[_selectedState] ?? []);
+                  final unique = list.toSet().toList();
+                  // If a detected city is set but not present in our canonical list,
+                  // include it so the dropdown can display it.
+                  if (_selectedCity != null &&
+                      _selectedCity!.isNotEmpty &&
+                      !unique.any((c) => c.toLowerCase() == _selectedCity!.toLowerCase())) {
+                    unique.insert(0, _selectedCity!);
+                  }
+                  unique.sort();
+                  return unique;
+                })()
               : <String>[],
-          (v) => setState(() => _selectedCity = v),
+          (v) {
+            setState(() => _selectedCity = v);
+            // Jab user city manually select kare, turant map ke liye
+            // geocoding chala do taaki preview dikh sake.
+            _loadMapForAddress();
+          },
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: _detectMyLocation,
+            icon: Icon(Icons.my_location, color: _primary),
+            label: Text("Detect my location",
+                style: GoogleFonts.poppins(
+                    fontSize: 13, fontWeight: FontWeight.w600, color: _primary)),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              backgroundColor: Colors.transparent,
+            ),
+          ),
         ),
         const SizedBox(height: _rowGap),
 
@@ -465,16 +628,8 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       ]);
     }
 
-    if (config.showFloorNumber) {
-      children.addAll([
-        _label("Floor Number"),
-        const SizedBox(height: 8),
-        _textField(_floorNumberController, hint: "Eg. 12"),
-        const SizedBox(height: 20),
-      ]);
-    }
-
     if (config.showTotalFloors || config.showFloorsAllowed) {
+      // Move Total Floors higher than Floor Number per UI request.
       children.add(
         Row(
           children: [
@@ -485,7 +640,25 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
                   children: [
                     _label("Total Floors"),
                     const SizedBox(height: 8),
-                    _textField(_totalFloorsController, hint: "Eg. 20"),
+                    _textField(
+                      _totalFloorsController,
+                      hint: "Eg. 20",
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      onChanged: (v) {
+                        final enteredTotal = int.tryParse(v) ?? 0;
+                        final currentFloor = int.tryParse(_floorNumberController.text) ?? 0;
+                        if (enteredTotal > 0 && currentFloor > enteredTotal) {
+                          // If total lowered below current floor, clamp floor number to total.
+                          _floorNumberController.text = enteredTotal.toString();
+                          _floorNumberController.selection = TextSelection.fromPosition(
+                              TextPosition(offset: _floorNumberController.text.length));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Total floors is less than floor number — floor number adjusted')),
+                          );
+                        }
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -498,7 +671,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
                   children: [
                     _label("Floors Allowed"),
                     const SizedBox(height: 8),
-                    _textField(_floorsAllowedController, hint: "Eg. 15"),
+                    _textField(_floorsAllowedController, hint: "Eg. 15", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
                   ],
                 ),
               ),
@@ -507,6 +680,36 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       );
       children.add(const SizedBox(height: 20));
     }
+
+    if (config.showFloorNumber) {
+      children.addAll([
+        _label("Floor Number"),
+        const SizedBox(height: 8),
+        _textField(
+          _floorNumberController,
+          hint: "Eg. 12",
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (v) {
+            final enteredFloor = int.tryParse(v) ?? 0;
+            final enteredTotal = int.tryParse(_totalFloorsController.text) ?? 0;
+            if (enteredTotal > 0 && enteredFloor > enteredTotal) {
+              // Prevent entering a floor number greater than total floors:
+              // reset to total and notify user.
+              _floorNumberController.text = enteredTotal.toString();
+              _floorNumberController.selection = TextSelection.fromPosition(
+                  TextPosition(offset: _floorNumberController.text.length));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Floor number cannot be greater than total floors')),
+              );
+            }
+          },
+        ),
+        const SizedBox(height: 20),
+      ]);
+    }
+
+    // (Moved: Total Floors and Floors Allowed are shown earlier above Floor Number)
 
     if (config.showAnyConstructionDone) {
       children.addAll([
@@ -760,7 +963,14 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Super Area (Sq. Ft)"),
         const SizedBox(height: 8),
-        _textField(_superAreaController, hint: "Enter area"),
+        _textField(
+          _superAreaController,
+          hint: "Enter area",
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (_) => _onAreaChanged(),
+          isError: _superAreaHasError,
+        ),
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -769,7 +979,14 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Built Up Area (Sq. Ft)"),
         const SizedBox(height: 8),
-        _textField(_builtUpAreaController, hint: "Enter area"),
+        _textField(
+          _builtUpAreaController,
+          hint: "Enter area",
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (_) => _onAreaChanged(),
+          isError: _builtUpAreaHasError,
+        ),
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -778,7 +995,28 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Carpet Area (Sq. Ft)"),
         const SizedBox(height: 8),
-        _textField(_carpetAreaController, hint: "Enter area"),
+        _textField(
+          _carpetAreaController,
+          hint: "Enter area",
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (_) => _onAreaChanged(),
+          isError: _carpetAreaHasError,
+        ),
+      ]);
+    }
+
+    if (_areaErrorMessage != null && _areaErrorMessage!.isNotEmpty) {
+      children.addAll([
+        const SizedBox(height: 8),
+        Text(
+          _areaErrorMessage!,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: Colors.red,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ]);
     }
 
@@ -792,6 +1030,66 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       title: "Area",
       children: children,
     );
+  }
+
+  // Validate area fields according to rule: Carpet ≤ Built‑up ≤ Super
+  bool _validateAreaValues({bool hardValidation = false}) {
+    final config = _fieldConfig;
+
+    double? superArea = config.showAreaSuper
+        ? double.tryParse(_superAreaController.text.trim())
+        : null;
+    double? builtUpArea = config.showAreaBuiltUp
+        ? double.tryParse(_builtUpAreaController.text.trim())
+        : null;
+    double? carpetArea = config.showAreaCarpet
+        ? double.tryParse(_carpetAreaController.text.trim())
+        : null;
+
+    // Reset previous error state
+    _areaErrorMessage = null;
+    _superAreaHasError = false;
+    _builtUpAreaHasError = false;
+    _carpetAreaHasError = false;
+
+    // If user has not entered enough values yet, treat as valid in real‑time mode
+    if (!hardValidation) {
+      // Only run validation when at least the pair of fields involved has values
+      if (carpetArea == null || builtUpArea == null) {
+        if (builtUpArea == null || superArea == null) {
+          return true;
+        }
+      }
+    }
+
+    // Rule 1: Carpet ≤ Built‑up
+    if (carpetArea != null &&
+        builtUpArea != null &&
+        carpetArea > builtUpArea) {
+      _areaErrorMessage =
+          "Carpet Area cannot be greater than Built-up Area";
+      _carpetAreaHasError = true;
+      return false;
+    }
+
+    // Rule 2: Built‑up ≤ Super
+    if (builtUpArea != null &&
+        superArea != null &&
+        builtUpArea > superArea) {
+      _areaErrorMessage =
+          "Built-up Area cannot be greater than Super Area";
+      _builtUpAreaHasError = true;
+      return false;
+    }
+
+    // If we reach here, values respect Carpet ≤ Built‑up ≤ Super
+    return true;
+  }
+
+  void _onAreaChanged() {
+    setState(() {
+      _validateAreaValues();
+    });
   }
 
   // ===================== TRANSACTION SECTION =====================
@@ -847,6 +1145,9 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
           spacing: 12,
           runSpacing: 12,
           children: [
+            _chip("Immediately", _availableFrom == "Immediately",
+                    () => setState(() => _availableFrom = "Immediately")),
+            const SizedBox(width: 8),
             _chip("After 1 Month", _availableFrom == "After 1 Month",
                     () => setState(() => _availableFrom = "After 1 Month")),
             _chip("After 3 Month", _availableFrom == "After 3 Month",
@@ -942,6 +1243,106 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     );
   }
 
+  String _formatExpectedPriceLabel(String raw) {
+    final cleaned = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleaned.isEmpty) return '';
+    final value = int.tryParse(cleaned) ?? 0;
+    if (value <= 0) return '';
+
+    return '₹ ${_numberToWordsIndian(value)}';
+  }
+
+  // Convert number to words using Indian system (Thousand / Lakh / Crore)
+  // Supports values comfortably beyond 300 Crore.
+  String _numberToWordsIndian(int number) {
+    if (number == 0) return 'Zero';
+
+    const ones = [
+      '',
+      'One',
+      'Two',
+      'Three',
+      'Four',
+      'Five',
+      'Six',
+      'Seven',
+      'Eight',
+      'Nine',
+      'Ten',
+      'Eleven',
+      'Twelve',
+      'Thirteen',
+      'Fourteen',
+      'Fifteen',
+      'Sixteen',
+      'Seventeen',
+      'Eighteen',
+      'Nineteen',
+    ];
+
+    const tens = [
+      '',
+      '',
+      'Twenty',
+      'Thirty',
+      'Forty',
+      'Fifty',
+      'Sixty',
+      'Seventy',
+      'Eighty',
+      'Ninety',
+    ];
+
+    String twoDigits(int n) {
+      if (n < 20) return ones[n];
+      final t = n ~/ 10;
+      final o = n % 10;
+      if (o == 0) return tens[t];
+      return '${tens[t]} ${ones[o]}';
+    }
+
+    String threeDigits(int n) {
+      final h = n ~/ 100;
+      final rest = n % 100;
+      if (h == 0) return twoDigits(rest);
+      if (rest == 0) return '${ones[h]} Hundred';
+      return '${ones[h]} Hundred ${twoDigits(rest)}';
+    }
+
+    final parts = <String>[];
+
+    final crore = number ~/ 10000000;
+    if (crore > 0) {
+      // Use threeDigits so we can represent values like
+      // "One Hundred Crore", "Three Hundred Crore" etc.
+      if (crore < 100) {
+        parts.add('${twoDigits(crore)} Crore');
+      } else {
+        parts.add('${threeDigits(crore)} Crore');
+      }
+      number %= 10000000;
+    }
+
+    final lakh = number ~/ 100000;
+    if (lakh > 0) {
+      parts.add('${twoDigits(lakh)} Lakh');
+      number %= 100000;
+    }
+
+    final thousand = number ~/ 1000;
+    if (thousand > 0) {
+      parts.add('${twoDigits(thousand)} Thousand');
+      number %= 1000;
+    }
+
+    final hundreds = number;
+    if (hundreds > 0) {
+      parts.add(threeDigits(hundreds));
+    }
+
+    return parts.join(' ');
+  }
+
   // ===================== PRICE SECTION =====================
   Widget _priceSection() {
     final config = _fieldConfig;
@@ -952,7 +1353,28 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Expected Price"),
         const SizedBox(height: 8),
-        _textField(_expectedPriceController, hint: "Enter expected price"),
+        _textField(
+          _expectedPriceController,
+          hint: "Enter expected price",
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (v) {
+            setState(() {
+              _expectedPricePreview = _formatExpectedPriceLabel(v);
+            });
+          },
+        ),
+        if (_expectedPricePreview.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            _expectedPricePreview,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -962,16 +1384,37 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Booking Amount"),
         const SizedBox(height: 8),
-        _textField(_bookingAmountController, hint: "Enter booking amount"),
+        _textField(
+          _bookingAmountController,
+          hint: "Enter booking amount",
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (v) {
+            setState(() {
+              _bookingAmountPreview = _formatExpectedPriceLabel(v);
+            });
+          },
+        ),
+        if (_bookingAmountPreview.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            _bookingAmountPreview,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
         const SizedBox(height: _rowGap),
       ]);
     }
 
     if (config.showMonthlyRent) {
       children.addAll([
-        _label("Monthly Rent"),
+        _label("Monthly Rent (₹/month)"),
         const SizedBox(height: 8),
-        _textField(_monthlyRentController, hint: "Enter monthly rent"),
+        _textField(_monthlyRentController, hint: "Enter monthly rent", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], suffixText: "/month"),
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -980,7 +1423,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Security Amount"),
         const SizedBox(height: 8),
-        _textField(_securityAmountController, hint: "Enter security amount"),
+        _textField(_securityAmountController, hint: "Enter security amount", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -989,7 +1432,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
       children.addAll([
         _label("Maintenance Charges"),
         const SizedBox(height: 8),
-        _textField(_maintenanceChargesController, hint: "Enter maintenance charges"),
+        _textField(_maintenanceChargesController, hint: "Enter maintenance charges", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
         const SizedBox(height: _rowGap),
       ]);
     }
@@ -997,7 +1440,7 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
     children.addAll([
       _label("Brokerage"),
       const SizedBox(height: 8),
-      _textField(_brokerageController, hint: "Enter brokerage"),
+      _textField(_brokerageController, hint: "Enter brokerage", keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
     ]);
 
     if (config.showLaundry) {
@@ -1038,9 +1481,43 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
             style: GoogleFonts.poppins(
                 fontSize: 20, fontWeight: FontWeight.w600,color: Colors.black)),
         GestureDetector(
-          onTap: () {
+            onTap: () {
             final config = _fieldConfig;
             // Push latest values into draft
+            // Determine monthlyRent to save into draft:
+            // - Prefer explicit monthly rent field when present
+            // - If listing is Rent but monthly rent field is empty, fall back to Expected Price
+            //   so price is not lost for property types where monthly rent UI is hidden.
+            String rentVal = _monthlyRentController.text.trim();
+            if (rentVal.isEmpty && widget.draft.transactionType.toLowerCase() == 'rent') {
+              rentVal = _expectedPriceController.text.trim();
+            }
+
+            // Validate area rules before proceeding to next step
+            final areaValid = _validateAreaValues(hardValidation: true);
+            if (!areaValid) {
+              setState(() {}); // refresh UI highlighting
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    _areaErrorMessage ??
+                        'Please enter valid area values (Carpet ≤ Built-up ≤ Super)',
+                  ),
+                ),
+              );
+              return;
+            }
+
+            // Validation: if total floors is provided, ensure floor number is not greater than total floors.
+            final int enteredFloor = int.tryParse(_floorNumberController.text.trim()) ?? 0;
+            final int enteredTotal = int.tryParse(_totalFloorsController.text.trim()) ?? 0;
+            if (config.showFloorNumber && config.showTotalFloors && enteredFloor > 0 && enteredTotal > 0 && enteredFloor > enteredTotal) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Floor number cannot be greater than total floors')),
+              );
+              return;
+            }
+
             widget.draft
               ..bedrooms = config.showBedrooms ? _bedrooms : 0
               ..bathrooms = config.showBathrooms ? _bathrooms : 0
@@ -1060,7 +1537,8 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
               ..attachedBathroom = config.showAttachedBathroom ? _attachedBathroom : false
               ..electricity = config.showElectricity ? _electricityController.text.trim() : ''
               ..anyConstructionDone = config.showAnyConstructionDone ? _anyConstructionDone : false
-              ..monthlyRent = config.showMonthlyRent ? _monthlyRentController.text.trim() : ''
+              ..monthlyRent = rentVal
+              ..expectedPrice = _expectedPriceController.text.trim()
               ..sharedOfficeSpace = config.showSharedOfficeSpace ? _sharedOfficeSpace : false
               ..personalWashroom = config.showPersonalWashroom ? _personalWashroom : false
               ..pantry = config.showPantry ? _pantry : false
@@ -1073,7 +1551,14 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
               ..areaSqft = int.tryParse(_superAreaController.text) ?? 0
               ..address = _addressController.text.trim()
               ..locality = _localityController.text.trim()
-              ..city = _selectedCity ?? widget.draft.city;
+              ..city = _selectedCity ?? widget.draft.city
+              // New: push meta fields so DB me null na jaye
+              ..possessionStatus = config.showPossessionStatus ? _possessionStatus : ''
+              ..availableFrom = config.showAvailableFrom ? _availableFrom : ''
+              ..ageOfConstruction = config.showAgeOfConstruction ? _ageOfConstruction : ''
+              ..carParking = config.showCarParking ? _carParking : false
+              ..lift = config.showLift ? _lift : false
+              ..typeOfOwnership = config.showOwnershipType ? _ownershipType : '';
 
             Navigator.push(
               context,
@@ -1144,32 +1629,41 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
         String? hint,
         TextInputType keyboardType = TextInputType.text,
         Function(String)? onChanged,
+        List<TextInputFormatter>? inputFormatters,
+        bool isError = false,
+        String? suffixText,
       }) {
+    final borderColor = isError ? Colors.red : Colors.grey.shade300;
+    final focusedBorderColor = isError ? Colors.red : _primary;
+
     return SizedBox(
       height: 46,
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
         onChanged: onChanged,
+        inputFormatters: inputFormatters,
         decoration: InputDecoration(
           hintText: hint ?? "",
           hintStyle:
           GoogleFonts.poppins(fontSize: 13, color: Colors.grey[400]),
+          suffixText: suffixText,
+          suffixStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600]),
           filled: true,
           fillColor: Colors.white,
           contentPadding:
           const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderSide: BorderSide(color: borderColor),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderSide: BorderSide(color: borderColor),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: _primary, width: 1.4),
+            borderSide: BorderSide(color: focusedBorderColor, width: 1.4),
           ),
         ),
       ),
@@ -1208,15 +1702,325 @@ class _AddPostStep2ScreenState extends State<AddPostStep2Screen> {
   }
 
   Widget _mapBox() {
+    // Always show Google Map preview (no buttons). If we don't have a position yet,
+    // center on India as a sensible default. Tapping the map opens external maps.
+    const LatLng _defaultCenter = LatLng(20.5937, 78.9629);
+    final LatLng initial = _mapPosition ?? _defaultCenter;
+
     return Container(
       height: 140,
       decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300)),
-      child: const Center(
-          child: Icon(Icons.map, size: 36, color: Colors.grey)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Builder(builder: (_) {
+          // If we have precise coordinates, show interactive GoogleMap.
+          if (_mapPosition != null) {
+            return GoogleMap(
+              initialCameraPosition: CameraPosition(target: _mapPosition!, zoom: 15),
+              markers: {Marker(markerId: const MarkerId('prop'), position: _mapPosition!)},
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              onMapCreated: (controller) => _mapController = controller,
+              onTap: (_) => _openMapsApp(),
+            );
+          }
+
+          // If we don't have coords, but address/locality/city exist, show Static Maps image as fallback.
+          final addrParts = <String>[];
+          if (_addressController.text.trim().isNotEmpty) addrParts.add(_addressController.text.trim());
+          if (_localityController.text.trim().isNotEmpty) addrParts.add(_localityController.text.trim());
+          if ((_selectedCity ?? widget.draft.city).isNotEmpty) addrParts.add(_selectedCity ?? widget.draft.city);
+          if (addrParts.isNotEmpty) {
+            final query = Uri.encodeComponent(addrParts.join(', '));
+            final apiKey = 'AIzaSyCRdp9XgSwmQ3zVkTyg4kxAYXompT81GqU';
+            final staticUrl = 'https://maps.googleapis.com/maps/api/staticmap?center=$query&zoom=15&size=600x300&markers=color:red%7C$query&key=$apiKey';
+
+            return GestureDetector(
+              onTap: _openMapsApp,
+              child: Container(
+                color: Colors.grey.shade200,
+                child: Image.network(
+                  staticUrl,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorBuilder: (c, e, s) => Center(
+                    child: Text('Map preview unavailable', style: TextStyle(color: Colors.grey[600])),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          // Last resort: show placeholder
+          return Container(
+            color: Colors.grey.shade200,
+            child: const Center(child: Icon(Icons.map, size: 36, color: Colors.grey)),
+          );
+        }),
+      ),
     );
+  }
+
+  Future<void> _loadMapForAddress() async {
+    final address = _addressController.text.trim();
+    final locality = _localityController.text.trim();
+    final city = _selectedCity ?? widget.draft.city;
+
+    final parts = <String>[];
+    if (address.isNotEmpty) parts.add(address);
+    if (locality.isNotEmpty) parts.add(locality);
+    if (city.isNotEmpty) parts.add(city);
+
+    if (parts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter address, locality or city')),
+      );
+      return;
+    }
+
+    final query = parts.join(', ');
+    setState(() => _mapLoading = true);
+
+    try {
+      final locations = await locationFromAddress(query);
+      if (locations.isNotEmpty) {
+        final loc = locations.first;
+        setState(() {
+          _mapPosition = LatLng(loc.latitude, loc.longitude);
+        });
+        // animate camera if map already created
+        if (_mapController != null) {
+          _mapController!.animateCamera(CameraUpdate.newLatLngZoom(_mapPosition!, 15));
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to find location')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Geocoding failed: $e')),
+      );
+    } finally {
+      setState(() => _mapLoading = false);
+    }
+  }
+
+  Future<void> _openMapsApp() async {
+    final address = _addressController.text.trim();
+    final locality = _localityController.text.trim();
+    final city = _selectedCity ?? widget.draft.city;
+
+    final parts = <String>[];
+    if (address.isNotEmpty) parts.add(address);
+    if (locality.isNotEmpty) parts.add(locality);
+    if (city.isNotEmpty) parts.add(city);
+
+    if (parts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter address, locality or city')),
+      );
+      return;
+    }
+
+    final query = parts.join(', ');
+    final encoded = Uri.encodeComponent(query);
+
+    final Uri googleIos = Uri.parse('comgooglemaps://?q=$encoded');
+    final Uri appleMaps = Uri.parse('https://maps.apple.com/?q=$encoded');
+    final Uri geoAndroid = Uri.parse('geo:0,0?q=$encoded');
+    final Uri googleWeb =
+        Uri.parse('https://www.google.com/maps/search/?api=1&query=$encoded');
+
+    try {
+      if (Platform.isIOS) {
+        if (await canLaunchUrl(googleIos)) {
+          await launchUrl(googleIos);
+          return;
+        }
+        if (await canLaunchUrl(appleMaps)) {
+          await launchUrl(appleMaps);
+          return;
+        }
+        await launchUrl(googleWeb);
+      } else {
+        // Android: prefer geo intent, fallback to Google web URL
+        if (await canLaunchUrl(geoAndroid)) {
+          await launchUrl(geoAndroid);
+          return;
+        }
+        if (await canLaunchUrl(googleWeb)) {
+          await launchUrl(googleWeb);
+        }
+      }
+    } catch (e) {
+      // Fallback to web Google Maps in case of any error
+      if (await canLaunchUrl(googleWeb)) {
+        await launchUrl(googleWeb);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open maps')),
+        );
+      }
+    }
+  }
+
+  Future<void> _detectMyLocation() async {
+    setState(() => _mapLoading = true);
+    try {
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location permission denied')),
+        );
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.best);
+      final lat = pos.latitude;
+      final lng = pos.longitude;
+
+      // Reverse geocode to get address components
+      String formattedAddress = '';
+      String detectedCity = '';
+      String detectedLocality = '';
+      String detectedAdmin = '';
+      try {
+        final placemarks = await placemarkFromCoordinates(lat, lng);
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          // Build formattedAddress from available fields
+          formattedAddress = [
+            p.name,
+            p.street,
+            p.subLocality,
+            p.locality,
+            p.subAdministrativeArea,
+            p.administrativeArea,
+            p.postalCode,
+            p.country
+          ].where((s) => s != null && s!.isNotEmpty).join(', ');
+
+          // Try multiple placemark fields for city/locality/admin
+          detectedCity = p.locality ??
+              p.subAdministrativeArea ??
+              p.administrativeArea ??
+              p.subLocality ??
+              '';
+          detectedLocality = p.subLocality ?? p.subAdministrativeArea ?? p.locality ?? '';
+          detectedAdmin = p.administrativeArea ?? p.subAdministrativeArea ?? '';
+
+          // Debug: print placemark fields to logs
+          // ignore: avoid_print
+          print('📍 Placemark: name=${p.name}, street=${p.street}, subLocality=${p.subLocality}, locality=${p.locality}, subAdmin=${p.subAdministrativeArea}, admin=${p.administrativeArea}, postal=${p.postalCode}, country=${p.country}');
+        }
+      } catch (e) {
+        // ignore reverse geocode errors but log for debugging
+        // ignore: avoid_print
+        print('⚠️ placemarkFromCoordinates failed: $e');
+      }
+
+      setState(() {
+        _mapPosition = LatLng(lat, lng);
+        if (detectedCity.isNotEmpty) {
+          // Try to match detected city to one of our known states -> cities map.
+          // If found, set the state and use the canonical city name from the list.
+          String matchedState = '';
+          String matchedCity = detectedCity;
+          _citiesByState.forEach((state, cities) {
+            final found = cities.firstWhere(
+                (c) => c.toLowerCase() == detectedCity.toLowerCase(),
+                orElse: () => '');
+            if (found.isNotEmpty && matchedState.isEmpty) {
+              matchedState = state;
+              matchedCity = found;
+            }
+          });
+          if (matchedState.isNotEmpty) {
+            _selectedState = matchedState;
+            _selectedCity = matchedCity;
+          } else {
+            // City not in our list — set selectedCity to detectedCity,
+            // and try to set state from detectedAdmin (administrative area).
+            _selectedCity = detectedCity;
+            if (detectedAdmin.isNotEmpty) {
+              final matchState = _states.firstWhere(
+                  (s) => s.toLowerCase() == detectedAdmin.toLowerCase(),
+                  orElse: () => '');
+              if (matchState.isNotEmpty) {
+                _selectedState = matchState;
+              } else {
+                // try partial match
+                final partial = _states.firstWhere(
+                    (s) => s.toLowerCase().contains(detectedAdmin.toLowerCase()) || detectedAdmin.toLowerCase().contains(s.toLowerCase()),
+                    orElse: () => '');
+                if (partial.isNotEmpty) _selectedState = partial;
+              }
+            }
+          }
+        }
+        else {
+          // If detectedCity empty, try to extract city from formattedAddress tokens
+          String matchedState = '';
+          String matchedCity = '';
+          if (formattedAddress.isNotEmpty) {
+            final tokens = formattedAddress.split(',').map((s) => s.trim()).toList();
+            // iterate tokens from right-to-left to find likely city
+            for (var i = tokens.length - 1; i >= 0; i--) {
+              final token = tokens[i];
+              if (token.length < 2) continue;
+              bool foundAny = false;
+              _citiesByState.forEach((state, cities) {
+                for (var c in cities) {
+                  final lc = c.toLowerCase();
+                  final tk = token.toLowerCase();
+                  if (lc == tk || lc.contains(tk) || tk.contains(lc) || lc.startsWith(tk) || tk.startsWith(lc)) {
+                    if (matchedState.isEmpty) {
+                      matchedState = state;
+                      matchedCity = c;
+                      foundAny = true;
+                      break;
+                    }
+                  }
+                }
+                if (foundAny) return;
+              });
+              if (matchedState.isNotEmpty) break;
+            }
+          }
+          if (matchedState.isNotEmpty) {
+            _selectedState = matchedState;
+            _selectedCity = matchedCity;
+            // debug
+            // ignore: avoid_print
+            print('🔎 Matched from address: state=$matchedState city=$matchedCity');
+          } else {
+            // last-resort: if formattedAddress contains a token, set city to that token
+            if (formattedAddress.isNotEmpty) {
+              final tokens = formattedAddress.split(',').map((s) => s.trim()).toList();
+              if (tokens.isNotEmpty) _selectedCity = tokens.first;
+            }
+          }
+        }
+        if (detectedLocality.isNotEmpty) _localityController.text = detectedLocality;
+        if (formattedAddress.isNotEmpty) _addressController.text = formattedAddress;
+        // animate camera if map controller exists
+        if (_mapController != null) {
+          _mapController!.animateCamera(CameraUpdate.newLatLngZoom(_mapPosition!, 15));
+        }
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not detect location: $e')));
+    } finally {
+      setState(() => _mapLoading = false);
+    }
   }
 
   Widget _chip(String text, bool active, VoidCallback onTap) {

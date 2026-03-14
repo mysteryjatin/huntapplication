@@ -100,7 +100,7 @@ class PropertyFieldConfig {
             showBathrooms: true, // Bathrooms shown in image
             showBalconies: true, // Balconies shown in image
             showFurnishing: true, // Finishing Status shown in image
-            showFloorNumber: true, // Floor Number shown in image
+            showFloorNumber: false,
             showTotalFloors: true, // Total Floors shown in image
             showFloorsAllowed: false,
             showOpenSides: false,
@@ -143,7 +143,7 @@ class PropertyFieldConfig {
             showBathrooms: true,
             showBalconies: true,
             showFurnishing: true,
-            showFloorNumber: true,
+            showFloorNumber: false,
             showTotalFloors: true,
             showFloorsAllowed: true,
             showOpenSides: true,

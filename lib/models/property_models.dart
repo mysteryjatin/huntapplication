@@ -29,6 +29,8 @@ class PropertyDraft {
   String electricity;
   bool anyConstructionDone;
   String monthlyRent;
+  /// Sale price (expected price) for transaction_type sale. Sent as "price" in API.
+  String expectedPrice;
   bool sharedOfficeSpace;
   bool personalWashroom;
   bool pantry;
@@ -38,6 +40,14 @@ class PropertyDraft {
   bool commonArea;
   String tenantsYouPrefer;
   String laundry;
+
+  // Extra meta fields from Step 2 (previously not sent to backend)
+  String possessionStatus;   // maps to possession_status
+  String availableFrom;      // maps to availability_month / text label
+  String ageOfConstruction;  // maps to age_of_construction
+  bool carParking;           // maps to car_parking
+  bool lift;                 // maps to lift
+  String typeOfOwnership;    // maps to type_of_ownership
 
   List<String> amenities;
   List<String> imageUrls;
@@ -71,6 +81,7 @@ class PropertyDraft {
     this.electricity = '',
     this.anyConstructionDone = false,
     this.monthlyRent = '',
+    this.expectedPrice = '',
     this.sharedOfficeSpace = false,
     this.personalWashroom = false,
     this.pantry = false,
@@ -80,6 +91,12 @@ class PropertyDraft {
     this.commonArea = false,
     this.tenantsYouPrefer = '',
     this.laundry = '',
+    this.possessionStatus = '',
+    this.availableFrom = '',
+    this.ageOfConstruction = '',
+    this.carParking = false,
+    this.lift = false,
+    this.typeOfOwnership = '',
     List<String>? amenities,
     List<String>? imageUrls,
   })  : amenities = amenities ?? [],
@@ -87,18 +104,67 @@ class PropertyDraft {
 
   Map<String, dynamic> toApiPayload({String? ownerId}) {
     // Backend marks owner_id as required, so we must always send something.
-    // Prefer the real user id; otherwise use a temporary placeholder that
-    // backend can later ignore or replace.
     final String effectiveOwnerId =
         (ownerId != null && ownerId.isNotEmpty)
             ? ownerId
-            : '000000000000000000000000'; // TODO: replace with real user id when login returns it
+            : '000000000000000000000000';
+
+    // Normalize transaction type to backend expected values: "rent" or "sale"
+    String txLower = transactionType.toLowerCase();
+    String apiTransactionType = 'sale';
+    if (txLower.contains('rent')) {
+      apiTransactionType = 'rent';
+    } else if (txLower.contains('sell') || txLower.contains('sale')) {
+      apiTransactionType = 'sale';
+    } else {
+      apiTransactionType = txLower;
+    }
+
+    // Parse price: for rent use monthlyRent, for sale use expectedPrice.
+    num parsedPrice = 0;
+    if (apiTransactionType == 'rent' && monthlyRent.isNotEmpty) {
+      final cleaned = monthlyRent.replaceAll(RegExp(r'[^0-9.]'), '');
+      parsedPrice = num.tryParse(cleaned) ?? 0;
+    } else if (apiTransactionType == 'sale' && expectedPrice.isNotEmpty) {
+      final cleaned = expectedPrice.replaceAll(RegExp(r'[^0-9.]'), '');
+      parsedPrice = num.tryParse(cleaned) ?? 0;
+    }
+
+    // Convert imageUrls (list of strings) into backend expected objects:
+    // [{ "url": "...", "is_primary": true }, ...]
+    final List<Map<String, dynamic>> imagesPayload = [];
+    for (var i = 0; i < imageUrls.length; i++) {
+      final url = imageUrls[i];
+      if (url == null) continue;
+      final trimmed = url.toString().trim();
+      if (trimmed.isEmpty) continue;
+      // Only include http/https URLs; skip local file paths (picked images)
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        imagesPayload.add({
+          'url': trimmed,
+          'is_primary': imagesPayload.isEmpty, // first valid becomes primary
+        });
+      }
+    }
+
+    int? _availabilityMonthInt() {
+      final label = availableFrom.trim();
+      if (label.isEmpty) return null;
+      // Backend ke error se pata chala: value >= 1 honi chahiye,
+      // isliye "Immediately" bhi 1 bhej rahe hain.
+      if (label.toLowerCase().contains('immediately')) return 1;
+      if (label.contains('1')) return 1;
+      if (label.contains('3')) return 3;
+      if (label.contains('7')) return 7;
+      if (label.contains('9')) return 9;
+      return null;
+    }
 
     final Map<String, dynamic> data = {
       "title": title,
       "description": description,
-      "transaction_type": transactionType,
-      "price": 0, // price fields are in step 2, add later if backend requires it
+      "transaction_type": apiTransactionType,
+      "price": parsedPrice,
       "property_category": propertyCategory,
       "property_subtype": propertySubtype,
       "bedrooms": bedrooms,
@@ -136,7 +202,15 @@ class PropertyDraft {
       "common_area": commonArea,
       "tenants_you_prefer": tenantsYouPrefer,
       "laundry": laundry,
-      "images": imageUrls,
+      // Newly added fields so backend me null na jaye:
+      "possession_status": possessionStatus,
+      // Backend expects integer for availability_month; map UI label to months offset.
+      "availability_month": _availabilityMonthInt(),
+      "age_of_construction": ageOfConstruction,
+      "car_parking": carParking,
+      "lift": lift,
+      "type_of_ownership": typeOfOwnership,
+      "images": imagesPayload,
       "amenities": amenities,
       "owner_id": effectiveOwnerId,
     };
@@ -188,6 +262,7 @@ class Property {
   final List<String> amenities;
   final List<String> images;
   final String ownerId;
+  final bool isFavorite;
   final DateTime? postedAt;
 
   Property({
@@ -233,6 +308,7 @@ class Property {
     required this.amenities,
     required this.images,
     required this.ownerId,
+    this.isFavorite = false,
     required this.postedAt,
   });
 
@@ -254,7 +330,14 @@ class Property {
   /// - how_old_is_pg, attached_balcony, security_amount, common_area
   /// - tenants_you_prefer, laundry
   factory Property.fromJson(Map<String, dynamic> json) {
-    final location = json['location'] as Map<String, dynamic>? ?? {};
+    final dynamic locationRaw = json['location'];
+    final Map<String, dynamic> location =
+        (locationRaw is Map<String, dynamic>) ? locationRaw : {};
+    // If API returns a string location (e.g. "3 BHK | Anna Nagar, Chennai"), place it into address
+    String _stringLocationFallback = '';
+    if (locationRaw is String) {
+      _stringLocationFallback = locationRaw;
+    }
 
     int _toInt(dynamic v) {
       if (v == null) return 0;
@@ -299,8 +382,9 @@ class Property {
       storeRoom: (json['store_room'] ?? false) as bool,
       servantRoom: (json['servant_room'] ?? false) as bool,
       
-      // Location (from nested location object)
-      address: location['address']?.toString() ?? '',
+      // Location (from nested location object). If backend returned a string location,
+      // use it as the address fallback.
+      address: location['address']?.toString() ?? _stringLocationFallback,
       locality: location['locality']?.toString() ?? '',
       city: location['city']?.toString() ?? '',
       
@@ -328,11 +412,20 @@ class Property {
           .map((e) => e.toString())
           .toList(),
       images: (json['images'] as List<dynamic>? ?? [])
-          .map((e) => e.toString())
+          .map<String>((e) {
+            if (e == null) return '';
+            if (e is Map && e['url'] != null) {
+              return e['url'].toString();
+            }
+            if (e is String) return e;
+            return e.toString();
+          })
+          .where((s) => s.isNotEmpty)
           .toList(),
       
       // Meta
       ownerId: json['owner_id']?.toString() ?? '',
+      isFavorite: json['is_favorite'] is bool ? json['is_favorite'] as bool : (json['is_favorite'] != null ? (json['is_favorite'].toString().toLowerCase() == 'true') : false),
       postedAt: json['posted_at'] != null
           ? DateTime.tryParse(json['posted_at'].toString())
           : null,

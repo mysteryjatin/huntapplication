@@ -1,10 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hunt_property/cubit/filter_cubit.dart';
 import 'package:hunt_property/screen/filter_screen.dart';
-import 'package:hunt_property/theme/app_theme.dart';
+import 'package:hunt_property/services/filter_service.dart';
 import 'package:hunt_property/services/property_service.dart';
 import 'package:hunt_property/models/property_models.dart';
+import 'package:hunt_property/models/filter_models.dart';
 import 'package:intl/intl.dart';
+import 'package:hunt_property/screen/property_details_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   final VoidCallback? onBackPressed;
@@ -20,6 +24,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final FocusNode _searchFocusNode = FocusNode();
 
   String _selectedType = "BUY";
+  FilterSelection? _activeFilters;
   bool _isSearching = false;
   bool _isSearchFocused = false;
   bool _isLoadingProperties = false;
@@ -51,55 +56,122 @@ class _SearchScreenState extends State<SearchScreen> {
   void _performSearch(String query) {
     _searchTimer?.cancel();
 
-    if (query.trim().isEmpty) {
+    // Treat any returned FilterSelection (even if only category/transaction type)
+    // as an active filter so that tapping "Apply" in the bottom sheet always
+    // triggers a search, even when the query is empty.
+    final hasRealFilters = (_activeFilters?.hasAnyFilter ?? false);
+    final hasFilterObject = _activeFilters != null;
+    final hasFilters = hasRealFilters || hasFilterObject;
+
+    if (query.trim().isEmpty && !hasFilters) {
       setState(() {
         _searchResults.clear();
         _isSearching = false;
       });
+      // User ne search text clear kar diya -> keyboard bhi hide kar do
+      if (_searchFocusNode.hasFocus) {
+        _searchFocusNode.unfocus();
+      }
       return;
     }
 
     setState(() => _isSearching = true);
 
-    _searchTimer = Timer(const Duration(milliseconds: 400), () {
-      final q = query.toLowerCase();
+    _searchTimer = Timer(const Duration(milliseconds: 400), () async {
+      try {
+        // Always base search on the latest text in the field
+        final currentText = _searchController.text;
+        final qLower = currentText.toLowerCase().trim();
 
-      final filtered = _allProperties.where((p) {
-        final typeMatch = _selectedType == "BUY"
-            ? p.transactionType.toLowerCase().contains('buy') ||
-            p.transactionType.toLowerCase().contains('sell')
-            : p.transactionType.toLowerCase().contains('rent');
+        // If user types "2bhk", "3 bhk" etc., also apply a bedrooms filter
+        FilterSelection? effectiveFilters = _activeFilters;
+        final bhkMatch = RegExp(r'(\d+)\s*bhk').firstMatch(qLower);
+        final bhk = bhkMatch != null ? int.tryParse(bhkMatch.group(1)!) : null;
+        if (bhk != null && bhk > 0) {
+          if (effectiveFilters == null) {
+            effectiveFilters = FilterSelection(
+              category: _selectedType,
+              bedrooms: bhk,
+              bedroomsList: [bhk],
+              city: null,
+              locality: null,
+              propertyCategory: null,
+              propertySubtype: null,
+              furnishing: null,
+              facing: null,
+              possessionStatus: null,
+              availabilityMonth: null,
+              availabilityYear: null,
+              ageOfConstruction: null,
+              budgetMin: null,
+              budgetMax: null,
+              areaMin: null,
+              areaMax: null,
+              bathrooms: null,
+              storeRoom: null,
+              servantRoom: null,
+            );
+          } else {
+            effectiveFilters = effectiveFilters.copyWith(
+              bedrooms: bhk,
+              bedroomsList: [bhk],
+            );
+          }
+        }
 
-        if (!typeMatch) return false;
+        var results = await _propertyService.searchProperties(
+          query: currentText,
+          filters: effectiveFilters,
+          type: _selectedType,
+          page: 1,
+          limit: 50,
+        );
 
-        final searchable = [
-          p.title,
-          p.city,
-          p.locality,
-          p.address,
-          p.propertySubtype,
-          p.propertyCategory,
-        ].where((e) => e.isNotEmpty).join(' ').toLowerCase();
+        // Extra safety: if backend ignores bedrooms filter, enforce BHK on client side too
+        if (bhk != null && bhk > 0) {
+          results = results.where((p) => p.bedrooms == bhk).toList();
+        }
 
-        return searchable.contains(q);
-      }).toList();
+        // If user has already changed the text again, ignore this older response
+        final latestText = _searchController.text.toLowerCase().trim();
+        if (latestText != qLower) {
+          return;
+        }
 
-      setState(() {
-        _searchResults = filtered;
-        _isSearching = false;
-      });
+        setState(() {
+          _searchResults = results;
+          _isSearching = false;
+        });
+
+        // As soon as search complete and list updated, keyboard hide kar do
+        if (_searchFocusNode.hasFocus) {
+          _searchFocusNode.unfocus();
+        }
+      } catch (e) {
+        // ignore: avoid_print
+        print('❌ SEARCH FAILED: $e');
+        setState(() {
+          _searchResults = [];
+          _isSearching = false;
+        });
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        children: [
-          _searchBar(),
-          _buyRentToggle(),
-          Expanded(child: _buildContentArea()),
-        ],
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _searchBar(),
+            const SizedBox(height: 8),
+            _buyRentToggle(),
+            const SizedBox(height: 8),
+            Expanded(child: _buildContentArea()),
+          ],
+        ),
       ),
     );
   }
@@ -117,10 +189,14 @@ class _SearchScreenState extends State<SearchScreen> {
       return _buildSearchResults();
     }
 
-    if (_searchController.text.isNotEmpty) {
+    // Agar search text ya active filters hain, lekin result 0 hai,
+    // to "No property found" dikhana hai.
+    final hasFilters = _activeFilters?.hasAnyFilter ?? false;
+    if (_searchController.text.isNotEmpty || hasFilters) {
       return _buildNotFoundScreen();
     }
 
+    // No query, no filters, no results -> kuch bhi mat dikhao
     return const SizedBox.shrink();
   }
 
@@ -137,133 +213,86 @@ class _SearchScreenState extends State<SearchScreen> {
   // ---------------- PROPERTY CARD ----------------
 
   Widget _propertyItem(Property property) {
-    final imageUrl = property.images.isNotEmpty
-        ? property.images.first
-        : 'assets/images/onboarding1.png';
-
-    final priceText = property.price > 0
+    // Prepare display values
+    final imageUrl = property.images.isNotEmpty ? property.images.first : null;
+    final priceText = (property.price is num && property.price > 0)
         ? '₹ ${NumberFormat('#,###').format(property.price)}'
-        : '0.0';
+        : '₹ 0';
+    final dateText = property.postedAt != null ? DateFormat('dd MMM yyyy').format(property.postedAt!) : '';
+    final location = '${property.locality}${property.city.isNotEmpty ? ', ${property.city}' : ''}';
 
-    final dateText = property.postedAt != null
-        ? DateFormat('dd MMMM yyyy').format(property.postedAt!)
-        : '';
-
-    final location =
-        '${property.locality}${property.city.isNotEmpty ? ', ${property.city}' : ''}';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5FAFF),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // IMAGE
-          Container(
-            width: 86,
-            height: 86,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.12),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Image.asset(imageUrl, fit: BoxFit.cover),
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PropertyDetailsScreen(
+              propertyId: property.id,
+              // Search results me abhi favorite state directly available nahi,
+              // isliye yahan initialIsFavorite false hi rahega.
             ),
           ),
-
-          const SizedBox(width: 12),
-
-          // TEXT AREA
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                /// 🔥 TITLE + HEART (SAME ROW)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        property.title.isNotEmpty
-                            ? property.title
-                            : 'Flat in best offer',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const Icon(
-                      Icons.favorite_border,
-                      size: 18,
-                      color: Colors.black54,
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 4),
-
-                // LOCATION
-                Text(
-                  location,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
-
-                const SizedBox(height: 4),
-
-                // SIZE / TYPE
-                const Text(
-                  '360 Sq Ft • Freehold',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
-
-                const SizedBox(height: 6),
-
-                /// 🔥 DATE (LEFT) + PRICE (RIGHT) — SAME ROW
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        dateText,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      priceText,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: const Color(0xFFF5FAFF), borderRadius: BorderRadius.circular(14)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // IMAGE
+            Container(
+              width: 86,
+              height: 86,
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 8, offset: const Offset(0, 4))]),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: imageUrl != null ? Image.network(imageUrl, fit: BoxFit.cover) : Image.asset('assets/images/onboarding1.png', fit: BoxFit.cover),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            // TEXT AREA
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                            // Prefer structured bedrooms field for BHK label to avoid mismatch
+                            property.bedrooms > 0
+                                ? '${property.bedrooms} BHK'
+                                : (property.title.isNotEmpty
+                                    ? property.title
+                                    : 'Flat in best offer'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w600)),
+                      ),
+                      const Icon(Icons.favorite_border, size: 18, color: Colors.black54),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(location, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  const Text('360 Sq Ft • Freehold', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(child: Text(dateText, style: const TextStyle(fontSize: 11, color: Colors.grey))),
+                      Text(priceText, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -275,11 +304,11 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.asset("assets/images/not found.png", width: 220),
+          Image.asset("assets/images/no_proerty_found.png", width: 220),
           const SizedBox(height: 10),
           const Text(
             "No property found",
-            style: TextStyle(color: Colors.grey, fontSize: 16),
+            style: TextStyle(color: Colors.black, fontSize: 16,),
           ),
         ],
       ),
@@ -295,14 +324,19 @@ class _SearchScreenState extends State<SearchScreen> {
         controller: _searchController,
         focusNode: _searchFocusNode,
         onChanged: _performSearch,
+        textInputAction: TextInputAction.search,
+        onSubmitted: (value) {
+          _searchFocusNode.unfocus(); // hide keyboard when user hits search/done
+          _performSearch(value);
+        },
         decoration: InputDecoration(
           hintText: "Search your area, project",
           prefixIcon: const Icon(Icons.search),
 
-          // 🔥 FIXED FILTER ICON
+          // FILTER ICON (UI same)
           suffixIcon: GestureDetector(
-            onTap: () {
-              showModalBottomSheet(
+            onTap: () async {
+              final result = await showModalBottomSheet<FilterSelection>(
                 context: context,
                 isScrollControlled: true,
                 backgroundColor: Colors.black.withOpacity(0.4),
@@ -311,12 +345,24 @@ class _SearchScreenState extends State<SearchScreen> {
                   minChildSize: 0.5,
                   maxChildSize: 0.95,
                   builder: (context, scrollController) {
-                    return FilterScreen(
-                      scrollController: scrollController,
+                    return BlocProvider(
+                      create: (_) => FilterCubit(FilterService()),
+                      child: FilterScreen(
+                        scrollController: scrollController,
+                        initialSelection: _activeFilters,
+                      ),
                     );
                   },
                 ),
               );
+
+              if (result != null) {
+                setState(() {
+                  _activeFilters = result;
+                  _selectedType = result.category;
+                });
+                _performSearch(_searchController.text);
+              }
             },
             child: const Icon(Icons.tune),
           ),
@@ -363,3 +409,4 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 }
+

@@ -232,9 +232,29 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       print('❌ Apple Sign-In Error: $e');
       if (!mounted) return;
+      // User-friendly message for common cases (cancel, error 1000, not configured)
+      String message = 'Apple sign-in failed. ';
+      if (e is SignInWithAppleAuthorizationException) {
+        switch (e.code) {
+          case AuthorizationErrorCode.canceled:
+            message = 'Apple sign-in was cancelled.';
+            break;
+          case AuthorizationErrorCode.unknown:
+            message =
+                'Apple sign-in is not available. Try on a real device, or ensure Sign in with Apple is enabled in Apple Developer.';
+            break;
+          case AuthorizationErrorCode.notHandled:
+            message = 'Apple sign-in was not completed.';
+            break;
+          default:
+            message = 'Apple sign-in failed: ${e.code.name}.';
+        }
+      } else {
+        message = 'Apple sign-in failed. Please try again or use another sign-in option.';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Apple sign-in failed: ${e.toString()}'),
+          content: Text(message),
           backgroundColor: Colors.red,
         ),
       );

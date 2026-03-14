@@ -9,6 +9,8 @@ import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/profile_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 
+import 'notification_screen.dart';
+
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onBackPressed;
 
@@ -35,7 +37,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
-
     try {
       // Check both login status and user ID
       final isLoggedIn = await StorageService.isLoggedIn();
@@ -58,7 +59,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final result = await _profileService.getProfile(userId);
       if (result['success']) {
-        final profileData = result['data'];
+        dynamic profileData = result['data'];
+
+        // -------- PROFILE PICTURE FALLBACK (temp cache) --------
+        String? profilePic;
+        if (profileData is Map) {
+          profilePic = profileData['profile_picture']?.toString() ??
+              profileData['profilePicture']?.toString();
+        }
+
+        // Agar backend se profile_picture nahi aa raha,
+        // lekin Personal Information screen ne temp image save ki hai,
+        // to usse yahan use kar lo.
+        if ((profilePic == null || profilePic.isEmpty) && userId.isNotEmpty) {
+          final tempPic =
+              await StorageService.getTempProfilePicture(userId);
+          if (tempPic != null && tempPic.isNotEmpty) {
+            if (profileData is Map) {
+              profileData = Map<String, dynamic>.from(profileData);
+              profileData['profile_picture'] = tempPic;
+            }
+          }
+        } else if (profilePic != null && profilePic.isNotEmpty) {
+          // Backend ne agar pic bhej diya ho to temp cache hata do.
+          await StorageService.removeTempProfilePicture(userId);
+        }
         
         // Save user type to storage if available
         if (profileData is Map) {
@@ -71,7 +96,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
         
         setState(() {
-          _profileData = profileData;
+          _profileData = profileData is Map<String, dynamic>
+              ? Map<String, dynamic>.from(profileData)
+              : null;
           _isLoading = false;
         });
         print('✅ Profile Screen - Profile loaded successfully');
@@ -173,19 +200,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         );
                       },
                     ),
-                    _buildMenuItem(
-                      context: context,
-                      icon: Icons.lock_outline,
-                      title: 'Change Password',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ChangePasswordScreen(),
-                          ),
-                        );
-                      },
-                    ),
+                    // _buildMenuItem(
+                    //   context: context,
+                    //   icon: Icons.lock_outline,
+                    //   title: 'Change Password',
+                    //   onTap: () {
+                    //     Navigator.push(
+                    //       context,
+                    //       MaterialPageRoute(
+                    //         builder: (context) => const ChangePasswordScreen(),
+                    //       ),
+                    //     );
+                    //   },
+                    // ),
                     _buildMenuItem(
                       context: context,
                       icon: Icons.logout,

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:sms_autofill/sms_autofill.dart';
 import 'package:hunt_property/cubit/auth_cubit.dart';
 import 'package:hunt_property/screen/add_post_screen.dart';
 import 'package:hunt_property/screen/add_post_step2_screen.dart';
@@ -26,11 +29,61 @@ import 'package:hunt_property/services/auth_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/models/property_models.dart';
+import 'firebase_messaging_handler.dart';
 
-void main() async {
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  
+
+  // Background handler for FCM
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+  // Local notifications init (Android)
+  const AndroidInitializationSettings initAndroid =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+
+  const InitializationSettings initializationSettings =
+      InitializationSettings(android: initAndroid);
+
+  await flutterLocalNotificationsPlugin.initialize(
+    initializationSettings,
+    onDidReceiveNotificationResponse: (NotificationResponse response) {
+      final route = response.payload;
+      if (route != null && route.isNotEmpty) {
+        navigatorKey.currentState?.pushNamed(route);
+      }
+    },
+  );
+
+  // Android notification channel for FCM
+  const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    'default_channel',
+    'Default Notifications',
+    description: 'Default channel for FCM notifications',
+    importance: Importance.high,
+  );
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
+
+  // Notification permissions (Android 13+ and iOS)
+  await _requestNotificationPermission();
+
+  // TEMP: Print SMS app signature for OTP auto-fill setup
+  try {
+    final sig = await SmsAutoFill().getAppSignature;
+    print('📌 APP SIGNATURE (give this to backend for SMS template): $sig');
+  } catch (e) {
+    print('❌ Failed to get app signature: $e');
+  }
+
   // Load environment variables from .env file
   try {
     await dotenv.load(fileName: ".env");
@@ -48,29 +101,109 @@ void main() async {
     print('❌ Please make sure .env file exists in the root directory');
     print('❌ You can copy .env.example to .env and add your API key');
   }
-  
+
   // Pre-initialize SharedPreferences to avoid platform channel errors
   // Add a small delay to ensure platform channels are ready
   await Future.delayed(const Duration(milliseconds: 100));
-  
+
   try {
     await StorageService.initialize(forceRefresh: true);
   } catch (e) {
     print('Warning: Failed to pre-initialize SharedPreferences: $e');
     // Continue anyway - it will retry when needed
   }
-  
+
+  // Device FCM token (send to your backend)
+  try {
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token != null) {
+      print('✅ FCM TOKEN: $token');
+    }
+  } catch (e) {
+    print('❌ Failed to get FCM token: $e');
+  }
+
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+Future<void> _requestNotificationPermission() async {
+  final messaging = FirebaseMessaging.instance;
+
+  await messaging.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+}
+
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    _listenForegroundMessages();
+    _setupInteractedMessage();
+  }
+
+  void _listenForegroundMessages() {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      final notification = message.notification;
+      final android = notification?.android;
+
+      if (notification != null && android != null) {
+        final data = message.data;
+
+        flutterLocalNotificationsPlugin.show(
+          notification.hashCode,
+          notification.title,
+          notification.body,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'default_channel',
+              'Default Notifications',
+              channelDescription: 'Default channel for FCM notifications',
+              importance: Importance.high,
+              priority: Priority.high,
+            ),
+          ),
+          payload: data['route'],
+        );
+      }
+    });
+  }
+
+  Future<void> _setupInteractedMessage() async {
+    // App background में था और user ने notification tap किया
+    FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageNavigation);
+
+    // App completely बंद था और notification से open हुआ
+    final initialMessage =
+        await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      _handleMessageNavigation(initialMessage);
+    }
+  }
+
+  void _handleMessageNavigation(RemoteMessage message) {
+    final data = message.data;
+    final route = data['route'] ?? '/home';
+
+    if (!mounted) return;
+    Navigator.of(context).pushNamed(route);
+  }
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => AuthCubit(AuthService()),
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         debugShowCheckedModeBanner: false,
         title: 'Hunt Property',
         theme: buildAppTheme(),
@@ -97,10 +230,11 @@ class MyApp extends StatelessWidget {
           '/profile': (_) => const ProfileScreen(),
           '/rent-properties': (_) => const RentPropertiesScreen(),
           '/buy-properties': (_) => const BuyPropertiesScreen(),
-          '/subscription-plans': (_) => const SubscriptionPlansScreen(),
+          '/subscription-plans': (_) =>
+              const SubscriptionPlansScreen(),
         },
       ),
     );
   }
 }
- 
+

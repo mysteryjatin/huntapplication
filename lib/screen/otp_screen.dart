@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/cubit/auth_cubit.dart';
+import 'package:sms_autofill/sms_autofill.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   const OtpVerificationScreen({super.key});
@@ -11,20 +12,21 @@ class OtpVerificationScreen extends StatefulWidget {
   State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
 }
 
-class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
+class _OtpVerificationScreenState extends State<OtpVerificationScreen>
+    with CodeAutoFill {
   final List<TextEditingController> _codes =
       List.generate(6, (_) => TextEditingController());
 
   Timer? _timer;
   int _seconds = 30;
   String? _phoneNumber;
-  String? _displayOtp; // OTP to display for testing
   bool _isLogin = false; // Track if this is login or signup flow
 
   @override
   void initState() {
     super.initState();
     _startTimer();
+    listenForCode(); // from CodeAutoFill mixin
     // Get phone number from arguments and check current state
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final args = ModalRoute.of(context)?.settings.arguments;
@@ -34,21 +36,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         });
       }
       
-      // Check current state for OTP
-      final currentState = context.read<AuthCubit>().state;
-      if (currentState is OtpRequested) {
-        print('Found OtpRequested state on init. OTP: ${currentState.otp}, isLogin: ${currentState.isLogin}');
-        setState(() {
-          _displayOtp = currentState.otp;
-          _isLogin = currentState.isLogin;
-          // Auto-fill OTP if available and is 6 digits
-          if (currentState.otp != null && currentState.otp!.length == 6) {
-            for (int i = 0; i < 6 && i < _codes.length; i++) {
-              _codes[i].text = currentState.otp![i];
-            }
-          }
-        });
-      }
+        // Check current state for whether this is login or signup
+        final currentState = context.read<AuthCubit>().state;
+        if (currentState is OtpRequested) {
+          setState(() {
+            _isLogin = currentState.isLogin;
+          });
+        }
     });
   }
 
@@ -65,11 +59,23 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   @override
+  void codeUpdated() {
+    final code = this.code;
+    if (code == null || code.length < _codes.length) return;
+    for (var i = 0; i < _codes.length; i++) {
+      _codes[i].text = code[i];
+    }
+    // Automatically verify once all digits are filled
+    _verify();
+  }
+
+  @override
   void dispose() {
     for (final c in _codes) {
       c.dispose();
     }
     _timer?.cancel();
+    cancel(); // from CodeAutoFill mixin
     super.dispose();
   }
 
@@ -136,47 +142,21 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             ),
           );
         } else if (state is OtpRequested) {
-          // Always store OTP for display (even if null, we'll show a message)
-          print('OtpRequested state received. OTP: ${state.otp}, isLogin: ${state.isLogin}');
+          // Backend sends OTP via SMS; show generic message and set login flag.
           setState(() {
-            _displayOtp = state.otp;
             _isLogin = state.isLogin;
-            print('Updated _displayOtp to: $_displayOtp, _isLogin: $_isLogin');
-            // Auto-fill OTP if available and is 6 digits
-            if (state.otp != null && state.otp!.length == 6) {
-              print('Auto-filling OTP: ${state.otp}');
-              for (int i = 0; i < 6 && i < _codes.length; i++) {
-                _codes[i].text = state.otp![i];
-              }
-            }
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.otp != null 
-                  ? 'OTP sent successfully: ${state.otp}' 
-                  : 'OTP sent successfully'),
+            const SnackBar(
+              content: Text('OTP sent to your phone'),
               backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
+              duration: Duration(seconds: 3),
             ),
           );
         }
       },
       builder: (context, state) {
-        // Update OTP display when state changes
-        if (state is OtpRequested && state.otp != null && state.otp != _displayOtp) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            setState(() {
-              _displayOtp = state.otp;
-              _isLogin = state.isLogin;
-              // Auto-fill OTP if available and is 6 digits
-              if (state.otp!.length == 6) {
-                for (int i = 0; i < 6 && i < _codes.length; i++) {
-                  _codes[i].text = state.otp![i];
-                }
-              }
-            });
-          });
-        }
+        // No auto-fill of OTP from state; user must enter OTP from SMS.
         
         return Scaffold(
         resizeToAvoidBottomInset: true,
@@ -198,56 +178,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   style: theme.textTheme.bodyMedium,
                 ),
 
-                // Display OTP for testing (always show, even if null)
                 const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: _displayOtp != null 
-                        ? Colors.yellow.shade100 
-                        : Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: _displayOtp != null ? Colors.orange : Colors.red,
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        _displayOtp != null 
-                            ? Icons.info_outline 
-                            : Icons.warning_amber_rounded,
-                        color: _displayOtp != null ? Colors.orange : Colors.red,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          _displayOtp != null 
-                              ? 'OTP: $_displayOtp'
-                              : 'OTP not found. Check logs.',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: _displayOtp != null ? Colors.orange : Colors.red,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
 
               const SizedBox(height: 100),
 
-              /// OTP BOXES — FIXED, NO OVERLAP
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(
-                  6,
-                      (i) => _OtpBox(controller: _codes[i]),
+              /// OTP BOXES — SAME UI, WITH AUTO-FILL
+              AutofillGroup(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: List.generate(
+                    6,
+                    (i) => _OtpBox(controller: _codes[i]),
+                  ),
                 ),
               ),
 
@@ -363,7 +305,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 }
 
-/// PERFECT OTP BOX (no overflow)
+/// PERFECT OTP BOX (no overflow) - UI unchanged
 class _OtpBox extends StatelessWidget {
   final TextEditingController controller;
   const _OtpBox({required this.controller});
@@ -385,6 +327,7 @@ class _OtpBox extends StatelessWidget {
         controller: controller,
         maxLength: 1,
         keyboardType: TextInputType.number,
+        autofillHints: const [AutofillHints.oneTimeCode],
         textAlign: TextAlign.center,
         style: const TextStyle(
           fontSize: 20,

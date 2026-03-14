@@ -18,13 +18,11 @@ class AuthLoading extends AuthState {}
 
 class OtpRequested extends AuthState {
   final String phone;
-  final String? otp; // OTP for development/testing
   final bool isLogin; // Track if this is for login or signup
-
-  const OtpRequested(this.phone, {this.otp, this.isLogin = false});
+  const OtpRequested(this.phone, {this.isLogin = false});
 
   @override
-  List<Object?> get props => [phone, otp, isLogin];
+  List<Object?> get props => [phone, isLogin];
 }
 
 class OtpVerified extends AuthState {
@@ -144,98 +142,9 @@ class AuthCubit extends Cubit<AuthState> {
     try {
       final result = await _authService.requestOtp(phone);
       if (result['success']) {
-        // Extract OTP from response if available (for development/testing)
-        String? otp;
-        final data = result['data'];
-        
-        // Debug: Print the response to see structure
-        print('OTP Response data: $data');
-        print('OTP Response data type: ${data.runtimeType}');
-        
-        if (data is Map) {
-          // Try common OTP field names - handle both int and string types
-          dynamic otpValue = data['otp'] ?? 
-                data['code'] ?? 
-                data['otp_code'] ?? 
-                data['verification_code'] ??
-                data['otpCode'] ??
-                data['verificationCode'];
-          
-          // Convert to string if it's a number
-          if (otpValue != null) {
-            otp = otpValue.toString();
-          }
-          
-          // If still no OTP found, check nested structures
-          if (otp == null && data.containsKey('data')) {
-            final nestedData = data['data'];
-            if (nestedData is Map) {
-              dynamic nestedOtp = nestedData['otp'] ?? nestedData['code'] ?? nestedData['otp_code'];
-              if (nestedOtp != null) {
-                otp = nestedOtp.toString();
-              }
-            }
-          }
-          
-          // If OTP is in a message format, try to extract it
-          if (otp == null) {
-            final message = data['message']?.toString() ?? '';
-            final otpMatch = RegExp(r'\b\d{4,6}\b').firstMatch(message);
-            if (otpMatch != null) {
-              otp = otpMatch.group(0);
-            }
-          }
-        } else if (data is String) {
-          // If data is directly a string, try to extract OTP from it
-          final otpMatch = RegExp(r'\b\d{4,6}\b').firstMatch(data);
-          if (otpMatch != null) {
-            otp = otpMatch.group(0);
-          } else {
-            otp = data;
-          }
-        }
-        
-        print('Extracted OTP: $otp');
-        
-        // If OTP not found, try more aggressive extraction
-        if (otp == null || otp.isEmpty) {
-          print('OTP not found in response. Full data: $data');
-          
-          // Convert entire response to string and search for OTP patterns
-          final responseStr = data.toString();
-          print('Searching for OTP in: $responseStr');
-          
-          // Try to find 4-6 digit numbers (OTP patterns)
-          final otpMatches = RegExp(r'\d{4,6}').allMatches(responseStr);
-          for (final match in otpMatches) {
-            final potentialOtp = match.group(0);
-            // Prefer 6-digit OTPs, but accept 4-5 digit ones too
-            if (potentialOtp != null && potentialOtp.length >= 4) {
-              otp = potentialOtp;
-              print('Found OTP pattern: $otp');
-              break;
-            }
-          }
-          
-          // If still not found, try extracting from nested JSON strings
-          if ((otp == null || otp.isEmpty) && data is Map) {
-            // Check all string values in the map
-            for (var value in data.values) {
-              if (value is String) {
-                final match = RegExp(r'\d{4,6}').firstMatch(value);
-                if (match != null) {
-                  otp = match.group(0);
-                  print('Found OTP in string value: $otp');
-                  break;
-                }
-              }
-            }
-          }
-        }
-        
-        // Always emit with OTP (even if null, so we can debug)
-        print('Final OTP to display: $otp');
-        emit(OtpRequested(phone, otp: otp));
+        // Backend now sends OTP via SMS and doesn't return it in response.
+        // Emit OtpRequested without any OTP value; UI will prompt user to enter OTP from SMS.
+        emit(OtpRequested(phone, isLogin: false));
       } else {
         emit(AuthError(result['error'] ?? 'Failed to request OTP'));
       }
@@ -327,72 +236,8 @@ class AuthCubit extends Cubit<AuthState> {
     try {
       final result = await _authService.loginRequestOtp(phone);
       if (result['success']) {
-        // Extract OTP from response if available (for development/testing)
-        String? otp;
-        final data = result['data'];
-        
-        print('Login OTP Response data: $data');
-        
-        if (data is Map) {
-          // Try common OTP field names - handle both int and string types
-          dynamic otpValue = data['otp'] ?? 
-                data['code'] ?? 
-                data['otp_code'] ?? 
-                data['verification_code'] ??
-                data['otpCode'] ??
-                data['verificationCode'];
-          
-          // Convert to string if it's a number
-          if (otpValue != null) {
-            otp = otpValue.toString();
-          }
-          
-          // If still no OTP found, check nested structures
-          if (otp == null && data.containsKey('data')) {
-            final nestedData = data['data'];
-            if (nestedData is Map) {
-              dynamic nestedOtp = nestedData['otp'] ?? nestedData['code'] ?? nestedData['otp_code'];
-              if (nestedOtp != null) {
-                otp = nestedOtp.toString();
-              }
-            }
-          }
-          
-          // If OTP is in a message format, try to extract it
-          if (otp == null) {
-            final message = data['message']?.toString() ?? '';
-            final otpMatch = RegExp(r'\b\d{4,6}\b').firstMatch(message);
-            if (otpMatch != null) {
-              otp = otpMatch.group(0);
-            }
-          }
-        } else if (data is String) {
-          // If data is directly a string, try to extract OTP from it
-          final otpMatch = RegExp(r'\b\d{4,6}\b').firstMatch(data);
-          if (otpMatch != null) {
-            otp = otpMatch.group(0);
-          } else {
-            otp = data;
-          }
-        }
-        
-        // If OTP not found, try more aggressive extraction
-        if (otp == null || otp.isEmpty) {
-          print('Login OTP not found in response. Full data: $data');
-          final responseStr = data.toString();
-          final otpMatches = RegExp(r'\d{4,6}').allMatches(responseStr);
-          for (final match in otpMatches) {
-            final potentialOtp = match.group(0);
-            if (potentialOtp != null && potentialOtp.length >= 4) {
-              otp = potentialOtp;
-              print('Found Login OTP pattern: $otp');
-              break;
-            }
-          }
-        }
-        
-        print('Final Login OTP to display: $otp');
-        emit(OtpRequested(phone, otp: otp, isLogin: true));
+        // Backend sends OTP via SMS; don't extract from response.
+        emit(OtpRequested(phone, isLogin: true));
       } else {
         emit(AuthError(result['error'] ?? 'Failed to request login OTP'));
       }

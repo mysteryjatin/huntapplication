@@ -59,29 +59,34 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar>
             curve: Curves.easeInOutCubic, // Animation effect
             top: -22,
             left: startX,
-            child: Container(
-              width: 72,
-              height: 72,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: AnimatedScale(
-                  duration: const Duration(milliseconds: 300),
-                  scale: 1.1,
-                  curve: Curves.easeOutBack,
-                  child: Container(
-                    width: 62,
-                    height: 62,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF2FED9A),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      _icons[widget.selectedIndex],
-                      color: Colors.black,
-                      size: 28,
+            child: GestureDetector(
+              // Even if same tab selected (e.g. Home), tapping big circle
+              // should still trigger onItemSelected to allow reset logic.
+              onTap: () => widget.onItemSelected(widget.selectedIndex),
+              child: Container(
+                width: 72,
+                height: 72,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: AnimatedScale(
+                    duration: const Duration(milliseconds: 300),
+                    scale: 1.1,
+                    curve: Curves.easeOutBack,
+                    child: Container(
+                      width: 62,
+                      height: 62,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF2FED9A),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _icons[widget.selectedIndex],
+                        color: Colors.black,
+                        size: 28,
+                      ),
                     ),
                   ),
                 ),

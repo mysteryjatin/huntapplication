@@ -9,6 +9,7 @@ class StorageService {
   static const String _keyIsLoggedIn = 'is_logged_in';
   static const String _keyUserType = 'user_type';
   static const String _keySpinPopupShown = 'spin_popup_shown';
+  static const String _keyUserAddress = 'user_address';
 
   // Cache for SharedPreferences instance
   static SharedPreferences? _prefsInstance;
@@ -206,6 +207,30 @@ class StorageService {
     }
   }
 
+  // Save user address
+  static Future<void> saveUserAddress(String address) async {
+    try {
+      await _getPreferences();
+      await _setValue(_keyUserAddress, address);
+    } catch (e) {
+      print('Error saving user address: $e');
+      _memoryStorage[_keyUserAddress] = address;
+      _useMemoryStorage = true;
+    }
+  }
+
+  // Get user address
+  static Future<String?> getUserAddress() async {
+    try {
+      await _getPreferences();
+      final value = _getValue(_keyUserAddress);
+      return value is String ? value : null;
+    } catch (e) {
+      print('Error getting user address: $e');
+      return _memoryStorage[_keyUserAddress] as String?;
+    }
+  }
+
   // Set login status
   static Future<void> setLoggedIn(bool isLoggedIn) async {
     try {
@@ -352,6 +377,31 @@ class StorageService {
     }
   }
 
+  // Save selected city (for Home screen)
+  static const String _keySelectedCity = 'selected_city';
+
+  static Future<void> saveSelectedCity(String city) async {
+    try {
+      await _getPreferences();
+      await _setValue(_keySelectedCity, city);
+    } catch (e) {
+      print('Error saving selected city: $e');
+      _memoryStorage[_keySelectedCity] = city;
+      _useMemoryStorage = true;
+    }
+  }
+
+  static Future<String?> getSelectedCity() async {
+    try {
+      await _getPreferences();
+      final value = _getValue(_keySelectedCity);
+      return value is String ? value : null;
+    } catch (e) {
+      print('Error getting selected city: $e');
+      return _memoryStorage[_keySelectedCity] as String?;
+    }
+  }
+
   // Check if spin popup has been shown for current user
   static Future<bool> hasSpinPopupShown() async {
     try {
@@ -384,6 +434,43 @@ class StorageService {
         print('⚠️ Checking global spin popup flag (memory, no user ID): result=$result');
         return result;
       }
+    }
+  }
+  // ----- Temporary profile picture cache (per-user) -----
+  static String _tempProfilePicKeyFor(String userId) => 'temp_profile_pic_$userId';
+
+  // Save a temporary uploaded profile picture URL for the user
+  static Future<void> saveTempProfilePicture(String userId, String url) async {
+    try {
+      await _getPreferences();
+      await _setValue(_tempProfilePicKeyFor(userId), url);
+    } catch (e) {
+      print('Error saving temp profile picture: $e');
+      _memoryStorage[_tempProfilePicKeyFor(userId)] = url;
+      _useMemoryStorage = true;
+    }
+  }
+
+  // Get temporary profile picture URL for the user (if any)
+  static Future<String?> getTempProfilePicture(String userId) async {
+    try {
+      await _getPreferences();
+      final value = _getValue(_tempProfilePicKeyFor(userId));
+      return value is String ? value : null;
+    } catch (e) {
+      print('Error getting temp profile picture: $e');
+      return _memoryStorage[_tempProfilePicKeyFor(userId)] as String?;
+    }
+  }
+
+  // Remove temporary profile picture for the user
+  static Future<void> removeTempProfilePicture(String userId) async {
+    try {
+      await _getPreferences();
+      await _removeValue(_tempProfilePicKeyFor(userId));
+    } catch (e) {
+      print('Error removing temp profile picture: $e');
+      _memoryStorage.remove(_tempProfilePicKeyFor(userId));
     }
   }
 }

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hunt_property/cubit/subscription_plans_cubit.dart';
+import 'package:hunt_property/models/subscription_plans_models.dart';
+import 'package:hunt_property/services/subscription_plans_service.dart';
 
 /// ================= RESPONSIVE HELPER =================
 class R {
@@ -15,212 +19,299 @@ class R {
 }
 
 /// ================= SCREEN =================
-class SubscriptionPlansScreen extends StatelessWidget {
+class SubscriptionPlansScreen extends StatefulWidget {
   const SubscriptionPlansScreen({super.key});
 
   @override
+  State<SubscriptionPlansScreen> createState() => _SubscriptionPlansScreenState();
+}
+
+class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
+  late final SubscriptionPlansCubit _cubit;
+
+  @override
+  void initState() {
+    super.initState();
+    _cubit = SubscriptionPlansCubit(SubscriptionPlansService());
+    _cubit.load();
+  }
+
+  @override
+  void dispose() {
+    _cubit.close();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, c) {
-            return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 430),
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.only(bottom: R.h(context, 40)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _appBar(context),
+    return BlocProvider.value(
+      value: _cubit,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF7F7F7),
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, c) {
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 430),
+                  child: BlocBuilder<SubscriptionPlansCubit, SubscriptionPlansState>(
+                    builder: (context, state) {
+                      if (state is SubscriptionPlansLoading ||
+                          state is SubscriptionPlansInitial) {
+                        return const Center(
+                          child: CircularProgressIndicator(),
+                        );
+                      }
 
-                      SizedBox(height: R.h(context, 20)),
-
-                      /// -------- HEADER CARD --------
-                      Container(
-                        margin: EdgeInsets.symmetric(horizontal: R.w(context, 16)),
-                        padding: EdgeInsets.all(R.w(context, 16)),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDFF2FF),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF28E29A)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Choose your growth partner",
-                              style: TextStyle(
-                                fontSize: R.sp(context, 16),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            SizedBox(height: R.h(context, 4)),
-                            Text(
-                              "Upgrade to higher tiers for better visibility and faster leads.",
-                              style: TextStyle(
-                                fontSize: R.sp(context, 12),
-                                color: const Color(0xFF7A7D80),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      SizedBox(height: R.h(context, 18)),
-
-                      /// -------- PLANS --------
-                      _planCard(
-                        context,
-                        bg: "assets/images/metal.png",
-                        title: "Metal",
-                        days: "30 Days",
-                        price: "Free",
-                        features: [
-                          "1 Listing",
-                          "Free Posting",
-                          "Photos Posting (Upto 5MB)",
-                        ],
-                        button: "Downgrade",
-                        colors: const [Color(0xFFA4A4A4), Color(0xFFA3A2A2)],
-                        textColor: Colors.black,
-                      ),
-
-                      _planCard(
-                        context,
-                        bg: "assets/images/bronze.png",
-                        title: "Bronze",
-                        days: "60 Days",
-                        price: "₹ 730",
-                        features: [
-                          "5 Listing",
-                          "Chat Option",
-                          "Expert Property Description",
-                          "Buyer Contacts",
-                        ],
-                        button: "Downgrade",
-                        colors: const [Color(0xFFA35C2C), Color(0xFFCF895A)],
-                        textColor: Colors.white,
-                      ),
-
-                      _currentPlan(context),
-
-                      _planCard(
-                        context,
-                        bg: "assets/images/gold.png",
-                        title: "Gold",
-                        days: "120 Days",
-                        price: "₹ 3500",
-                        features: [
-                          "7 Listing",
-                          "Video Posting",
-                          "SMS & Email Alerts",
-                          "Verified Tag",
-                          "Premium Visibility",
-                        ],
-                        button: "Upgrade to Gold",
-                        colors: const [Color(0xFFF6ECA5), Color(0xFFD79E08)],
-                        textColor: Colors.black,
-                      ),
-
-                      _planCard(
-                        context,
-                        bg: "assets/images/platinum.png",
-                        title: "Platinum",
-                        days: "150 Days",
-                        price: "₹ 5000",
-                        features: [
-                          "9 Listing",
-                          "All Gold Features",
-                          "Top Search Rank",
-                          "Dedicated Relationship Manager",
-                          "Social Media Promotion",
-                        ],
-                        button: "Upgrade to Platinum",
-                        colors: const [Color(0xFF315A81), Color(0xFF1E2B4B)],
-                        textColor: Colors.white,
-                        isDark: true,
-                      ),
-
-                      SizedBox(height: R.h(context, 24)),
-
-                      /// -------- FOOTER --------
-                      Center(
-                        child: Text(
-                          "Secure payment   |   Cancel anytime.",
-                          style: TextStyle(
-                            fontSize: R.sp(context, 13),
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(height: R.h(context, 6)),
-
-                      Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.help_outline,
-                                size: R.sp(context, 16),
-                                color: Colors.black54),
-                            SizedBox(width: R.w(context, 6)),
-                            Text(
-                              "Need help? Contact our support team.",
-                              style: TextStyle(
-                                fontSize: R.sp(context, 13),
-                                color: Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      SizedBox(height: R.h(context, 20)),
-
-                      _divider(),
-
-                      SizedBox(height: R.h(context, 12)),
-
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: R.w(context, 16)),
-                        child: Column(
-                          children: const [
-                            ContactRow(
-                              icon: Icons.call,
-                              title: "Call Us",
-                              lines: ["Call us at: 85588 002009"],
-                            ),
-                            ContactRow(
-                              icon: Icons.mail,
-                              title: "Mail Us",
-                              highlightGreen: true,
-                              lines: [
-                                "Mail us for Sales/Service/Enquires",
-                                "info@huntproperty.com",
-                                "customercare@huntproperty.com",
+                      if (state is SubscriptionPlansError) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  size: 64,
+                                  color: Colors.redAccent,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  state.message,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.redAccent,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                ElevatedButton(
+                                  onPressed: () => _cubit.load(),
+                                  child: const Text('Retry'),
+                                ),
                               ],
                             ),
-                            ContactRow(
-                              icon: Icons.info_outline,
-                              title: "For More Information",
-                              highlightGreen: true,
-                              lines: ["Continue with Customer Services"],
-                            ),
-                            SizedBox(height: 40),
-                          ],
-                        ),
-                      ),
-                    ],
+                          ),
+                        );
+                      }
+
+                      if (state is SubscriptionPlansLoaded) {
+                        final data = state.data;
+                        return SingleChildScrollView(
+                          padding: EdgeInsets.only(bottom: R.h(context, 40)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _appBar(context),
+
+                              SizedBox(height: R.h(context, 20)),
+
+                              /// -------- HEADER CARD --------
+                              Container(
+                                margin: EdgeInsets.symmetric(horizontal: R.w(context, 16)),
+                                padding: EdgeInsets.all(R.w(context, 16)),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDFF2FF),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: const Color(0xFF28E29A)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      data.header.title.isNotEmpty
+                                          ? data.header.title
+                                          : "Choose your growth partner",
+                                      style: TextStyle(
+                                        fontSize: R.sp(context, 16),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    SizedBox(height: R.h(context, 4)),
+                                    Text(
+                                      data.header.subtitle.isNotEmpty
+                                          ? data.header.subtitle
+                                          : "Upgrade to higher tiers for better visibility and faster leads.",
+                                      style: TextStyle(
+                                        fontSize: R.sp(context, 12),
+                                        color: const Color(0xFF7A7D80),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              SizedBox(height: R.h(context, 18)),
+
+                              /// -------- PLANS --------
+                              ...data.plans.map((plan) {
+                                // Check if this is the current plan
+                                final isCurrentPlan = plan.isCurrent ||
+                                    (data.currentPlanId != null &&
+                                        plan.id == data.currentPlanId);
+
+                                if (isCurrentPlan) {
+                                  return Column(
+                                    children: [
+                                      const Text(
+                                        "YOUR CURRENT PLAN",
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      _buildPlanCard(context, plan),
+                                    ],
+                                  );
+                                }
+
+                                return _buildPlanCard(context, plan);
+                              }),
+
+                              SizedBox(height: R.h(context, 24)),
+
+                              /// -------- FOOTER --------
+                              Center(
+                                child: Text(
+                                  data.footer.secureNote.isNotEmpty
+                                      ? data.footer.secureNote
+                                      : "Secure payment   |   Cancel anytime.",
+                                  style: TextStyle(
+                                    fontSize: R.sp(context, 13),
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ),
+
+                              SizedBox(height: R.h(context, 6)),
+
+                              Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.help_outline,
+                                        size: R.sp(context, 16),
+                                        color: Colors.black54),
+                                    SizedBox(width: R.w(context, 6)),
+                                    Text(
+                                      data.footer.helpText.isNotEmpty
+                                          ? data.footer.helpText
+                                          : "Need help? Contact our support team.",
+                                      style: TextStyle(
+                                        fontSize: R.sp(context, 13),
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              SizedBox(height: R.h(context, 20)),
+
+                              _divider(),
+
+                              SizedBox(height: R.h(context, 12)),
+
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: R.w(context, 16)),
+                                child: Column(
+                                  children: const [
+                                    ContactRow(
+                                      icon: Icons.call,
+                                      title: "Call Us",
+                                      lines: ["Call us at: 85588 002009"],
+                                    ),
+                                    ContactRow(
+                                      icon: Icons.mail,
+                                      title: "Mail Us",
+                                      highlightGreen: true,
+                                      lines: [
+                                        "Mail us for Sales/Service/Enquires",
+                                        "info@huntproperty.com",
+                                        "customercare@huntproperty.com",
+                                      ],
+                                    ),
+                                    ContactRow(
+                                      icon: Icons.info_outline,
+                                      title: "For More Information",
+                                      highlightGreen: true,
+                                      lines: ["Continue with Customer Services"],
+                                    ),
+                                    SizedBox(height: 40),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return const SizedBox.shrink();
+                    },
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
+  }
+
+  Widget _buildPlanCard(BuildContext context, SubscriptionPlan plan) {
+    // Map image_slug to asset path
+    final imagePath = _getImagePath(plan.imageSlug);
+    
+    // Convert hex colors to Color objects
+    final colors = plan.colors.map((hex) => _hexToColor(hex)).toList();
+    final textColor = _hexToColor(plan.textColor);
+
+    return _planCard(
+      context,
+      bg: imagePath,
+      title: plan.name,
+      days: plan.durationLabel,
+      price: plan.priceDisplay,
+      features: plan.features,
+      button: plan.buttonLabel,
+      colors: colors.isNotEmpty ? colors : [Colors.grey, Colors.grey],
+      textColor: textColor,
+      isDark: plan.isDark,
+    );
+  }
+
+  String _getImagePath(String imageSlug) {
+    // Map image_slug to asset path
+    switch (imageSlug.toLowerCase()) {
+      case 'metal':
+        return "assets/images/metal.png";
+      case 'bronze':
+        return "assets/images/bronze.png";
+      case 'silver':
+      case 'sliver': // Handle typo in existing code
+        return "assets/images/sliver.png";
+      case 'gold':
+        return "assets/images/gold.png";
+      case 'platinum':
+        return "assets/images/platinum.png";
+      default:
+        return "assets/images/metal.png"; // fallback
+    }
+  }
+
+  Color _hexToColor(String hex) {
+    try {
+      final hexCode = hex.replaceAll('#', '');
+      if (hexCode.length == 6) {
+        return Color(int.parse('FF$hexCode', radix: 16));
+      } else if (hexCode.length == 8) {
+        return Color(int.parse(hexCode, radix: 16));
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('Error parsing color: $hex - $e');
+    }
+    return Colors.black; // fallback
   }
 
   /// ================= PLAN CARD =================
@@ -283,34 +374,6 @@ class SubscriptionPlansScreen extends StatelessWidget {
     );
   }
 
-  /// ================= CURRENT PLAN =================
-  Widget _currentPlan(BuildContext context) {
-    return Column(
-      children: [
-        const Text(
-          "YOUR CURRENT PLAN",
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-        ),
-        _planCard(
-          context,
-          bg: "assets/images/sliver.png",
-          title: "Silver",
-          days: "90 Days",
-          price: "₹ 1400",
-          features: [
-            "5 Listing",
-            "Email Alerts",
-            "Chat Option",
-            "Get Buyer Contacts",
-            "Expert Property Description",
-          ],
-          button: "Active Plan",
-          colors: const [Color(0xFFEDECEA), Color(0xFFBEBDBC)],
-          textColor: Colors.black,
-        ),
-      ],
-    );
-  }
 
   /// ================= HEADER =================
   Widget _header(
@@ -464,7 +527,7 @@ Widget _appBar(BuildContext context) {
         const Spacer(),
         Text("Subscription Plans",
             style: GoogleFonts.poppins(
-                fontSize: 20, fontWeight: FontWeight.w700)),
+                fontSize: 20, fontWeight: FontWeight.w700,color: Colors.black)),
         const Spacer(),
       ],
     ),
