@@ -27,8 +27,8 @@ class SubscriptionCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [
-            Color(0xFF0E233A),
-            Color(0xFF122B46),
+            AppColors.subscriptionCardGradientStart,
+            AppColors.subscriptionCardGradientEnd,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,

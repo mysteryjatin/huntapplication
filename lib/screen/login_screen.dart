@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
@@ -39,9 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return '+91$cleaned';
   }
 
-  /// Generates a cryptographically secure random nonce, to be included in a
-  /// credential request.
-  String _generateNonce([int length = 32]) {
+  String generateNonce([int length = 32]) {
     const charset =
         '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
     final random = Random.secure();
@@ -51,11 +50,26 @@ class _LoginScreenState extends State<LoginScreen> {
     ).join();
   }
 
-  /// Returns the sha256 hash of [input] in hex notation.
-  String _sha256OfString(String input) {
+  String sha256ofString(String input) {
     final bytes = utf8.encode(input);
     final digest = sha256.convert(bytes);
     return digest.toString();
+  }
+
+  Future<UserCredential> signInWithApple() async {
+    final appleCredential = await SignInWithApple.getAppleIDCredential(
+      scopes: [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+    );
+
+    final oauthCredential = OAuthProvider("apple.com").credential(
+      idToken: appleCredential.identityToken,
+      accessToken: appleCredential.authorizationCode,
+    );
+
+    return await FirebaseAuth.instance.signInWithCredential(oauthCredential);
   }
 
   Future<void> _signInWithGoogle() async {
@@ -66,6 +80,24 @@ class _LoginScreenState extends State<LoginScreen> {
       final googleSignIn = GoogleSignIn(
         scopes: ['email', 'profile'],
       );
+
+      // Ensure account chooser appears when multiple Google accounts exist
+      // and avoid reusing a stale cached sign-in session.
+      try {
+        await googleSignIn.disconnect();
+      } catch (_) {
+        // disconnect can fail if there is no previous session; ignore
+      }
+      try {
+        await googleSignIn.signOut();
+      } catch (_) {
+        // ignore
+      }
+      try {
+        await FirebaseAuth.instance.signOut();
+      } catch (_) {
+        // ignore
+      }
 
       final account = await googleSignIn.signIn();
       if (account == null) {
@@ -107,7 +139,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final userData = result['data'];
       final userId = userData['user_id']?.toString();
       final userType = userData['user_type']?.toString() ?? 'buyer';
-      final phone = userData['phone']?.toString() ?? email;
+      // For Google sign-in, phone may be empty; user can add it later from profile.
+      final phone = userData['phone']?.toString() ?? '';
 
       if (userId == null || userId.isEmpty) {
         throw Exception('User ID not received from backend');
@@ -154,33 +187,13 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isAppleLoading = true);
 
     try {
-      final rawNonce = _generateNonce();
-      final nonce = _sha256OfString(rawNonce);
-
-      final appleCredential = await SignInWithApple.getAppleIDCredential(
-        scopes: [
-          AppleIDAuthorizationScopes.email,
-          AppleIDAuthorizationScopes.fullName,
-        ],
-        nonce: nonce,
-      );
-
-      final oauthCredential = OAuthProvider('apple.com').credential(
-        idToken: appleCredential.identityToken,
-        rawNonce: rawNonce,
-      );
-
-      final userCred =
-          await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+      final userCred = await signInWithApple();
       final user = userCred.user;
 
       // Apple may only provide email on first sign-in
-      final email = user?.email ?? appleCredential.email ?? '';
+      final email = user?.email ?? '';
       String name = user?.displayName ??
-          [
-            appleCredential.givenName,
-            appleCredential.familyName,
-          ].where((e) => e != null && e.isNotEmpty).join(' ');
+          '';
 
       if (name.trim().isEmpty) {
         name = 'User';
@@ -475,14 +488,57 @@ class _LoginScreenState extends State<LoginScreen> {
                         onTap: _signInWithGoogle,
                       ),
 
-                      const SizedBox(height: 14),
-
-                      _SocialButton(
-                        icon: 'assets/icons/appleicon.svg',
-                        label: 'Sign in with Apple',
-                        loading: _isAppleLoading,
-                        onTap: _signInWithApple,
-                      ),
+                      if (Platform.isIOS) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: _isAppleLoading ? null : _signInWithApple,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              side: const BorderSide(color: Color(0xFFE0E0E0)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (_isAppleLoading) ...[
+                                  const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        AppColors.textDark,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                ] else ...[
+                                  const Icon(
+                                    Icons.apple,
+                                    color: AppColors.textDark,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 10),
+                                ],
+                                Text(
+                                  _isAppleLoading
+                                      ? 'Signing in...'
+                                      : 'Sign in with Apple',
+                                  style: const TextStyle(
+                                    color: AppColors.textDark,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
 
                       const SizedBox(height: 40),
                     ],

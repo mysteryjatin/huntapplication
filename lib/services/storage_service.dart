@@ -9,6 +9,7 @@ class StorageService {
   static const String _keyIsLoggedIn = 'is_logged_in';
   static const String _keyUserType = 'user_type';
   static const String _keySpinPopupShown = 'spin_popup_shown';
+  static const String _keySpinPremiumUnlocked = 'spin_premium_unlocked';
   static const String _keyUserAddress = 'user_address';
 
   // Cache for SharedPreferences instance
@@ -301,6 +302,7 @@ class StorageService {
       final userId = await getUserId();
       if (userId != null && userId.isNotEmpty) {
         await _removeValue('${_keySpinPopupShown}_$userId');
+        await _removeValue('${_keySpinPremiumUnlocked}_$userId');
       }
       await _removeValue(_keyUserId);
       await _removeValue(_keyToken);
@@ -308,6 +310,7 @@ class StorageService {
       await _removeValue(_keyIsLoggedIn);
       await _removeValue(_keyUserType);
       await _removeValue(_keySpinPopupShown); // Also clear global flag
+      await _removeValue(_keySpinPremiumUnlocked);
     } catch (e) {
       print('Error clearing storage: $e');
     }
@@ -436,6 +439,52 @@ class StorageService {
       }
     }
   }
+
+  /// Persists spin-wheel premium unlock (Platinum) for the current user.
+  static Future<void> setSpinPremiumUnlocked(bool unlocked) async {
+    try {
+      await _getPreferences();
+      final userId = await getUserId();
+      if (userId != null && userId.isNotEmpty) {
+        final key = '${_keySpinPremiumUnlocked}_$userId';
+        await _setValue(key, unlocked);
+      } else {
+        await _setValue(_keySpinPremiumUnlocked, unlocked);
+      }
+    } catch (e) {
+      print('Error saving spin premium status: $e');
+      final userId = await getUserId();
+      if (userId != null && userId.isNotEmpty) {
+        _memoryStorage['${_keySpinPremiumUnlocked}_$userId'] = unlocked;
+      } else {
+        _memoryStorage[_keySpinPremiumUnlocked] = unlocked;
+      }
+      _useMemoryStorage = true;
+    }
+  }
+
+  static Future<bool> hasSpinPremiumUnlocked() async {
+    try {
+      await _getPreferences();
+      final userId = await getUserId();
+      if (userId != null && userId.isNotEmpty) {
+        final key = '${_keySpinPremiumUnlocked}_$userId';
+        final value = _getValue(key);
+        return value is bool ? value : false;
+      }
+      final value = _getValue(_keySpinPremiumUnlocked);
+      return value is bool ? value : false;
+    } catch (e) {
+      print('Error checking spin premium status: $e');
+      final userId = await getUserId();
+      if (userId != null && userId.isNotEmpty) {
+        return _memoryStorage['${_keySpinPremiumUnlocked}_$userId'] as bool? ??
+            false;
+      }
+      return _memoryStorage[_keySpinPremiumUnlocked] as bool? ?? false;
+    }
+  }
+
   // ----- Temporary profile picture cache (per-user) -----
   static String _tempProfilePicKeyFor(String userId) => 'temp_profile_pic_$userId';
 

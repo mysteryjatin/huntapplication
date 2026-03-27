@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/property_service.dart';
@@ -67,8 +68,18 @@ class _AddPostStep4ScreenState extends State<AddPostStep4Screen> {
           _coverImage ??= "cover";
         });
       }
-    } catch (_) {
-      // Ignore picker errors for now
+    } catch (e) {
+      String message = 'Unable to open gallery. Please try again.';
+      if (e is PlatformException) {
+        final code = e.code.toLowerCase();
+        if (code.contains('photo_access_denied') || code.contains('permission')) {
+          message = 'Photo access denied. Please allow gallery permission in Settings.';
+        }
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
     }
   }
 

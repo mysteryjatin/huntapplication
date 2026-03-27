@@ -18,6 +18,15 @@ class AppColors {
   static const primary = Color(0xFF2FED9A); // provided
   static const lightBlueCard = Color(0xFFEDF8FB);
   static const textGray = Color(0xFF7A7A7A);
+
+  /// Matches [SubscriptionCard] gradient.
+  static const Color subscriptionCardGradientStart = Color(0xFF0E233A);
+  static const Color subscriptionCardGradientEnd = Color(0xFF122B46);
+
+  /// Metallic platinum gradient for [MembershipBadge] (platinum tier label).
+  static const Color platinumBadgeGradientStart = Color(0xFFF1F3F6);
+  static const Color platinumBadgeGradientEnd = Color(0xFF9AA3B0);
+  static const Color platinumBadgeText = Color(0xFF1A2332);
 }
 
 ThemeData buildAppTheme() {

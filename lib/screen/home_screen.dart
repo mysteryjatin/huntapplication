@@ -18,6 +18,7 @@ import 'package:hunt_property/services/property_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/models/property_models.dart';
 import 'package:hunt_property/models/filter_models.dart';
+import 'package:hunt_property/utils/property_search_matcher.dart';
 import 'filter_screen.dart';
 import 'widget/custombottomnavbar.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -63,6 +64,8 @@ class _HomeScreenState extends State<HomeScreen>
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<SideMenuScreenState> _sideMenuKey =
+      GlobalKey<SideMenuScreenState>();
   final PropertyService _propertyService = PropertyService();
   Timer? _searchTimer;
   FilterSelection? _activeFilters;
@@ -629,6 +632,11 @@ class _HomeScreenState extends State<HomeScreen>
       },
       child: Scaffold(
         key: _scaffoldKey,
+        onDrawerChanged: (isOpened) {
+          if (isOpened) {
+            _sideMenuKey.currentState?.refreshMembershipFromStorage();
+          }
+        },
         backgroundColor: Colors.white,
         drawer: _buildDrawer(),
         body: _buildMainScreen(),
@@ -669,6 +677,7 @@ class _HomeScreenState extends State<HomeScreen>
       backgroundColor: Colors.grey[850],
       width: MediaQuery.of(context).size.width * 0.90,
       child: SideMenuScreen(
+        key: _sideMenuKey,
         onMenuItemSelected: (index) {
           setState(() => selectedIndex = index);
           Navigator.pop(context);
@@ -929,6 +938,7 @@ class _HomeScreenState extends State<HomeScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.black.withOpacity(0.4),
+      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width),
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.9,
         minChildSize: 0.5,
@@ -993,9 +1003,7 @@ class _HomeScreenState extends State<HomeScreen>
 
         // Agar user "2bhk", "3 bhk" likhe to bedrooms filter bhi apply karo
         FilterSelection? effectiveFilters = _activeFilters;
-        final bhkMatch = RegExp(r'(\d+)\s*bhk').firstMatch(qLower);
-        final bhk =
-            bhkMatch != null ? int.tryParse(bhkMatch.group(1)!) : null;
+        final bhk = PropertySearchMatcher.parseBhk(qLower);
         if (bhk != null && bhk > 0) {
           if (effectiveFilters == null) {
             effectiveFilters = FilterSelection(
@@ -1036,10 +1044,14 @@ class _HomeScreenState extends State<HomeScreen>
           limit: 50,
         );
 
-        // Backend agar bedrooms filter ignore kare to client-side bhi filter kar do
-        if (bhk != null && bhk > 0) {
-          results = results.where((p) => p.bedrooms == bhk).toList();
-        }
+        // BHK + city/locality/amenities (gym, pool, etc.) — refine API results; fallback to full local list
+        results = PropertySearchMatcher.withFallback(
+          results,
+          _allProperties,
+          currentText,
+          type,
+          bhk,
+        );
 
         if (!mounted) return;
         setState(() {

@@ -84,5 +84,12 @@
 	<!-- Push notification usage description -->
 	<key>NSUserNotificationUsageDescription</key>
 	<string>We use notifications to send you important property updates and offers.</string>
+	<!-- Camera / gallery permissions required by image_picker -->
+	<key>NSCameraUsageDescription</key>
+	<string>We need camera access so you can capture your profile photo.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We need photo library access so you can choose a profile photo.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>We need permission to save selected photos when updating your profile.</string>
 </dict>
 </plist>

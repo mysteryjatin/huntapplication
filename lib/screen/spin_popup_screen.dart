@@ -158,6 +158,7 @@ class _SpinPopupScreenState extends State<SpinPopupScreen>
       _celebrationController.forward(from: 0).then((_) async {
         // Mark spin popup as shown
         await StorageService.setSpinPopupShown(true);
+        await StorageService.setSpinPremiumUnlocked(true);
         // Close bottom sheet and navigate to result screen
         if (mounted) {
           Navigator.of(context).pop(); // Close bottom sheet

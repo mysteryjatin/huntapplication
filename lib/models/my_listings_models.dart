@@ -9,6 +9,10 @@ class MyListingItem {
   final int viewCount;
   final int saves;
   final String listingStatus;
+  final String availabilityStatus;
+  final String availabilityMessage;
+  final String removalReason;
+  final String removalNote;
   final DateTime? postedAt;
   final String transactionType;
 
@@ -23,6 +27,10 @@ class MyListingItem {
     required this.viewCount,
     required this.saves,
     required this.listingStatus,
+    required this.availabilityStatus,
+    required this.availabilityMessage,
+    required this.removalReason,
+    required this.removalNote,
     required this.postedAt,
     this.transactionType = 'sale',
   });
@@ -73,6 +81,10 @@ class MyListingItem {
       viewCount: _toInt(json['view_count']),
       saves: _toInt(json['saves']),
       listingStatus: json['listing_status']?.toString() ?? '',
+      availabilityStatus: json['availability_status']?.toString() ?? '',
+      availabilityMessage: json['availability_message']?.toString() ?? '',
+      removalReason: json['removal_reason']?.toString() ?? '',
+      removalNote: json['removal_note']?.toString() ?? '',
       postedAt: _toDate(json['posted_at']),
       transactionType: json['transaction_type']?.toString().toLowerCase() ?? 'sale',
     );

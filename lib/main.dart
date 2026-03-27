@@ -43,12 +43,20 @@ Future<void> main() async {
   // Background handler for FCM
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  // Local notifications init (Android)
+  // Local notifications init (Android + iOS)
   const AndroidInitializationSettings initAndroid =
       AndroidInitializationSettings('@mipmap/ic_launcher');
 
-  const InitializationSettings initializationSettings =
-      InitializationSettings(android: initAndroid);
+  const DarwinInitializationSettings initIOS = DarwinInitializationSettings(
+    requestAlertPermission: true,
+    requestBadgePermission: true,
+    requestSoundPermission: true,
+  );
+
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initAndroid,
+    iOS: initIOS,
+  );
 
   await flutterLocalNotificationsPlugin.initialize(
     initializationSettings,

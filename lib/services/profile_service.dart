@@ -101,6 +101,64 @@ class ProfileService {
       };
     }
   }
+
+  // DELETE user account by user_id
+  Future<Map<String, dynamic>> deleteAccount(
+    String userId, {
+    String? reason,
+    String? note,
+  }) async {
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await http.delete(
+        Uri.parse('$baseUrl/api/users/$userId'),
+        headers: headers,
+        body: jsonEncode({
+          if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+          if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        }),
+      );
+
+      print('🗑️ DELETE ACCOUNT RESPONSE: ${response.statusCode} ${response.body}');
+
+      if (response.statusCode == 200) {
+        dynamic decodedBody;
+        try {
+          decodedBody = jsonDecode(response.body);
+        } catch (_) {
+          decodedBody = {'message': 'Account deleted successfully'};
+        }
+
+        return {
+          'success': true,
+          'data': decodedBody,
+        };
+      } else {
+        String errorMessage = 'Failed to delete account';
+        try {
+          final body = jsonDecode(response.body);
+          if (body is Map && body['detail'] != null) {
+            errorMessage = body['detail'].toString();
+          } else if (body is Map && body['message'] != null) {
+            errorMessage = body['message'].toString();
+          }
+        } catch (_) {
+          // ignore JSON parse error
+        }
+
+        return {
+          'success': false,
+          'error': errorMessage,
+        };
+      }
+    } catch (e) {
+      print('❌ DELETE ACCOUNT ERROR: $e');
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
+  }
 }
 
 

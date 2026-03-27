@@ -5,7 +5,6 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "com.google.gms.google-services"
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id "dev.flutter.flutter-gradle-plugin"
 }
 
@@ -31,42 +30,38 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.hunt.property.hunt_property"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // firebase_auth 6.x requires minSdk >= 23
-        minSdk = 23
+        minSdkVersion = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+
+        // 🔥 FIXED VERSION (IMPORTANT)
+        versionCode = 4
+        versionName = "1.0.1"
     }
+
     signingConfigs {
         release {
-            if (keystoreProperties['storeFile']) {
-                storeFile file(keystoreProperties['storeFile'])
-                storePassword keystoreProperties['storePassword']
-                keyAlias keystoreProperties['keyAlias']
-                keyPassword keystoreProperties['keyPassword']
-            }
+            storeFile file("upload-keystore.jks")
+            storePassword "HProperty@123"
+            keyAlias "upload"
+            keyPassword "HProperty@123"
         }
     }
+
     lintOptions {
         checkReleaseBuilds false
         abortOnError false
     }
+
     buildTypes {
         release {
-            // For TESTING builds only, sign release with debug keystore
-            // so you can create an APK without a custom release keystore.
-            signingConfig = signingConfigs.debug
-            minifyEnabled = false
-            shrinkResources = false
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            shrinkResources false
         }
         debug {
-            // Reduce memory usage for debug builds
-            minifyEnabled = false
-            shrinkResources = false
+            minifyEnabled false
+            shrinkResources false
         }
     }
 }

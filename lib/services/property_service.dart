@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:hunt_property/services/auth_service.dart';
+import 'package:hunt_property/services/my_listings_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/models/property_models.dart';
 import 'package:hunt_property/models/filter_models.dart';
@@ -486,8 +487,9 @@ class PropertyService {
         Map<String, String> params, {
         String? tag,
       }) async {
-        final uri =
-            Uri.parse('$baseUrl/api/properties/').replace(queryParameters: params);
+        // Use dedicated search endpoint so backend can apply full-text search.
+        final uri = Uri.parse('$baseUrl/api/properties/search')
+            .replace(queryParameters: params);
 
         // ignore: avoid_print
         print(tag == null
@@ -562,6 +564,24 @@ class PropertyService {
       // ignore: avoid_print
       print('❌ SEARCH PROPERTIES ERROR: $e');
       return [];
+    }
+  }
+
+  /// Whether the logged-in user has posted at least one property (premium for UI).
+  /// Uses my-listings first, then [getUserPropertiesCount] as fallback.
+  Future<bool> userHasPostedProperty() async {
+    try {
+      if (await MyListingsService().hasAnyListing()) return true;
+    } catch (e) {
+      // ignore: avoid_print
+      print('⚠️ userHasPostedProperty: my-listings check failed: $e');
+    }
+    try {
+      return await getUserPropertiesCount() > 0;
+    } catch (e) {
+      // ignore: avoid_print
+      print('⚠️ userHasPostedProperty: count failed: $e');
+      return false;
     }
   }
 

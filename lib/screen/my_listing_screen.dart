@@ -259,6 +259,8 @@ class PropertyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final PropertyService _propertyService = PropertyService();
+    final bool isUnavailable = property.availabilityStatus.toLowerCase() == 'unavailable' ||
+        property.listingStatus.toLowerCase() == 'inactive';
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
@@ -390,6 +392,29 @@ class PropertyCard extends StatelessWidget {
               ),
             ],
           ),
+
+          if (isUnavailable) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF4F4),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFFD6D6)),
+              ),
+              child: Text(
+                property.availabilityMessage.isNotEmpty
+                    ? property.availabilityMessage
+                    : _defaultAvailabilityMessage(property.removalReason),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.red,
+                ),
+              ),
+            ),
+          ],
 
           const SizedBox(height: 10),
 
@@ -595,6 +620,21 @@ String _formatStatus(String status) {
   if (status.isEmpty) return '';
   final lower = status.toLowerCase();
   return lower[0].toUpperCase() + lower.substring(1);
+}
+
+String _defaultAvailabilityMessage(String reason) {
+  switch (reason.toLowerCase()) {
+    case 'property_sold_out':
+      return 'This property is marked as sold out.';
+    case 'property_rent_out':
+      return 'This property is marked as rented out.';
+    case 'owner_changed_mind':
+      return 'Now this property is unavailable.';
+    case 'user_account_deleted':
+      return 'Now this property is unavailable.';
+    default:
+      return 'Now this property is unavailable.';
+  }
 }
 
 

@@ -1109,6 +1109,31 @@ class _PropertyDetailsViewState extends State<_PropertyDetailsView> {
             Text(property.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textDark)),
             const SizedBox(height: 6),
             Text('${property.transactionType} • ${property.location?.city ?? ''}', style: const TextStyle(fontSize: 14, color: AppColors.textLight)),
+            if (property.availabilityStatus.toLowerCase() == 'unavailable' ||
+                property.listingStatus.toLowerCase() == 'inactive') ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF4F4),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFFD6D6)),
+                ),
+                child: Text(
+                  _availabilityBannerText(
+                    property.availabilityMessage,
+                    property.removalReason,
+                    property.removalNote,
+                  ),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.red,
+                  ),
+                ),
+              ),
+            ],
           ]),
         ),
 
@@ -2225,3 +2250,20 @@ String _formatArea(double? area) {
   return '${area.toStringAsFixed(area.truncateToDouble() == area ? 0 : 2)}';
 }
 
+String _availabilityBannerText(
+  String? availabilityMessage,
+  String? removalReason,
+  String? removalNote,
+) {
+  final msg = (availabilityMessage ?? '').trim();
+  if (msg.isNotEmpty) return msg;
+
+  switch ((removalReason ?? '').toLowerCase()) {
+    case 'property_sold_out':
+      return 'This property is marked as sold out.';
+    case 'property_rent_out':
+      return 'This property is marked as rented out.';
+    default:
+      return 'Now this property is unavailable.';
+  }
+}

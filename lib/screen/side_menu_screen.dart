@@ -23,7 +23,9 @@ import 'package:hunt_property/screen/sidemenu_screen/cancellation_policy_screen.
 import 'package:hunt_property/screen/sidemenu_screen/shopping_policy_screen.dart';
 import 'package:hunt_property/screen/sidemenu_screen/vastu/vastuaiexpert_screen.dart';
 import 'package:hunt_property/services/profile_service.dart';
+import 'package:hunt_property/services/property_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
+import 'package:hunt_property/widgets/membership_badge.dart';
 
 import 'sidemenu_screen/order_history_screen.dart';
 
@@ -38,14 +40,17 @@ class SideMenuScreen extends StatefulWidget {
   });
 
   @override
-  State<SideMenuScreen> createState() => _SideMenuScreenState();
+  State<SideMenuScreen> createState() => SideMenuScreenState();
 }
 
-class _SideMenuScreenState extends State<SideMenuScreen> {
+class SideMenuScreenState extends State<SideMenuScreen> {
   final ProfileService _profileService = ProfileService();
+  final PropertyService _propertyService = PropertyService();
   bool _isLoading = true;
   Map<String, dynamic>? _profileData;
   String? _errorMessage;
+  bool _spinPremiumUnlocked = false;
+  bool _hasPostedProperty = false;
 
   @override
   void initState() {
@@ -72,7 +77,11 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
         return;
       }
 
+      final spinPremium = await StorageService.hasSpinPremiumUnlocked();
+      final postedFuture = _propertyService.userHasPostedProperty();
+
       final result = await _profileService.getProfile(userId);
+      final hasPosted = await postedFuture;
       if (result['success']) {
         dynamic profileData = result['data'];
 
@@ -119,22 +128,42 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
           _profileData = profileData is Map<String, dynamic>
               ? Map<String, dynamic>.from(profileData)
               : null;
+          _spinPremiumUnlocked = spinPremium;
+          _hasPostedProperty = hasPosted;
           _isLoading = false;
         });
       } else {
         if (!mounted) return;
         setState(() {
           _errorMessage = result['error'] ?? 'Failed to load profile';
+          _spinPremiumUnlocked = spinPremium;
+          _hasPostedProperty = hasPosted;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (!mounted) return;
+      final spin = await StorageService.hasSpinPremiumUnlocked();
+      final posted = await _propertyService.userHasPostedProperty();
+      if (!mounted) return;
       setState(() {
         _errorMessage = e.toString();
+        _spinPremiumUnlocked = spin;
+        _hasPostedProperty = posted;
         _isLoading = false;
       });
     }
+  }
+
+  /// Refresh spin premium + posted-property when drawer opens (after spin or new listing).
+  Future<void> refreshMembershipFromStorage() async {
+    final v = await StorageService.hasSpinPremiumUnlocked();
+    final posted = await _propertyService.userHasPostedProperty();
+    if (!mounted) return;
+    setState(() {
+      _spinPremiumUnlocked = v;
+      _hasPostedProperty = posted;
+    });
   }
 
   @override
@@ -147,7 +176,14 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
         child: Column(
           children: [
             // Profile Section
-            _buildProfileSection(context, _isLoading, _profileData, _errorMessage),
+            _buildProfileSection(
+              context,
+              _isLoading,
+              _profileData,
+              _errorMessage,
+              _spinPremiumUnlocked,
+              _hasPostedProperty,
+            ),
 
             // Menu Items
             Expanded(
@@ -565,6 +601,8 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
     bool isLoading,
     Map<String, dynamic>? profileData,
     String? errorMessage,
+    bool spinPremiumUnlocked,
+    bool hasPostedProperty,
   ) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -725,24 +763,11 @@ class _SideMenuScreenState extends State<SideMenuScreen> {
 
                       const SizedBox(height: 12),
 
-                      // Member badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          profileData?['subscription_type']?.toString() ??
-                              profileData?['member_type']?.toString() ??
-                              'Free member',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
-                        ),
+                      // Member badge (matches SubscriptionCard gradient when premium)
+                      MembershipBadge(
+                        profileData: profileData,
+                        spinPremiumUnlocked: spinPremiumUnlocked,
+                        hasPostedProperty: hasPostedProperty,
                       ),
                     ],
                   ),

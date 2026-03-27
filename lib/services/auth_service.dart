@@ -224,6 +224,74 @@ class AuthService {
     }
   }
 
+  /// Request OTP to attach/verify a phone number for an existing user (profile flow)
+  Future<Map<String, dynamic>> profilePhoneRequestOtp({
+    required String userId,
+    required String phone,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/auth/profile/phone/request-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': userId,
+          'phone_number': phone,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        final body = jsonDecode(response.body);
+        return {
+          'success': false,
+          'error': _getErrorMessage(
+            body['detail'],
+            'Failed to request phone verification OTP',
+          ),
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Verify OTP for attaching phone number in profile and persist it on backend
+  Future<Map<String, dynamic>> profilePhoneVerifyOtp({
+    required String userId,
+    required String phone,
+    required String otp,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/auth/profile/phone/verify-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': userId,
+          'phone_number': phone,
+          'otp': otp,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        final body = jsonDecode(response.body);
+        return {
+          'success': false,
+          'error': _getErrorMessage(
+            body['detail'],
+            'Invalid or expired OTP',
+          ),
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   // Google Sign-In: Find or create user (no backend changes needed)
   Future<Map<String, dynamic>> googleSignIn({
     required String email,
@@ -232,11 +300,9 @@ class AuthService {
   }) async {
     try {
       print('🔍 Google Sign-In: Attempting to create/find user with email: $email');
-      
-      // Generate a unique phone number from email for Google users
-      // Format: +91 followed by hash of email (first 10 digits)
-      final emailHash = email.hashCode.abs().toString();
-      final phoneNumber = '+91${emailHash.padLeft(10, '0').substring(0, 10)}';
+      // For Google users we don't know the phone number initially,
+      // let it be empty and allow the user to add/verify it later from profile.
+      final String phoneNumber = '';
       
       // Try to create user directly via users endpoint
       // If user already exists, we'll handle the error
@@ -248,7 +314,10 @@ class AuthService {
           'email': email.trim(),
           'phone': phoneNumber,
           'user_type': 'buyer',
-          'password': emailHash, // Use email hash as password for Google users
+          // Use a deterministic but opaque password; user will generally login via Google
+          'password': email.hashCode.abs().toString(),
+          // Ensure avatar_url is never null on backend; fall back to empty string.
+          'avatar_url': photoUrl ?? '',
         }),
       );
 
@@ -276,7 +345,7 @@ class AuthService {
             'user_id': userId,
             'email': userData['email']?.toString() ?? email,
             'name': userData['name']?.toString() ?? name,
-            'phone': userData['phone']?.toString() ?? phoneNumber,
+            'phone': userData['phone']?.toString() ?? '',
             'user_type': userData['user_type']?.toString() ?? 'buyer',
           },
         };
@@ -371,7 +440,7 @@ class AuthService {
                 'user_id': userId,
                 'email': foundUser['email']?.toString() ?? email,
                 'name': foundUser['name']?.toString() ?? name,
-                'phone': foundUser['phone']?.toString() ?? phoneNumber,
+                'phone': foundUser['phone']?.toString() ?? '',
                 'user_type': foundUser['user_type']?.toString() ?? 'buyer',
               },
             };

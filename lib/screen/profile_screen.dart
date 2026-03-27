@@ -7,7 +7,9 @@ import 'package:hunt_property/screen/personal_information_screen.dart';
 import 'package:hunt_property/screen/subscription_plans_screen.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/profile_service.dart';
+import 'package:hunt_property/services/property_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
+import 'package:hunt_property/widgets/membership_badge.dart';
 
 import 'notification_screen.dart';
 
@@ -22,9 +24,12 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final ProfileService _profileService = ProfileService();
+  final PropertyService _propertyService = PropertyService();
   bool _isLoading = true;
   Map<String, dynamic>? _profileData;
   String? _errorMessage;
+  bool _spinPremiumUnlocked = false;
+  bool _hasPostedProperty = false;
 
   @override
   void initState() {
@@ -57,7 +62,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
 
+      final spinPremium = await StorageService.hasSpinPremiumUnlocked();
+      final postedFuture = _propertyService.userHasPostedProperty();
+
       final result = await _profileService.getProfile(userId);
+      final hasPosted = await postedFuture;
       if (result['success']) {
         dynamic profileData = result['data'];
 
@@ -99,20 +108,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _profileData = profileData is Map<String, dynamic>
               ? Map<String, dynamic>.from(profileData)
               : null;
+          _spinPremiumUnlocked = spinPremium;
+          _hasPostedProperty = hasPosted;
           _isLoading = false;
         });
         print('✅ Profile Screen - Profile loaded successfully');
       } else {
         setState(() {
           _errorMessage = result['error'] ?? 'Failed to load profile';
+          _spinPremiumUnlocked = spinPremium;
+          _hasPostedProperty = hasPosted;
           _isLoading = false;
         });
         print('❌ Profile Screen - Failed to load profile: ${result['error']}');
       }
     } catch (e) {
       print('❌ Profile Screen Error: $e');
+      final spin = await StorageService.hasSpinPremiumUnlocked();
+      final posted = await _propertyService.userHasPostedProperty();
       setState(() {
         _errorMessage = e.toString();
+        _spinPremiumUnlocked = spin;
+        _hasPostedProperty = posted;
         _isLoading = false;
       });
     }
@@ -462,22 +479,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           
                           const SizedBox(height: 8),
                           
-                          // Member Badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: const Color(0x331A1A1A), // #1A1A1A33
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              _profileData?['subscription_type']?.toString() ?? 
-                              _profileData?['member_type']?.toString() ?? 
-                              'Free member',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black.withOpacity(0.7),
-                              ),
+                          // Member Badge (same gradient as SubscriptionCard when premium)
+                          MembershipBadge(
+                            profileData: _profileData,
+                            spinPremiumUnlocked: _spinPremiumUnlocked,
+                            hasPostedProperty: _hasPostedProperty,
+                            fontSize: 11,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 6,
                             ),
                           ),
                         ],

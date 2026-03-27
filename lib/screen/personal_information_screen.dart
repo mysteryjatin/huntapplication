@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
+import 'dart:async';
+
+import 'package:sms_autofill/sms_autofill.dart';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/services/profile_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/services/property_service.dart';
+import 'package:hunt_property/services/auth_service.dart';
 
 class PersonalInformationScreen extends StatefulWidget {
   const PersonalInformationScreen({super.key});
@@ -15,7 +19,8 @@ class PersonalInformationScreen extends StatefulWidget {
   State<PersonalInformationScreen> createState() => _PersonalInformationScreenState();
 }
 
-class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
+class _PersonalInformationScreenState extends State<PersonalInformationScreen>
+    with CodeAutoFill {
   final ProfileService _profileService = ProfileService();
   final PropertyService _propertyService = PropertyService();
   final ImagePicker _picker = ImagePicker();
@@ -28,12 +33,28 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
   
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isDeleting = false;
   String? _userId;
+  bool _isVerifyingPhone = false;
+  bool _isPhoneVerified = false;
+  TextEditingController? _otpDialogController;
+  String? _deleteReason;
+  final TextEditingController _deleteNoteController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    listenForCode();
     _loadProfile();
+  }
+
+  @override
+  void codeUpdated() {
+    final code = this.code;
+    if (code == null || code.length < 6) return;
+    if (_otpDialogController != null) {
+      _otpDialogController!.text = code.substring(0, 6);
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -79,6 +100,7 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
           _mobileController.text = data['phone_number']?.toString() ??
               data['phone']?.toString() ??
               _mobileController.text;
+          _isPhoneVerified = _mobileController.text.trim().isNotEmpty;
 
           final addrFromApi = data['address']?.toString();
           if (addrFromApi != null && addrFromApi.isNotEmpty) {
@@ -144,14 +166,18 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
       final phone = _mobileController.text.trim();
       final address = _addressController.text.trim();
 
-      // Send both old & new field names so backend kisi bhi format me accept kar sake.
+      // Build profile payload. Phone should ONLY be sent when verified,
+      // otherwise keep existing phone on backend and force user to go
+      // through the OTP verification flow.
       final profileData = <String, dynamic>{
         'full_name': fullName,
         'name': fullName,
         'email': email,
-        'phone_number': phone,
-        'phone': phone,
         'address': address,
+        if (_isPhoneVerified && phone.isNotEmpty) ...{
+          'phone_number': phone,
+          'phone': phone,
+        },
         if (_uploadedProfileUrl != null && _uploadedProfileUrl!.isNotEmpty) ...{
           'profile_picture': _uploadedProfileUrl,
           'profilePicture': _uploadedProfileUrl,
@@ -222,6 +248,247 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
     }
   }
 
+  Future<void> _deleteAccount() async {
+    if (_userId == null || _userId!.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User not logged in')),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _isDeleting = true;
+    });
+
+    try {
+      final result = await _profileService.deleteAccount(
+        _userId!,
+        reason: _deleteReason,
+        note: _deleteNoteController.text.trim().isEmpty
+            ? null
+            : _deleteNoteController.text.trim(),
+      );
+
+      setState(() {
+        _isDeleting = false;
+      });
+
+      if (result['success'] == true) {
+        await StorageService.clearAll();
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account deleted permanently'),
+          ),
+        );
+
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/login',
+          (route) => false,
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result['error']?.toString() ?? 'Failed to delete account',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isDeleting = false;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  Future<void> _showDeleteAccountDialog() async {
+    if (_isDeleting) return;
+
+    _deleteReason = null;
+    _deleteNoteController.clear();
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final bool needsNote = _deleteReason == 'changed_mind';
+          final bool canDelete = _deleteReason != null &&
+              (!needsNote || _deleteNoteController.text.trim().isNotEmpty);
+
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Delete Account',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Please select one reason before deleting your account:',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 14),
+                    RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      value: 'sold_out',
+                      groupValue: _deleteReason,
+                      activeColor: const Color(0xFF2FED9A),
+                      title: const Text('My property sold out!'),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          _deleteReason = value;
+                        });
+                      },
+                    ),
+                    RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      value: 'rent_out',
+                      groupValue: _deleteReason,
+                      activeColor: const Color(0xFF2FED9A),
+                      title: const Text('My property rent out!'),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          _deleteReason = value;
+                        });
+                      },
+                    ),
+                    RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      value: 'changed_mind',
+                      groupValue: _deleteReason,
+                      activeColor: const Color(0xFF2FED9A),
+                      title: const Text('I have changed my mind (with note)!'),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          _deleteReason = value;
+                        });
+                      },
+                    ),
+                    if (needsNote) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _deleteNoteController,
+                        maxLines: 3,
+                        onChanged: (_) => setDialogState(() {}),
+                        decoration: InputDecoration(
+                          hintText: 'Enter note',
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: const OutlineInputBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(10)),
+                            borderSide: BorderSide(color: Color(0xFF2FED9A), width: 1.5),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              side: BorderSide(color: Colors.grey.shade300),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'No',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: (_isDeleting || !canDelete)
+                                ? null
+                                : () {
+                                    Navigator.pop(dialogContext);
+                                    _deleteAccount();
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: _isDeleting
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor:
+                                          AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : const Text(
+                                    'Yes, Delete',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildProfileImageWidget() {
     // Priority: picked local image -> uploaded URL -> placeholder asset
     if (_pickedImage != null) {
@@ -258,6 +525,28 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
     );
   }
 
+  String _getImagePickerErrorMessage(Object error, {required String source}) {
+    if (error is PlatformException) {
+      final code = error.code.toLowerCase();
+      if (code.contains('photo_access_denied') ||
+          code.contains('camera_access_denied') ||
+          code.contains('permission')) {
+        return 'Permission denied. Please allow $source access from iOS Settings.';
+      }
+      if (code.contains('camera_unavailable')) {
+        return 'Camera is unavailable on this device.';
+      }
+      if (code.contains('invalid_image') || code.contains('no_available_camera')) {
+        return 'Unable to open $source. Please try again.';
+      }
+    }
+
+    if (Platform.isIOS && source == 'camera') {
+      return 'Unable to open camera. Please check camera permission in Settings.';
+    }
+    return 'Unable to open $source. Please try again.';
+  }
+
   Future<void> _onEditPhotoTap() async {
     final choice = await showModalBottomSheet<String?>(
       context: context,
@@ -288,6 +577,7 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
 
     if (choice == null) return;
 
+    final sourceLabel = choice == 'camera' ? 'camera' : 'gallery';
     XFile? picked;
     try {
       if (choice == 'camera') {
@@ -297,7 +587,9 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Image pick error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_getImagePickerErrorMessage(e, source: sourceLabel))),
+        );
       }
       return;
     }
@@ -333,7 +625,11 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Image upload failed. Please try again.'),
+          ),
+        );
       }
     }
   }
@@ -344,7 +640,305 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
     _emailController.dispose();
     _mobileController.dispose();
     _addressController.dispose();
+    _deleteNoteController.dispose();
+    cancel();
     super.dispose();
+  }
+
+  bool _canStartPhoneVerification() {
+    final phone = _mobileController.text.trim();
+    return !_isVerifyingPhone && phone.length == 10;
+  }
+
+  Future<void> _startPhoneVerification() async {
+    if (_userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User not logged in')),
+      );
+      return;
+    }
+
+    final raw = _mobileController.text.trim();
+    if (raw.length != 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter 10 digit mobile number')),
+      );
+      return;
+    }
+
+    final phoneWithCode = '+91$raw';
+    setState(() {
+      _isVerifyingPhone = true;
+    });
+
+    final authService = AuthService();
+    try {
+      // Use the same OTP API as signup (`/api/auth/request-otp`)
+      final otpResult = await authService.requestOtp(phoneWithCode);
+
+      if (otpResult['success'] != true) {
+        setState(() {
+          _isVerifyingPhone = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                otpResult['error']?.toString() ??
+                    'Failed to send verification OTP',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      final otp = await _showOtpDialog();
+      if (otp == null || otp.isEmpty) {
+        setState(() {
+          _isVerifyingPhone = false;
+        });
+        return;
+      }
+
+      // Verify OTP using the same verify endpoint as signup
+      final verifyResult = await authService.verifyOtp(
+        phoneWithCode,
+        otp,
+      );
+
+      setState(() {
+        _isVerifyingPhone = false;
+      });
+
+      if (verifyResult['success'] == true) {
+        // OTP is correct; now attach this phone to the current user profile
+        final updateResult = await _profileService.updateProfile(_userId!, {
+          'phone': phoneWithCode,
+          'phone_number': phoneWithCode,
+        });
+
+        if (updateResult['success'] == true) {
+          setState(() {
+            _isPhoneVerified = true;
+            _mobileController.text = raw;
+          });
+          await StorageService.saveUserPhone(phoneWithCode);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Phone number verified successfully'),
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  updateResult['error']?.toString() ??
+                      'OTP verified, but failed to update profile',
+                ),
+              ),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                verifyResult['error']?.toString() ?? 'Invalid or expired OTP',
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isVerifyingPhone = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error verifying phone: $e')),
+        );
+      }
+    }
+  }
+
+  Future<String?> _showOtpDialog() async {
+    _otpDialogController?.dispose();
+    _otpDialogController = TextEditingController();
+    final controller = _otpDialogController!;
+    int remainingSeconds = 30;
+    bool isResending = false;
+
+    final otp = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        Timer? timer;
+
+        void startTimer(StateSetter setState) {
+          timer?.cancel();
+          remainingSeconds = 30;
+          timer = Timer.periodic(const Duration(seconds: 1), (t) {
+            if (remainingSeconds <= 1) {
+              t.cancel();
+              setState(() {
+                remainingSeconds = 0;
+              });
+            } else {
+              setState(() {
+                remainingSeconds--;
+              });
+            }
+          });
+        }
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            // Start timer the first time this builder runs
+            if (remainingSeconds == 30 && timer == null) {
+              startTimer(setState);
+            }
+
+            Future<void> handleResend() async {
+              if (_userId == null) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('User not logged in')),
+                  );
+                }
+                return;
+              }
+              setState(() {
+                isResending = true;
+              });
+              final phoneRaw = _mobileController.text.trim();
+              final phoneWithCode = '+91$phoneRaw';
+              final authService = AuthService();
+              try {
+                final result = await authService.profilePhoneRequestOtp(
+                  userId: _userId!,
+                  phone: phoneWithCode,
+                );
+                if (result['success'] != true && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        result['error']?.toString() ??
+                            'Failed to resend OTP. Please try again.',
+                      ),
+                    ),
+                  );
+                } else if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('OTP resent successfully'),
+                    ),
+                  );
+                }
+                setState(() {
+                  isResending = false;
+                });
+                // Restart timer after resend
+                startTimer(setState);
+              } catch (e) {
+                setState(() {
+                  isResending = false;
+                });
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error resending OTP: $e'),
+                    ),
+                  );
+                }
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Enter OTP'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: const InputDecoration(
+                      hintText: '6 digit OTP',
+                      counterText: '',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        remainingSeconds > 0
+                            ? 'Resend in ${remainingSeconds}s'
+                            : 'Didn\'t receive OTP?',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      TextButton(
+                        onPressed: (remainingSeconds == 0 && !isResending)
+                            ? handleResend
+                            : null,
+                        child: isResending
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Resend OTP'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    timer?.cancel();
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final otp = controller.text.trim();
+                    if (otp.length != 6) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter 6 digit OTP'),
+                        ),
+                      );
+                      return;
+                    }
+                    timer?.cancel();
+                    Navigator.of(dialogContext).pop(otp);
+                  },
+                  child: const Text('Verify'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    _otpDialogController?.dispose();
+    _otpDialogController = null;
+
+    return otp;
   }
 
   @override
@@ -426,10 +1020,7 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
                   const SizedBox(height: 20),
                   
                   // Mobile Number Field
-                  _buildTextField(
-                    label: 'Mobile Number',
-                    controller: _mobileController,
-                  ),
+                  _buildMobileWithVerify(),
                   
                   const SizedBox(height: 20),
                   
@@ -474,12 +1065,143 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
                             ),
                     ),
                   ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton(
+                      onPressed:
+                          (_isSaving || _isDeleting) ? null : _showDeleteAccountDialog,
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.red),
+                        foregroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isDeleting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.red),
+                              ),
+                            )
+                          : const Text(
+                              'Delete Account',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMobileWithVerify() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Mobile Number',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _mobileController,
+                maxLines: 1,
+                keyboardType: TextInputType.phone,
+                maxLength: 10,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
+                onChanged: (_) {
+                  setState(() {
+                    _isPhoneVerified = false;
+                  });
+                },
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: Colors.black87,
+                ),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    borderSide:
+                        BorderSide(color: Color(0xFF2FED9A), width: 2),
+                  ),
+                  counterText: '',
+                  suffixIcon: Icon(
+                    Icons.edit,
+                    color: Colors.grey.shade600,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _isPhoneVerified
+                ? const Icon(Icons.verified, color: Colors.green)
+                : ElevatedButton(
+                    onPressed:
+                        _canStartPhoneVerification() ? _startPhoneVerification : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
+                      minimumSize: const Size(80, 44),
+                    ),
+                    child: _isVerifyingPhone
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            'Verify',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+          ],
+        ),
+      ],
     );
   }
 

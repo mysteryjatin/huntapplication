@@ -7,6 +7,7 @@ import 'package:hunt_property/services/filter_service.dart';
 import 'package:hunt_property/services/property_service.dart';
 import 'package:hunt_property/models/property_models.dart';
 import 'package:hunt_property/models/filter_models.dart';
+import 'package:hunt_property/utils/property_search_matcher.dart';
 import 'package:intl/intl.dart';
 import 'package:hunt_property/screen/property_details_screen.dart';
 
@@ -85,8 +86,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
         // If user types "2bhk", "3 bhk" etc., also apply a bedrooms filter
         FilterSelection? effectiveFilters = _activeFilters;
-        final bhkMatch = RegExp(r'(\d+)\s*bhk').firstMatch(qLower);
-        final bhk = bhkMatch != null ? int.tryParse(bhkMatch.group(1)!) : null;
+        final bhk = PropertySearchMatcher.parseBhk(qLower);
         if (bhk != null && bhk > 0) {
           if (effectiveFilters == null) {
             effectiveFilters = FilterSelection(
@@ -127,10 +127,13 @@ class _SearchScreenState extends State<SearchScreen> {
           limit: 50,
         );
 
-        // Extra safety: if backend ignores bedrooms filter, enforce BHK on client side too
-        if (bhk != null && bhk > 0) {
-          results = results.where((p) => p.bedrooms == bhk).toList();
-        }
+        results = PropertySearchMatcher.withFallback(
+          results,
+          _allProperties,
+          currentText,
+          _selectedType,
+          bhk,
+        );
 
         // If user has already changed the text again, ignore this older response
         final latestText = _searchController.text.toLowerCase().trim();
@@ -340,6 +343,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 context: context,
                 isScrollControlled: true,
                 backgroundColor: Colors.black.withOpacity(0.4),
+                constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width),
                 builder: (context) => DraggableScrollableSheet(
                   initialChildSize: 0.9,
                   minChildSize: 0.5,

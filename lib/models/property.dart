@@ -19,6 +19,10 @@ class Property {
   final List<PropertyImage> images;
   final List<String> amenities;
   final String listingStatus;
+  final String availabilityStatus;
+  final String? availabilityMessage;
+  final String? removalReason;
+  final String? removalNote;
   final bool? lift;
   final String? furnishedStatus;
   final String? typeOfOwnership;
@@ -51,6 +55,10 @@ class Property {
     this.images = const [],
     this.amenities = const [],
     required this.listingStatus,
+    required this.availabilityStatus,
+    this.availabilityMessage,
+    this.removalReason,
+    this.removalNote,
     this.lift,
     this.furnishedStatus,
     this.typeOfOwnership,
@@ -91,6 +99,10 @@ class Property {
           [],
       amenities: (json['amenities'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
       listingStatus: json['listing_status'] as String? ?? '',
+      availabilityStatus: json['availability_status']?.toString() ?? '',
+      availabilityMessage: json['availability_message'] as String?,
+      removalReason: json['removal_reason'] as String?,
+      removalNote: json['removal_note'] as String?,
       lift: (json['lift'] ?? json['has_lift']) as bool? ?? null,
       furnishedStatus: json['furnished_status'] as String? ?? json['furnishedStatus'] as String?,
       typeOfOwnership: json['type_of_ownership'] as String? ?? json['typeOfOwnership'] as String?,
@@ -122,6 +134,10 @@ class Property {
       'images': images.map((i) => i.toJson()).toList(),
       'amenities': amenities,
       'listing_status': listingStatus,
+      'availability_status': availabilityStatus,
+      'availability_message': availabilityMessage,
+      'removal_reason': removalReason,
+      'removal_note': removalNote,
       'lift': lift,
       'furnished_status': furnishedStatus,
       'type_of_ownership': typeOfOwnership,

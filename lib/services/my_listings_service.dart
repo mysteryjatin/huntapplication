@@ -6,6 +6,19 @@ import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/utils/api_urls.dart';
 
 class MyListingsService {
+  /// True if the current user has at least one listing (any status).
+  Future<bool> hasAnyListing() async {
+    try {
+      final res = await getMyListings(status: 'all', page: 1, limit: 1);
+      if (res.total > 0) return true;
+      return res.properties.isNotEmpty;
+    } catch (e) {
+      // ignore: avoid_print
+      print('⚠️ hasAnyListing: $e');
+      return false;
+    }
+  }
+
   /// status: "all" | "active" | "pending" | "rejected"
   Future<MyListingsResponse> getMyListings({
     String status = 'all',

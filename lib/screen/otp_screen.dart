@@ -161,11 +161,14 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
         return Scaffold(
         resizeToAvoidBottomInset: true,
         body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16).copyWith(bottom: 120),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                 const SizedBox(height: 50),
 
                 Text('Almost there', style: theme.textTheme.headlineMedium),
@@ -185,7 +188,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
               /// OTP BOXES — SAME UI, WITH AUTO-FILL
               AutofillGroup(
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: List.generate(
                     6,
                     (i) => _OtpBox(controller: _codes[i]),
@@ -273,32 +276,30 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
                 ),
               ),
 
-              const SizedBox(height: 50),
-
-              /// BACK BUTTON
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    FloatingActionButton(
-                      mini: false,
-                      shape: const CircleBorder(),
-                      backgroundColor: AppColors.primaryColor,
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      child: const Icon(Icons.arrow_back_ios_new,
-                          color: Colors.black),
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Add responsive bottom padding for system navigation
-              SizedBox(height: MediaQuery.of(context).viewPadding.bottom),
+              // Extra space so the bottom-pinned back button doesn't overlap.
+              const SizedBox(height: 80),
             ],
           ),
         ),
-      ),
+              Align(
+                alignment: Alignment.bottomLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 16, bottom: 16),
+                  child: FloatingActionButton(
+                    mini: false,
+                    shape: const CircleBorder(),
+                    backgroundColor: AppColors.primaryColor,
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       );
       },
     );
@@ -313,8 +314,8 @@ class _OtpBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 48,
-      height: 55,
+      width: 44,
+      height: 52,
       decoration: BoxDecoration(
         color: const Color(0xFFF3F4F6),
         borderRadius: BorderRadius.circular(10),
@@ -330,7 +331,7 @@ class _OtpBox extends StatelessWidget {
         autofillHints: const [AutofillHints.oneTimeCode],
         textAlign: TextAlign.center,
         style: const TextStyle(
-          fontSize: 20,
+          fontSize: 18,
           fontWeight: FontWeight.w600,
           color: Colors.black,
         ),

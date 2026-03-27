@@ -18,6 +18,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
   String _userType = 'user'; // Default user type
   bool _acceptTerms = false;
+  bool _acceptInternationalDisclaimer = false;
 
   @override
   void initState() {
@@ -157,13 +158,45 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   ],
                 ),
 
-                const SizedBox(height: 40),
+                const SizedBox(height: 12),
+
+                // International usage disclaimer text
+                const Text(
+                  'International Usage Disclaimer\n\n'
+                  'This application has been primarily developed in accordance with the regulatory and operational norms applicable in India. While the platform may be accessible from other countries, the services, features, and compliance standards may not fully align with the legal or regulatory requirements of jurisdictions outside India.\n\n'
+                  'Users accessing or using the platform from locations outside India are responsible for ensuring that their use of the application complies with local laws and regulations applicable in their respective countries.\n\n'
+                  'The company shall not be held liable for any non-compliance with foreign laws or regulations resulting from the use of this platform outside India.',
+                  style: TextStyle(fontSize: 13),
+                ),
+
+                const SizedBox(height: 12),
+
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: _acceptInternationalDisclaimer,
+                      activeColor: AppColors.primaryColor,
+                      onChanged: (v) => setState(
+                          () => _acceptInternationalDisclaimer = v ?? false),
+                    ),
+                    const Expanded(
+                      child: Text(
+                        'I agree that this platform operates under Indian regulations and I am responsible for complying with local laws in my country.',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
 
                 BlocBuilder<AuthCubit, AuthState>(
                   builder: (context, state) {
                     final isLoading = state is AuthLoading;
                     return ElevatedButton(
-                      onPressed: (_acceptTerms && !isLoading)
+                      onPressed:
+                          (_acceptTerms && _acceptInternationalDisclaimer && !isLoading)
                           ? () {
                               if (_name.text.trim().isEmpty) {
                                 ScaffoldMessenger.of(context).showSnackBar(

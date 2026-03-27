@@ -303,6 +303,7 @@ class _FilterScreenState extends State<FilterScreen> {
         }
       },
       child: Container(
+        width: double.infinity,
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -722,76 +723,81 @@ class _FilterScreenState extends State<FilterScreen> {
             "15 to 20+ Years",
           ];
 
-    final w = MediaQuery.of(context).size.width;
-    final itemWidth = (w - 40 - 14) / 2;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        // Two cards per row with `spacing: 10` in the Wrap.
+        final itemWidth = ((w - 10) / 2).clamp(0.0, double.infinity);
 
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: items.map((label) {
-        final selected = _selectedConstruction.contains(label);
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: items.map((label) {
+            final selected = _selectedConstruction.contains(label);
 
-        return GestureDetector(
-          onTap: () {
-            setState(() {
-              selected
-                  ? _selectedConstruction.remove(label)
-                  : _selectedConstruction.add(label);
-            });
-          },
-          child: Container(
-            width: itemWidth,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-            decoration: BoxDecoration(
-              color: selected ? kGreen : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: kGreen, width: 1.6),
-              boxShadow: selected
-                  ? []
-                  : [
-                      // subtle elevation for unselected cards to match design
-                      BoxShadow(
-                        color: Colors.black.withOpacity(.02),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      )
-                    ],
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Icon on the left
-                Container(
-                  width: 25,
-                  height: 25,
-                  decoration: BoxDecoration(
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(Icons.apartment,
-                      size: 18, color: selected ? Colors.black : kGreen),
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  selected
+                      ? _selectedConstruction.remove(label)
+                      : _selectedConstruction.add(label);
+                });
+              },
+              child: Container(
+                width: itemWidth,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                decoration: BoxDecoration(
+                  color: selected ? kGreen : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: kGreen, width: 1.6),
+                  boxShadow: selected
+                      ? []
+                      : [
+                          // subtle elevation for unselected cards to match design
+                          BoxShadow(
+                            color: Colors.black.withOpacity(.02),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          )
+                        ],
                 ),
-                const SizedBox(width: 2),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      label,
-                      textAlign: TextAlign.start,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 11,
-                          height: 1.1,
-                          fontWeight: FontWeight.w600,
-                          color: selected ? Colors.black : Colors.black87),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Icon on the left
+                    Container(
+                      width: 25,
+                      height: 25,
+                      decoration: BoxDecoration(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(Icons.apartment,
+                          size: 18, color: selected ? Colors.black : kGreen),
                     ),
-                  ),
+                    const SizedBox(width: 2),
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          label,
+                          textAlign: TextAlign.start,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 11,
+                              height: 1.1,
+                              fontWeight: FontWeight.w600,
+                              color: selected ? Colors.black : Colors.black87),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          }).toList(),
         );
-      }).toList(),
+      },
     );
   }
 
