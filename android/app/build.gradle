@@ -34,9 +34,9 @@ android {
         minSdkVersion = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
 
-        // 🔥 FIXED VERSION (IMPORTANT)
-        versionCode = 4
-        versionName = "1.0.1"
+        // 🔥 FIXED VERSION (IMPORTANT) — bump versionCode for every Play upload
+        versionCode = 5
+        versionName = "1.0.2"
     }
 
     signingConfigs {

@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/repository/financial_calculators_repository.dart';
 import '../../cubit/financial_calculators_cubit.dart';
 import '../../cubit/financial_calculators_state.dart';
+import '../../theme/app_theme.dart';
 
 class FinancialCalculatorsScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -193,6 +194,11 @@ final _max2Digits = [
   LengthLimitingTextInputFormatter(2),
 ];
 
+/// Property value (₹): digits and commas only, **no character limit** (only > 0 validated).
+final _propertyValueInput = [
+  FilteringTextInputFormatter.allow(RegExp(r'[0-9,]')),
+];
+
 // ================= GREEN BUTTON =================
 
 class GreenButton extends StatelessWidget {
@@ -223,6 +229,40 @@ class GreenButton extends StatelessWidget {
 }
 
 // ================= RESULT CARD =================
+
+/// Themed error state for calculator API failures (FastAPI / validation messages).
+Widget calculatorErrorCard(String message) {
+  return resultCard(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: AppColors.redcolor.withOpacity(0.12),
+            child: const Icon(
+              Icons.error_outline,
+              color: AppColors.redcolor,
+              size: 22,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textDark,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 Widget resultCard({required Widget child, Key? key}) {
   return Container(
@@ -466,27 +506,8 @@ class _LoanEligibilityTabState extends State<LoanEligibilityTab> {
                 );
               }
               if (state.status == CalcStatus.failure) {
-                return resultCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Color(0xFFFFE5E5),
-                        child: Icon(
-                          Icons.info_outline,
-                          color: Colors.red,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        state.error ?? 'Eligibility Check Failed',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black),
-                      ),
-                    ],
-                  ),
+                return calculatorErrorCard(
+                  state.error ?? 'Eligibility check failed',
                 );
               }
 
@@ -561,6 +582,16 @@ class _RentalValueTabState extends State<RentalValueTab> {
   final _rate = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // API returns annual rent only; total over N years is annual × years. Rebuild when
+    // years change so the headline updates without requiring ROI/property to change.
+    _years.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
   void didUpdateWidget(covariant RentalValueTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.resetTrigger != widget.resetTrigger) {
@@ -586,7 +617,11 @@ class _RentalValueTabState extends State<RentalValueTab> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          AppInput('Property Value (₹)', controller: _propertyValue),
+          AppInput(
+            'Property Value (₹)',
+            controller: _propertyValue,
+            inputFormatters: _propertyValueInput,
+          ),
           AppInput('Year', controller: _years, inputFormatters: _max2Digits),
           AppInput('Rate of Rent (%)', controller: _rate, inputFormatters: _max2Digits),
 
@@ -598,8 +633,10 @@ class _RentalValueTabState extends State<RentalValueTab> {
                   if (cubit.state.status == CalcStatus.loading) return;
                   String? error;
 
-                  final propertyValue =
-                      int.tryParse(_propertyValue.text.trim());
+                  final pvClean = _propertyValue.text
+                      .trim()
+                      .replaceAll(RegExp(r'[,\s]'), '');
+                  final propertyValue = num.tryParse(pvClean);
                   if (propertyValue == null || propertyValue <= 0) {
                     error = 'Please enter Property Value greater than 0';
                   }
@@ -620,8 +657,8 @@ class _RentalValueTabState extends State<RentalValueTab> {
                       (rate == null || rate <= 0)) {
                     error = 'Please enter Rate of Rent greater than 0';
                   }
-                  if (error == null && rate != null && rate > 99) {
-                    error = 'Rate must be 1-99%';
+                  if (error == null && rate != null && rate > 30) {
+                    error = 'Rate of rent must be between 1% and 30%';
                   }
 
                   if (error != null) {
@@ -664,11 +701,8 @@ class _RentalValueTabState extends State<RentalValueTab> {
                 );
               }
               if (state.status == CalcStatus.failure) {
-                return resultCard(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Text(state.error ?? 'Failed to calculate rental value', textAlign: TextAlign.center),
-                  ),
+                return calculatorErrorCard(
+                  state.error ?? 'Could not calculate rental value',
                 );
               }
               if (state.rentalValue == null) {
@@ -695,18 +729,46 @@ class _RentalValueTabState extends State<RentalValueTab> {
               }
 
               final d = state.rentalValue!;
+              final yearsParsed = int.tryParse(_years.text.trim());
+              final yearsForTotal = (yearsParsed != null &&
+                      yearsParsed >= 1 &&
+                      yearsParsed <= 99)
+                  ? yearsParsed
+                  : 1;
+              // Backend returns yearly rent; multiply by years for total contract value.
+              final totalForPeriod = d.rentalValueAnnual * yearsForTotal;
               return resultCard(
-                key: ValueKey('rental_${d.rentalValueAnnual}_${d.rentalValueMonthly}'),
+                key: ValueKey(
+                    'rental_${d.rentalValueAnnual}_${d.rentalValueMonthly}_y$yearsForTotal'),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const Text('Your rental value is', style: TextStyle(fontSize: 13, color: Colors.black, fontWeight: FontWeight.w500)),
+                      Text(
+                        yearsForTotal == 1
+                            ? 'Your annual rental value is'
+                            : 'Your total rental value ($yearsForTotal years)',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.black,
+                            fontWeight: FontWeight.w500),
+                        textAlign: TextAlign.center,
+                      ),
                       const SizedBox(height: 10),
-                      Text('₹${d.rentalValueAnnual}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.black)),
+                      Text(
+                        '₹$totalForPeriod',
+                        style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black),
+                      ),
                       const SizedBox(height: 6),
-                      Text('Monthly: ₹${d.rentalValueMonthly}', style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                      Text(
+                        'Annual: ₹${d.rentalValueAnnual} · Monthly: ₹${d.rentalValueMonthly}',
+                        style: const TextStyle(fontSize: 14, color: Colors.grey),
+                        textAlign: TextAlign.center,
+                      ),
                     ],
                   ),
                 ),
@@ -841,11 +903,8 @@ class _FutureValueTabState extends State<FutureValueTab> {
                 );
               }
               if (state.status == CalcStatus.failure) {
-                return resultCard(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Text(state.error ?? 'Failed to calculate future value', textAlign: TextAlign.center),
-                  ),
+                return calculatorErrorCard(
+                  state.error ?? 'Could not calculate future value',
                 );
               }
               if (state.futureValue == null) {
@@ -1015,11 +1074,8 @@ class _EmiTabState extends State<EmiTab> {
               }
 
               if (state.status == CalcStatus.failure) {
-                return resultCard(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Text(state.error ?? 'Failed to calculate EMI', textAlign: TextAlign.center),
-                  ),
+                return calculatorErrorCard(
+                  state.error ?? 'Could not calculate EMI',
                 );
               }
               if (state.emi == null) {

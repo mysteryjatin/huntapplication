@@ -51,15 +51,20 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar>
   }
   @override
   Widget build(BuildContext context) {
+    // Keeps the bar above the Android system nav (3-button) / home indicator.
+    // On full-gesture phones viewPadding.bottom is usually 0 → same layout as before.
+    final double bottomInset = MediaQuery.of(context).viewPadding.bottom;
     double itemWidth = MediaQuery.of(context).size.width / 5;
     double currentX =
         (itemWidth * widget.selectedIndex) + (itemWidth / 2) - 36;
     double previousX =
         (itemWidth * _previousIndex) + (itemWidth / 2) - 36;
 
-    return SizedBox(
-      height: 90,
-      child: Stack(
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: SizedBox(
+        height: 90,
+        child: Stack(
         clipBehavior: Clip.none,
         children: [
           // MAIN BOTTOM BAR
@@ -192,6 +197,7 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar>
             ),
           ),
         ],
+      ),
       ),
     );
   }
