@@ -100,67 +100,73 @@ class ShortlistService {
       return false;
     }
 
-    // Many backends expose DELETE /api/favorites/{property_id}/ and may return
-    // a 3xx redirect when trailing slashes or http/https differ. Handle that
-    // explicitly, similar to property delete logic.
-    final tryDelete = Uri.parse('${ApiUrls.baseUrl}/api/favorites/$propertyId/');
-    try {
-      var resp = await http.delete(
-        tryDelete,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      );
+    // huntbackend: DELETE /api/favorites/user/{user_id}/property/{property_id}
+    // (DELETE /api/favorites/{id} expects favorite document _id, not property id.)
+    final base = ApiUrls.baseUrl;
+    final tryDeletes = [
+      Uri.parse('$base/api/favorites/user/$userId/property/$propertyId/'),
+      Uri.parse('$base/api/favorites/user/$userId/property/$propertyId'),
+    ];
+    for (final tryDelete in tryDeletes) {
+      try {
+        var resp = await http.delete(
+          tryDelete,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        );
 
-      // ignore: avoid_print
-      print('📤 REMOVE FROM SHORTLIST DELETE [${resp.statusCode}] -> ${resp.body}');
+        // ignore: avoid_print
+        print(
+            '📤 REMOVE FROM SHORTLIST DELETE [${resp.statusCode}] $tryDelete -> ${resp.body}');
 
-      // Success or already-removed cases
-      if (resp.statusCode == 200 || resp.statusCode == 204) return true;
-      if (resp.statusCode == 404) {
-        try {
-          final decoded = jsonDecode(resp.body);
-          if (decoded is Map<String, dynamic> && decoded['detail'] != null) {
-            return true;
-          }
-        } catch (_) {}
-      }
-
-      // Handle common redirect statuses manually (DELETE does not auto-follow)
-      if (resp.statusCode == 301 ||
-          resp.statusCode == 302 ||
-          resp.statusCode == 307 ||
-          resp.statusCode == 308) {
-        final location = resp.headers['location'];
-        if (location != null && location.isNotEmpty) {
+        if (resp.statusCode == 200 || resp.statusCode == 204) return true;
+        if (resp.statusCode == 404) {
           try {
-            final redirectUri = Uri.parse(location);
-            resp = await http.delete(
-              redirectUri,
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            );
-            // ignore: avoid_print
-            print('📤 REMOVE FROM SHORTLIST DELETE (redirect) [${resp.statusCode}] -> ${resp.body}');
-            if (resp.statusCode == 200 || resp.statusCode == 204) return true;
-            if (resp.statusCode == 404) {
-              try {
-                final decoded = jsonDecode(resp.body);
-                if (decoded is Map<String, dynamic> && decoded['detail'] != null) {
-                  return true;
-                }
-              } catch (_) {}
+            final decoded = jsonDecode(resp.body);
+            if (decoded is Map<String, dynamic> && decoded['detail'] != null) {
+              return true;
             }
-          } catch (e) {
-            // ignore: avoid_print
-            print('❌ REMOVE FROM SHORTLIST REDIRECT ERROR: $e');
+          } catch (_) {}
+        }
+
+        if (resp.statusCode == 301 ||
+            resp.statusCode == 302 ||
+            resp.statusCode == 307 ||
+            resp.statusCode == 308) {
+          final location = resp.headers['location'];
+          if (location != null && location.isNotEmpty) {
+            try {
+              final redirectUri = Uri.parse(location);
+              resp = await http.delete(
+                redirectUri,
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+              );
+              // ignore: avoid_print
+              print(
+                  '📤 REMOVE FROM SHORTLIST DELETE (redirect) [${resp.statusCode}] -> ${resp.body}');
+              if (resp.statusCode == 200 || resp.statusCode == 204) return true;
+              if (resp.statusCode == 404) {
+                try {
+                  final decoded = jsonDecode(resp.body);
+                  if (decoded is Map<String, dynamic> &&
+                      decoded['detail'] != null) {
+                    return true;
+                  }
+                } catch (_) {}
+              }
+            } catch (e) {
+              // ignore: avoid_print
+              print('❌ REMOVE FROM SHORTLIST REDIRECT ERROR: $e');
+            }
           }
         }
+      } catch (e) {
+        // ignore: avoid_print
+        print('❌ removeFromShortlist DELETE error: $e');
       }
-    } catch (e) {
-      // ignore: avoid_print
-      print('❌ removeFromShortlist DELETE error: $e');
     }
 
     // Fallback: POST to /api/favorites/remove with body (if backend supports it).

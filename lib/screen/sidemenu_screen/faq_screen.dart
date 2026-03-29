@@ -32,7 +32,7 @@ class _FAQScreenState extends State<FAQScreen> {
           "• For better response and clarity add property photos.\n"
           "• If you’re a registered user login with your username and password or else register for free.\n"
           "• Once you have filled the entire details click on the Submit button.\n"
-          "• In case your subscription of listing package has expired, please contact our Sales Team or you can also renew your subscription or buy a new package online.\n"
+          "• In case your subscription of listing package has expired, please contact our Sales Team, or renew your subscription from Subscription Plan in the app.\n"
           "You can click Here to post property."
     },
     {
@@ -345,7 +345,7 @@ class _FAQScreenState extends State<FAQScreen> {
             const Text("• For better response and clarity add property photos."),
             const Text("• If you’re a registered user login with your username and password or else register for free."),
             const Text("• Once you have filled the entire details click on the Submit button."),
-            const Text("• In case your subscription of listing package has expired, please contact our Sales Team or you can also renew your subscription or buy a new package online."),
+            const Text("• In case your subscription of listing package has expired, please contact our Sales Team, or renew your subscription from Subscription Plan in the app."),
             const SizedBox(height: 10),
             RichText(
               text: TextSpan(

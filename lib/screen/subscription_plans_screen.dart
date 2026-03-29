@@ -1,10 +1,16 @@
+import 'dart:async';
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hunt_property/config/iap_product_ids.dart';
 import 'package:hunt_property/cubit/subscription_plans_cubit.dart';
 import 'package:hunt_property/models/subscription_plans_models.dart';
+import 'package:hunt_property/services/apple_subscription_verify_service.dart';
+import 'package:hunt_property/services/iap_subscription_service.dart';
 import 'package:hunt_property/services/subscription_plans_service.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 
 /// ================= RESPONSIVE HELPER =================
 class R {
@@ -28,18 +34,167 @@ class SubscriptionPlansScreen extends StatefulWidget {
 
 class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   late final SubscriptionPlansCubit _cubit;
+  final IapSubscriptionService _iap = IapSubscriptionService.instance;
+  final AppleSubscriptionVerifyService _verify = AppleSubscriptionVerifyService();
+
+  String? _iapBusyPlanId;
+  String? _lastIapLoadKey;
 
   @override
   void initState() {
     super.initState();
     _cubit = SubscriptionPlansCubit(SubscriptionPlansService());
     _cubit.load();
+    if (_iap.isIosStore) {
+      _iap.onPurchaseUpdate = _onIapPurchaseUpdate;
+      unawaited(_iap.ensureInitialized());
+    }
   }
 
   @override
   void dispose() {
+    if (_iap.isIosStore) {
+      _iap.onPurchaseUpdate = null;
+    }
     _cubit.close();
     super.dispose();
+  }
+
+  Future<void> _onIapPurchaseUpdate(PurchaseDetails details) async {
+    if (details.status == PurchaseStatus.pending) {
+      if (mounted) setState(() {});
+      return;
+    }
+
+    if (details.status == PurchaseStatus.error) {
+      if (mounted) {
+        setState(() => _iapBusyPlanId = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(details.error?.message ?? 'Purchase failed'),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (details.status == PurchaseStatus.canceled) {
+      if (mounted) setState(() => _iapBusyPlanId = null);
+      return;
+    }
+
+    if (details.status == PurchaseStatus.purchased ||
+        details.status == PurchaseStatus.restored) {
+      var receipt = details.verificationData.localVerificationData;
+      if (receipt.isEmpty) {
+        receipt = details.verificationData.serverVerificationData;
+      }
+      if (receipt.isEmpty) {
+        if (mounted) setState(() => _iapBusyPlanId = null);
+        return;
+      }
+
+      final result = await _verify.verifyPurchase(receiptData: receipt);
+      if (result.success) {
+        await _iap.completePurchase(details);
+        if (mounted) {
+          await _cubit.load();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result.message ?? 'Subscription updated')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result.message ?? 'Verification failed')),
+          );
+        }
+      }
+      if (mounted) setState(() => _iapBusyPlanId = null);
+    }
+  }
+
+  void _maybeLoadIapProducts(SubscriptionPlansResponse data) {
+    if (!_iap.isIosStore) return;
+    final key = '${data.currentPlanId}_${data.plans.map((e) => e.id).join()}';
+    if (_lastIapLoadKey == key) return;
+    _lastIapLoadKey = key;
+
+    final ids = <String>{};
+    for (final p in data.plans) {
+      final id = p.appleProductId ?? IapProductIds.forPlanId(p.id);
+      if (id != null && id.isNotEmpty) ids.add(id);
+    }
+    unawaited(_iap.queryProducts(ids));
+  }
+
+  Future<void> _onPlanButtonTap(SubscriptionPlan plan) async {
+    if (plan.isCurrent) return;
+
+    if (Platform.isAndroid) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Google Play billing for subscriptions is not yet enabled in this build. '
+            'Use the iOS app with In-App Purchase, or contact support.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (!_iap.isIosStore) return;
+
+    if (plan.id == 'metal' || plan.priceAmount <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This is the free tier. To switch to Metal, contact support if you need account changes.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final appleId = plan.appleProductId ?? IapProductIds.forPlanId(plan.id);
+    if (appleId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No App Store product for this plan.')),
+      );
+      return;
+    }
+
+    final product = _iap.productForPlan(appleId);
+    if (product == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Products are not available yet. Add them in App Store Connect and match the product IDs.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _iapBusyPlanId = plan.id);
+    final started = await _iap.buy(product);
+    if (!started && mounted) {
+      setState(() => _iapBusyPlanId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not start purchase.')),
+      );
+    }
+  }
+
+  Future<void> _restorePurchases() async {
+    if (!_iap.isIosStore) return;
+    setState(() => _iapBusyPlanId = '_restore');
+    await _iap.restorePurchases();
+    if (mounted) setState(() => _iapBusyPlanId = null);
   }
 
   @override
@@ -97,12 +252,19 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
 
                       if (state is SubscriptionPlansLoaded) {
                         final data = state.data;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) _maybeLoadIapProducts(data);
+                        });
                         return SingleChildScrollView(
                           padding: EdgeInsets.only(bottom: R.h(context, 40)),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _appBar(context),
+                              _appBar(
+                                context,
+                                showRestorePurchases: _iap.isIosStore,
+                                onRestorePurchases: _iapBusyPlanId != null ? null : _restorePurchases,
+                              ),
 
                               SizedBox(height: R.h(context, 20)),
 
@@ -160,12 +322,20 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
-                                      _buildPlanCard(context, plan),
+                                      _buildPlanCard(
+                                        context,
+                                        plan,
+                                        isCurrentPlan: true,
+                                      ),
                                     ],
                                   );
                                 }
 
-                                return _buildPlanCard(context, plan);
+                                return _buildPlanCard(
+                                  context,
+                                  plan,
+                                  isCurrentPlan: false,
+                                );
                               }),
 
                               SizedBox(height: R.h(context, 24)),
@@ -258,13 +428,20 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     );
   }
 
-  Widget _buildPlanCard(BuildContext context, SubscriptionPlan plan) {
+  Widget _buildPlanCard(
+    BuildContext context,
+    SubscriptionPlan plan, {
+    required bool isCurrentPlan,
+  }) {
     // Map image_slug to asset path
     final imagePath = _getImagePath(plan.imageSlug);
-    
+
     // Convert hex colors to Color objects
     final colors = plan.colors.map((hex) => _hexToColor(hex)).toList();
     final textColor = _hexToColor(plan.textColor);
+
+    final bool canTap = !isCurrentPlan;
+    final bool loading = _iapBusyPlanId == plan.id;
 
     return _planCard(
       context,
@@ -277,6 +454,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
       colors: colors.isNotEmpty ? colors : [Colors.grey, Colors.grey],
       textColor: textColor,
       isDark: plan.isDark,
+      onButtonTap: canTap ? () => _onPlanButtonTap(plan) : null,
+      buttonLoading: loading,
     );
   }
 
@@ -326,6 +505,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
         required List<Color> colors,
         required Color textColor,
         bool isDark = false,
+        VoidCallback? onButtonTap,
+        bool buttonLoading = false,
       }) {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: R.w(context, 16), vertical: 10),
@@ -365,7 +546,14 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                   ),
                 ),
                 SizedBox(height: R.h(context, 16)),
-                _gradientButton(context, button, colors, textColor),
+                _gradientButton(
+                  context,
+                  button,
+                  colors,
+                  textColor,
+                  onTap: onButtonTap,
+                  loading: buttonLoading,
+                ),
               ],
             ),
           ),
@@ -413,20 +601,45 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
 
   /// ================= BUTTON =================
   Widget _gradientButton(
-      BuildContext context, String text, List<Color> c, Color tc) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(vertical: R.h(context, 13)),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: c),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Center(
-        child: Text(text,
+    BuildContext context,
+    String text,
+    List<Color> c,
+    Color tc, {
+    VoidCallback? onTap,
+    bool loading = false,
+  }) {
+    final child = loading
+        ? SizedBox(
+            height: R.h(context, 22),
+            width: R.h(context, 22),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: tc,
+            ),
+          )
+        : Text(
+            text,
             style: TextStyle(
-                fontSize: R.sp(context, 15),
-                fontWeight: FontWeight.w700,
-                color: tc)),
+              fontSize: R.sp(context, 15),
+              fontWeight: FontWeight.w700,
+              color: tc,
+            ),
+          );
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: loading ? null : onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(vertical: R.h(context, 13)),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: c),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Center(child: child),
+        ),
       ),
     );
   }
@@ -512,23 +725,49 @@ class ContactRow extends StatelessWidget {
 }
 
 /// ================= APP BAR =================
-Widget _appBar(BuildContext context) {
+Widget _appBar(
+  BuildContext context, {
+  bool showRestorePurchases = false,
+  VoidCallback? onRestorePurchases,
+}) {
   return Padding(
     padding: const EdgeInsets.all(16),
-    child: Row(
+    child: Stack(
+      alignment: Alignment.center,
       children: [
-        GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: const CircleAvatar(
-            backgroundColor: Color(0xFFF2F4F7),
-            child: Icon(Icons.arrow_back_ios_new, size: 16),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: const CircleAvatar(
+              backgroundColor: Color(0xFFF2F4F7),
+              child: Icon(Icons.arrow_back_ios_new, size: 16),
+            ),
           ),
         ),
-        const Spacer(),
-        Text("Subscription Plans",
-            style: GoogleFonts.poppins(
-                fontSize: 20, fontWeight: FontWeight.w700,color: Colors.black)),
-        const Spacer(),
+        Text(
+          "Subscription Plans",
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: Colors.black,
+          ),
+        ),
+        if (showRestorePurchases)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: onRestorePurchases,
+              child: Text(
+                'Restore',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF28E29A),
+                ),
+              ),
+            ),
+          ),
       ],
     ),
   );

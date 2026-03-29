@@ -107,5 +107,10 @@ class ApiUrls {
     }
     return Uri.parse(base);
   }
+
+  /// iOS: verify App Store receipt and unlock subscription on server.
+  static Uri appleVerifyReceipt() {
+    return Uri.parse('$baseUrl/api/subscription-plans/apple/verify-receipt');
+  }
 }
 

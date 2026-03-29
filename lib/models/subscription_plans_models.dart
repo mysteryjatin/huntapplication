@@ -13,6 +13,8 @@ class SubscriptionPlan {
   final String textColor;
   final bool isDark;
   final bool isCurrent;
+  /// App Store Connect product id (auto-renewable). Omitted for free tiers.
+  final String? appleProductId;
 
   const SubscriptionPlan({
     required this.id,
@@ -29,6 +31,7 @@ class SubscriptionPlan {
     required this.textColor,
     required this.isDark,
     required this.isCurrent,
+    this.appleProductId,
   });
 
   factory SubscriptionPlan.fromJson(Map<String, dynamic> json) {
@@ -78,7 +81,14 @@ class SubscriptionPlan {
       textColor: json['text_color']?.toString() ?? '#000000',
       isDark: _toBool(json['is_dark']),
       isCurrent: _toBool(json['is_current']),
+      appleProductId: _optionalString(json['apple_product_id']),
     );
+  }
+
+  static String? _optionalString(dynamic v) {
+    if (v == null) return null;
+    final s = v.toString().trim();
+    return s.isEmpty ? null : s;
   }
 }
 
