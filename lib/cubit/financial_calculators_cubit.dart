@@ -2,6 +2,12 @@ import 'package:bloc/bloc.dart';
 import '../data/repository/financial_calculators_repository.dart';
 import 'financial_calculators_state.dart';
 
+String _userFacingError(Object e) {
+  final s = e.toString();
+  if (s.startsWith('Exception: ')) return s.substring('Exception: '.length);
+  return s;
+}
+
 class FinancialCalculatorsCubit extends Cubit<FinancialCalculatorsState> {
   final FinancialCalculatorsRepository repository;
 
@@ -29,12 +35,12 @@ class FinancialCalculatorsCubit extends Cubit<FinancialCalculatorsState> {
         error: null,
       ));
     } catch (e) {
-      emit(state.copyWith(status: CalcStatus.failure, error: e.toString()));
+      emit(state.copyWith(status: CalcStatus.failure, error: _userFacingError(e)));
     }
   }
 
   Future<void> checkRentalValue({
-    required int propertyValue,
+    required num propertyValue,
     required num rateOfRent,
     required int years,
   }) async {
@@ -51,7 +57,7 @@ class FinancialCalculatorsCubit extends Cubit<FinancialCalculatorsState> {
         error: null,
       ));
     } catch (e) {
-      emit(state.copyWith(status: CalcStatus.failure, error: e.toString()));
+      emit(state.copyWith(status: CalcStatus.failure, error: _userFacingError(e)));
     }
   }
 
@@ -73,7 +79,7 @@ class FinancialCalculatorsCubit extends Cubit<FinancialCalculatorsState> {
         error: null,
       ));
     } catch (e) {
-      emit(state.copyWith(status: CalcStatus.failure, error: e.toString()));
+      emit(state.copyWith(status: CalcStatus.failure, error: _userFacingError(e)));
     }
   }
 
@@ -87,7 +93,7 @@ class FinancialCalculatorsCubit extends Cubit<FinancialCalculatorsState> {
         error: null,
       ));
     } catch (e) {
-      emit(state.copyWith(status: CalcStatus.failure, error: e.toString()));
+      emit(state.copyWith(status: CalcStatus.failure, error: _userFacingError(e)));
     }
   }
 

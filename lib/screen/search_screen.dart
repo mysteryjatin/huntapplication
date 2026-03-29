@@ -10,11 +10,23 @@ import 'package:hunt_property/models/filter_models.dart';
 import 'package:hunt_property/utils/property_search_matcher.dart';
 import 'package:intl/intl.dart';
 import 'package:hunt_property/screen/property_details_screen.dart';
+import 'package:hunt_property/services/favorites_sync.dart';
+import 'package:hunt_property/services/shortlist_service.dart';
+import 'package:hunt_property/services/storage_service.dart';
 
 class SearchScreen extends StatefulWidget {
   final VoidCallback? onBackPressed;
 
-  const SearchScreen({super.key, this.onBackPressed});
+  /// When opening search from another screen (e.g. property details) with filters / query.
+  final FilterSelection? initialFilters;
+  final String? initialQuery;
+
+  const SearchScreen({
+    super.key,
+    this.onBackPressed,
+    this.initialFilters,
+    this.initialQuery,
+  });
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -33,25 +45,69 @@ class _SearchScreenState extends State<SearchScreen> {
   Timer? _searchTimer;
 
   final PropertyService _propertyService = PropertyService();
+  final ShortlistService _shortlistService = ShortlistService();
   List<Property> _allProperties = [];
   List<Property> _searchResults = [];
+  Set<String> _favoriteIds = {};
+  late final VoidCallback _favoritesListener;
+
+  Future<void> _loadFavoriteIds() async {
+    final uid = await StorageService.getUserId();
+    if (uid == null || uid.isEmpty) return;
+    try {
+      final ids = await _shortlistService.getAllShortlistedPropertyIds();
+      if (!mounted) return;
+      setState(() {
+        _favoriteIds = ids;
+      });
+    } catch (_) {}
+  }
 
   @override
   void initState() {
     super.initState();
+    if (widget.initialQuery != null && widget.initialQuery!.trim().isNotEmpty) {
+      _searchController.text = widget.initialQuery!;
+    }
+    if (widget.initialFilters != null) {
+      _activeFilters = widget.initialFilters;
+      _selectedType = widget.initialFilters!.category == 'RENT' ? 'RENT' : 'BUY';
+    }
+    _favoritesListener = () => _loadFavoriteIds();
+    FavoritesSync.revision.addListener(_favoritesListener);
+    _loadFavoriteIds();
     _searchFocusNode.addListener(() {
       setState(() => _isSearchFocused = _searchFocusNode.hasFocus);
     });
     _loadProperties();
   }
 
+  @override
+  void dispose() {
+    FavoritesSync.revision.removeListener(_favoritesListener);
+    _searchTimer?.cancel();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadProperties() async {
     setState(() => _isLoadingProperties = true);
     final properties = await _propertyService.getProperties();
+    if (!mounted) return;
     setState(() {
       _allProperties = properties;
       _isLoadingProperties = false;
     });
+    final bool runInitialSearch = (widget.initialQuery != null &&
+            widget.initialQuery!.trim().isNotEmpty) ||
+        (widget.initialFilters != null);
+    if (runInitialSearch) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _performSearch(_searchController.text);
+      });
+    }
   }
 
   void _performSearch(String query) {
@@ -232,11 +288,10 @@ class _SearchScreenState extends State<SearchScreen> {
           MaterialPageRoute(
             builder: (_) => PropertyDetailsScreen(
               propertyId: property.id,
-              // Search results me abhi favorite state directly available nahi,
-              // isliye yahan initialIsFavorite false hi rahega.
+              initialIsFavorite: _favoriteIds.contains(property.id),
             ),
           ),
-        );
+        ).then((_) => _loadFavoriteIds());
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),

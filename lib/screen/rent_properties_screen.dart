@@ -197,7 +197,9 @@ class _RentPropertiesScreenState extends State<RentPropertiesScreen> {
               initialIsFavorite: true,
             ),
           ),
-        );
+        ).then((_) {
+          if (mounted) context.read<ShortlistCubit>().load();
+        });
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 20),

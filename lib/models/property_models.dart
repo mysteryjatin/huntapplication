@@ -264,6 +264,8 @@ class Property {
   final String ownerId;
   final bool isFavorite;
   final DateTime? postedAt;
+  /// Favorite row id from shortlist API (if present). DELETE /api/favorites/ often needs this, not property id.
+  final String? favoriteRecordId;
 
   Property({
     required this.id,
@@ -310,6 +312,7 @@ class Property {
     required this.ownerId,
     this.isFavorite = false,
     required this.postedAt,
+    this.favoriteRecordId,
   });
 
   /// Parses Property from API JSON response
@@ -426,6 +429,10 @@ class Property {
       // Meta
       ownerId: json['owner_id']?.toString() ?? '',
       isFavorite: json['is_favorite'] is bool ? json['is_favorite'] as bool : (json['is_favorite'] != null ? (json['is_favorite'].toString().toLowerCase() == 'true') : false),
+      favoriteRecordId: json['favorite_id']?.toString() ??
+          json['favoriteId']?.toString() ??
+          json['favourite_id']?.toString() ??
+          json['favorite_record_id']?.toString(),
       postedAt: json['posted_at'] != null
           ? DateTime.tryParse(json['posted_at'].toString())
           : null,

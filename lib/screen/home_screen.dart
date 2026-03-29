@@ -24,6 +24,7 @@ import 'widget/custombottomnavbar.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hunt_property/cubit/filter_cubit.dart';
 import 'package:hunt_property/services/filter_service.dart';
+import 'package:hunt_property/services/favorites_sync.dart';
 import 'package:hunt_property/services/shortlist_service.dart';
 import 'package:hunt_property/cubit/shortlist_cubit.dart';
 import 'package:hunt_property/cubit/home_cubit.dart';
@@ -51,7 +52,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   int selectedIndex = 0;
   // -1 means "no top tab filter (show all)" when coming from bottom Home
   int _selectedCategoryIndex = -1;
@@ -185,9 +186,15 @@ class _HomeScreenState extends State<HomeScreen>
     },
   ];
 
+  void _onFavoritesSyncRevision() {
+    _loadFavorites();
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    FavoritesSync.revision.addListener(_onFavoritesSyncRevision);
     _searchFocusNode.addListener(
           () => setState(() => _isSearchFocused = _searchFocusNode.hasFocus),
     );
@@ -196,6 +203,13 @@ class _HomeScreenState extends State<HomeScreen>
     _initHomeCubit();
     _loadFavorites(); // ensure favorites loaded when home opens
     _loadUnreadNotifications();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadFavorites();
+    }
   }
 
   Future<void> _loadUnreadNotifications() async {
@@ -375,10 +389,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _loadFavorites() async {
     try {
-      final res = await _shortlistService.getShortlist();
+      final ids = await _shortlistService.getAllShortlistedPropertyIds();
       if (!mounted) return;
       setState(() {
-        _favoriteIds = res.properties.map((p) => p.id).toSet();
+        _favoriteIds = ids;
       });
     } catch (e) {
       // ignore: avoid_print
@@ -553,6 +567,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    FavoritesSync.revision.removeListener(_onFavoritesSyncRevision);
     _searchTimer?.cancel();
     _carouselController.dispose();
     _searchController.dispose();
@@ -620,15 +636,24 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Intercept Android back button to navigate to Home tab instead of closing app.
-    return WillPopScope(
-      onWillPop: () async {
+    // Back handling: only allow the route to actually pop (exit app) when we are on
+    // the home tab AND the navigator has a single route (nothing under `/home`).
+    // Otherwise we intercept: switch to home tab, or normalize stack to `/home` only
+    // (e.g. login left under the stack). WillPopScope alone could still allow exit
+    // in some nested flows; PopScope + canPop matches that intent.
+    final nav = Navigator.of(context);
+    final bool allowExit = selectedIndex == 0 && !nav.canPop();
+    return PopScope(
+      canPop: allowExit,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop) return;
         if (selectedIndex != 0) {
           setState(() => selectedIndex = 0);
-          return false; // don't pop navigator
+          return;
         }
-        // If already on home (index 0), allow default behavior (app will close)
-        return true;
+        if (nav.canPop()) {
+          nav.pushNamedAndRemoveUntil('/home', (route) => false);
+        }
       },
       child: Scaffold(
         key: _scaffoldKey,
@@ -1554,7 +1579,7 @@ class _CategoryListContent extends StatelessWidget {
                           padding: const EdgeInsets.only(bottom: 16),
                           child: _VerticalPropertyCard(
                             property: properties[i],
-                            isFavorite: favoriteIds.contains(properties[i].id) || properties[i].isFavorite,
+                            isFavorite: favoriteIds.contains(properties[i].id),
                           ),
                         );
                       },
@@ -1614,6 +1639,7 @@ class _VerticalPropertyCardState extends State<_VerticalPropertyCard> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_isFavorite ? 'Added to favorites' : 'Removed from favorites')));
     }
+    FavoritesSync.notifyChanged();
     try {
       BlocProvider.of<ShortlistCubit>(context, listen: false).load();
     } catch (_) {}
@@ -1656,7 +1682,9 @@ class _VerticalPropertyCardState extends State<_VerticalPropertyCard> {
               initialIsFavorite: _isFavorite,
             ),
           ),
-        );
+        ).then((_) {
+          context.findAncestorStateOfType<_HomeScreenState>()?._loadFavorites();
+        });
       },
       child: Container(
         decoration: BoxDecoration(
@@ -1898,7 +1926,7 @@ class _HorizontalPropertyList extends StatelessWidget {
               final firstImage = p.images.isNotEmpty ? p.images.first : null;
               final priceStr = _formatPropertyPriceHome(p);
 
-              final isFav = favIds.contains(p.id) || p.isFavorite;
+              final isFav = favIds.contains(p.id);
 
               return {
                 'id': p.id,
@@ -2020,12 +2048,11 @@ class _PropertyCardState extends State<_PropertyCard> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_isFavorite ? 'Added to favorites' : 'Removed from favorites')));
     }
 
-    // If ShortlistCubit exists above in tree, reload it so shortlist screen shows update immediately.
+    FavoritesSync.notifyChanged();
     try {
       final cubit = BlocProvider.of<ShortlistCubit>(context, listen: false);
       cubit.load();
     } catch (_) {}
-    // Also refresh HomeScreen's local favorites cache if HomeScreen is an ancestor
     try {
       final homeState = context.findAncestorStateOfType<_HomeScreenState>();
       await homeState?._loadFavorites();
@@ -2051,7 +2078,9 @@ class _PropertyCardState extends State<_PropertyCard> {
               initialIsFavorite: _isFavorite,
             ),
           ),
-        );
+        ).then((_) {
+          context.findAncestorStateOfType<_HomeScreenState>()?._loadFavorites();
+        });
       },
       child: Container(
         decoration: BoxDecoration(

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:hunt_property/screen/add_post_screen.dart';
@@ -26,8 +28,20 @@ import 'package:hunt_property/services/profile_service.dart';
 import 'package:hunt_property/services/property_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/widgets/membership_badge.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'sidemenu_screen/order_history_screen.dart';
+
+/// Official Hunt Property social URLs (side menu).
+const String _kSocialFacebook =
+    'https://www.facebook.com/LetsHuntProperty/';
+const String _kSocialLinkedIn =
+    'https://www.linkedin.com/company/hunt-propert/?viewAsMember=true';
+const String _kSocialInstagram =
+    'https://www.instagram.com/huntpropertyindia/';
+
+/// Must match `applicationId` in android/app/build.gradle
+const String _kAndroidApplicationId = 'com.hunt.property.hunt_property';
 
 class SideMenuScreen extends StatefulWidget {
   final Function(int)? onMenuItemSelected;
@@ -48,6 +62,62 @@ class SideMenuScreenState extends State<SideMenuScreen> {
   final PropertyService _propertyService = PropertyService();
   bool _isLoading = true;
   Map<String, dynamic>? _profileData;
+
+  Future<void> _openSocialUrl(String url) async {
+    final uri = Uri.parse(url);
+    try {
+      final ok =
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open link')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open link')),
+        );
+      }
+    }
+  }
+
+  /// Opens the listing on Google Play so the user can rate the app.
+  Future<void> _openPlayStoreForRating() async {
+    final webUri = Uri.parse(
+      'https://play.google.com/store/apps/details?id=$_kAndroidApplicationId',
+    );
+    try {
+      if (!kIsWeb &&
+          defaultTargetPlatform == TargetPlatform.android) {
+        final marketUri =
+            Uri.parse('market://details?id=$_kAndroidApplicationId');
+        if (await canLaunchUrl(marketUri)) {
+          final ok = await launchUrl(
+            marketUri,
+            mode: LaunchMode.externalApplication,
+          );
+          if (ok) return;
+        }
+      }
+      final ok = await launchUrl(
+        webUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open Play Store')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open Play Store')),
+        );
+      }
+    }
+  }
+
   String? _errorMessage;
   bool _spinPremiumUnlocked = false;
   bool _hasPostedProperty = false;
@@ -483,9 +553,7 @@ class SideMenuScreenState extends State<SideMenuScreen> {
                       context: context,
                       icon: Icons.star,
                       title: 'Rate this App',
-                      onTap: () {
-                        // Navigator.pop(context);
-                      },
+                      onTap: _openPlayStoreForRating,
                     ),
 
                     const SizedBox(height: 24),
@@ -498,7 +566,7 @@ class SideMenuScreenState extends State<SideMenuScreen> {
                         children: [
                           _buildSocialIcon(
                             svgPath: 'assets/icons/facebook.svg',
-                            onTap: () {},
+                            onTap: () => _openSocialUrl(_kSocialFacebook),
                           ),
                           const SizedBox(width: 12),
                           _buildSocialIcon(
@@ -508,12 +576,12 @@ class SideMenuScreenState extends State<SideMenuScreen> {
                           const SizedBox(width: 12),
                           _buildSocialIcon(
                             svgPath: 'assets/icons/linklnd.svg',
-                            onTap: () {},
+                            onTap: () => _openSocialUrl(_kSocialLinkedIn),
                           ),
                           const SizedBox(width: 12),
                           _buildSocialIcon(
                             svgPath: 'assets/icons/instagram.svg',
-                            onTap: () {},
+                            onTap: () => _openSocialUrl(_kSocialInstagram),
                           ),
                           const SizedBox(width: 12),
                           _buildSocialIcon(

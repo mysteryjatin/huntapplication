@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:hunt_property/cubit/auth_cubit.dart';
@@ -16,6 +17,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
     with CodeAutoFill {
   final List<TextEditingController> _codes =
       List.generate(6, (_) => TextEditingController());
+  final List<FocusNode> _focusNodes =
+      List.generate(6, (i) => FocusNode(debugLabel: 'otp_$i'));
 
   Timer? _timer;
   int _seconds = 30;
@@ -25,6 +28,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
   @override
   void initState() {
     super.initState();
+    HardwareKeyboard.instance.addHandler(_handleOtpHardwareKey);
     _startTimer();
     listenForCode(); // from CodeAutoFill mixin
     // Get phone number from arguments and check current state
@@ -71,12 +75,39 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleOtpHardwareKey);
     for (final c in _codes) {
       c.dispose();
+    }
+    for (final n in _focusNodes) {
+      n.dispose();
     }
     _timer?.cancel();
     cancel(); // from CodeAutoFill mixin
     super.dispose();
+  }
+
+  /// Backspace on an empty field must move to the previous cell. A parent [Focus]
+  /// around [TextField] with the same [FocusNode] triggers a framework assertion,
+  /// so we handle it here instead.
+  bool _handleOtpHardwareKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (event.logicalKey != LogicalKeyboardKey.backspace) return false;
+    int? focusedIndex;
+    for (var i = 0; i < 6; i++) {
+      if (_focusNodes[i].hasFocus) {
+        focusedIndex = i;
+        break;
+      }
+    }
+    if (focusedIndex == null) return false;
+    if (_codes[focusedIndex].text.isNotEmpty) {
+      return false;
+    }
+    if (focusedIndex == 0) return false;
+    _focusNodes[focusedIndex - 1].requestFocus();
+    _codes[focusedIndex - 1].clear();
+    return true;
   }
 
   void _verify() {
@@ -185,13 +216,20 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
 
               const SizedBox(height: 100),
 
-              /// OTP BOXES — SAME UI, WITH AUTO-FILL
+              /// OTP BOXES — Expanded so narrow screens never overflow the Row.
               AutofillGroup(
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: List.generate(
                     6,
-                    (i) => _OtpBox(controller: _codes[i]),
+                    (i) => Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: i == 0 ? 0 : 3,
+                          right: i == 5 ? 0 : 3,
+                        ),
+                        child: _buildOtpDigitField(i),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -304,18 +342,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
       },
     );
   }
-}
 
-/// PERFECT OTP BOX (no overflow) - UI unchanged
-class _OtpBox extends StatelessWidget {
-  final TextEditingController controller;
-  const _OtpBox({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
+  /// Single OTP cell: forward on digit, backspace on empty moves to previous cell.
+  Widget _buildOtpDigitField(int index) {
     return Container(
-      width: 44,
       height: 52,
+      alignment: Alignment.center,
       decoration: BoxDecoration(
         color: const Color(0xFFF3F4F6),
         borderRadius: BorderRadius.circular(10),
@@ -324,24 +356,47 @@ class _OtpBox extends StatelessWidget {
           width: 1.5,
         ),
       ),
+      clipBehavior: Clip.hardEdge,
       child: TextField(
-        controller: controller,
+        controller: _codes[index],
+        focusNode: _focusNodes[index],
         maxLength: 1,
+        maxLines: 1,
         keyboardType: TextInputType.number,
         autofillHints: const [AutofillHints.oneTimeCode],
         textAlign: TextAlign.center,
         style: const TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w600,
+          height: 1.0,
           color: Colors.black,
         ),
+        // Theme's inputDecorationTheme.focusedBorder would stack on the outer
+        // Container — override every border so only the Container shows one box.
         decoration: const InputDecoration(
           counterText: '',
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          isDense: true,
+          contentPadding:
+              EdgeInsets.symmetric(vertical: 14, horizontal: 2),
         ),
-        onChanged: (v) {
-          if (v.isNotEmpty) {
-            FocusScope.of(context).nextFocus();
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        onChanged: (value) {
+          final digits = value.replaceAll(RegExp(r'[^\d]'), '');
+          if (digits.isEmpty) {
+            return;
+          }
+          final ch = digits.length == 1 ? digits : digits[digits.length - 1];
+          if (_codes[index].text != ch) {
+            _codes[index].text = ch;
+          }
+          if (index < 5) {
+            _focusNodes[index + 1].requestFocus();
           }
         },
       ),

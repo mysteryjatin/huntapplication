@@ -195,7 +195,9 @@ class _BuyPropertiesScreenState extends State<BuyPropertiesScreen> {
               initialIsFavorite: true,
             ),
           ),
-        );
+        ).then((_) {
+          if (mounted) context.read<ShortlistCubit>().load();
+        });
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 20),

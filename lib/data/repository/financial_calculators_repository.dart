@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/loan_eligibility_model.dart';
 import '../models/rental_value_model.dart';
 import '../models/emi_model.dart';
+import 'package:hunt_property/utils/api_error_message.dart';
 
 class FinancialCalculatorsRepository {
   final String baseUrl;
@@ -39,7 +40,7 @@ class FinancialCalculatorsRepository {
   }
 
   Future<RentalValueModel> rentalValue({
-    required int propertyValue,
+    required num propertyValue,
     required num rateOfRent,
     required int years,
   }) async {
@@ -59,7 +60,10 @@ class FinancialCalculatorsRepository {
       final json = jsonDecode(res.body) as Map<String, dynamic>;
       return RentalValueModel.fromJson(json['data'] as Map<String, dynamic>);
     }
-    throw Exception('Failed to fetch rental value: ${res.statusCode} body=${res.body}');
+    throw Exception(
+      parseFastApiDetailMessage(res.body) ??
+          'Could not calculate rental value. Please check your inputs.',
+    );
   }
 
   Future<EmiModel> emi({
@@ -83,7 +87,10 @@ class FinancialCalculatorsRepository {
       final json = jsonDecode(res.body) as Map<String, dynamic>;
       return EmiModel.fromJson(json['data'] as Map<String, dynamic>);
     }
-    throw Exception('Failed to fetch emi: ${res.statusCode} body=${res.body}');
+    throw Exception(
+      parseFastApiDetailMessage(res.body) ??
+          'Could not calculate EMI. Please check your inputs.',
+    );
   }
 
   // Future value endpoint isn't described in detail; implement a simple passthrough.
@@ -100,7 +107,10 @@ class FinancialCalculatorsRepository {
       final json = jsonDecode(res.body) as Map<String, dynamic>;
       return json['data'] as Map<String, dynamic>;
     }
-    throw Exception('Failed to fetch future value: ${res.statusCode} body=${res.body}');
+    throw Exception(
+      parseFastApiDetailMessage(res.body) ??
+          'Could not calculate future value. Please check your inputs.',
+    );
   }
 }
 

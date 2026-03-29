@@ -3,23 +3,28 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hunt_property/cubit/filter_cubit.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:hunt_property/cubit/property_cubit.dart';
 import 'package:hunt_property/cubit/shortlist_cubit.dart';
+import 'package:hunt_property/models/filter_models.dart';
 import 'package:hunt_property/models/property.dart';
 import 'package:hunt_property/repositories/property_repository.dart';
+import 'package:hunt_property/services/favorites_sync.dart';
 import 'package:hunt_property/services/shortlist_service.dart';
 import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/services/auth_service.dart';
 import 'package:hunt_property/services/profile_service.dart';
+import 'package:hunt_property/screen/filter_screen.dart';
+import 'package:hunt_property/screen/search_screen.dart';
+import 'package:hunt_property/services/filter_service.dart';
 import 'package:hunt_property/theme/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PropertyDetailsScreen extends StatefulWidget {
@@ -44,13 +49,41 @@ class PropertyDetailsScreen extends StatefulWidget {
 
 class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   final ShortlistService _shortlistService = ShortlistService();
+  late final PropertyCubit _propertyCubit;
   late bool _isFavorite;
   Property? _currentProperty; // latest loaded property details
+  bool _favoriteSynced = false;
 
   @override
   void initState() {
     super.initState();
     _isFavorite = widget.initialIsFavorite;
+    _propertyCubit = PropertyCubit(repository: PropertyRepository());
+    _propertyCubit.fetchProperty(widget.propertyId);
+  }
+
+  /// Heart state from server shortlist (source of truth for DB persistence).
+  Future<void> _syncFavoriteFromShortlist() async {
+    final propId = widget.propertyId.trim();
+    if (propId.isEmpty) return;
+    final userId = await StorageService.getUserId();
+    if (userId == null || userId.isEmpty) return;
+
+    try {
+      final inList = await _shortlistService.isPropertyShortlisted(propId);
+      if (!mounted) return;
+      setState(() {
+        _isFavorite = inList;
+      });
+    } catch (_) {
+      // Keep current _isFavorite
+    }
+  }
+
+  @override
+  void dispose() {
+    _propertyCubit.close();
+    super.dispose();
   }
 
   Future<void> _toggleFavorite() async {
@@ -86,6 +119,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
       return;
     }
 
+    FavoritesSync.notifyChanged();
+    await _syncFavoriteFromShortlist();
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -96,7 +132,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
       );
     }
 
-    // Refresh shortlist cubit if present so shortlist screens update immediately.
     try {
       final cubit = BlocProvider.of<ShortlistCubit>(context, listen: false);
       cubit.load();
@@ -204,6 +239,39 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     }
   }
 
+  /// Same search experience as Home / Search tab (full [SearchScreen]).
+  void _openFullSearch({FilterSelection? filters}) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => SearchScreen(initialFilters: filters),
+      ),
+    );
+  }
+
+  /// Same filter bottom sheet as Home / Search, then opens search with selection.
+  Future<void> _openFilterFromDetails() async {
+    final result = await showModalBottomSheet<FilterSelection>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black.withOpacity(0.4),
+      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => BlocProvider(
+          create: (_) => FilterCubit(FilterService()),
+          child: FilterScreen(
+            scrollController: scrollController,
+            initialSelection: null,
+          ),
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    _openFullSearch(filters: result);
+  }
+
   Future<void> _handleContactOwner() async {
     final formResult = await _showContactOwnerFormDialog(context);
     if (formResult == null || !mounted) return;
@@ -259,9 +327,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => PropertyCubit(repository: PropertyRepository())
-        ..fetchProperty(widget.propertyId),
+    return BlocProvider.value(
+      value: _propertyCubit,
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: _buildAppBar(context),
@@ -275,6 +342,12 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
               // Cache latest property so share button ke time par
               // bina Bloc/Provider context ke details mil sake.
               _currentProperty = state.property;
+              if (!_favoriteSynced) {
+                _favoriteSynced = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) _syncFavoriteFromShortlist();
+                });
+              }
               return SingleChildScrollView(
                 child: _PropertyDetailsView(property: state.property),
               );
@@ -292,6 +365,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
+      titleSpacing: 0,
       leading: Padding(
         padding: const EdgeInsets.all(8.0),
         child: IconButton(
@@ -300,19 +374,48 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
           padding: EdgeInsets.zero,
         ),
       ),
-      title: Container(
-        height: 40,
-        decoration: BoxDecoration(
-          color: AppColors.lightGray,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const TextField(
-          decoration: InputDecoration(
-            hintText: 'Search City/Location/Project',
-            hintStyle: TextStyle(fontSize: 14, color: AppColors.textLight),
-            prefixIcon: Icon(Icons.search, color: AppColors.textLight, size: 20),
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      // Matches Home header search: same hint, tune → filter sheet, field → full Search.
+      title: Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F4F6),
+            borderRadius: BorderRadius.circular(40),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.search, color: Colors.grey, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  readOnly: true,
+                  onTap: () => _openFullSearch(),
+                  cursorColor: AppColors.primaryColor,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    hintText: 'Search your area, project',
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: _openFilterFromDetails,
+                child: const Icon(Icons.tune, color: Colors.grey, size: 20),
+              ),
+            ],
           ),
         ),
       ),
