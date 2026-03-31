@@ -9,6 +9,7 @@ import 'package:hunt_property/cubit/subscription_plans_cubit.dart';
 import 'package:hunt_property/models/subscription_plans_models.dart';
 import 'package:hunt_property/services/apple_subscription_verify_service.dart';
 import 'package:hunt_property/services/iap_subscription_service.dart';
+import 'package:hunt_property/services/storage_service.dart';
 import 'package:hunt_property/services/subscription_plans_service.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
@@ -40,11 +41,23 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   String? _iapBusyPlanId;
   String? _lastIapLoadKey;
 
+  /// Spin reward unlocks Platinum in UI; until then Metal is the active tier.
+  bool _spinPlatinumUnlocked = false;
+
+  static const List<String> _tierOrder = [
+    'metal',
+    'bronze',
+    'silver',
+    'gold',
+    'platinum',
+  ];
+
   @override
   void initState() {
     super.initState();
     _cubit = SubscriptionPlansCubit(SubscriptionPlansService());
     _cubit.load();
+    unawaited(_loadSpinState());
     if (_iap.isIosStore) {
       _iap.onPurchaseUpdate = _onIapPurchaseUpdate;
       unawaited(_iap.ensureInitialized());
@@ -58,6 +71,51 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     }
     _cubit.close();
     super.dispose();
+  }
+
+  Future<void> _loadSpinState() async {
+    final v = await StorageService.hasSpinPremiumUnlocked();
+    if (!mounted) return;
+    if (v != _spinPlatinumUnlocked) {
+      setState(() => _spinPlatinumUnlocked = v);
+    }
+  }
+
+  /// Prefer plan id; fall back to image_slug when API uses opaque ids.
+  String _tierKey(SubscriptionPlan plan) {
+    final id = plan.id.toLowerCase().trim();
+    if (id.isNotEmpty && _tierOrder.contains(id)) return id;
+    final slug = plan.imageSlug.toLowerCase().trim();
+    if (slug.isNotEmpty && _tierOrder.contains(slug)) return slug;
+    return id.isNotEmpty ? id : slug;
+  }
+
+  int _tierRank(SubscriptionPlan plan) {
+    final i = _tierOrder.indexOf(_tierKey(plan));
+    return i >= 0 ? i : 999;
+  }
+
+  List<SubscriptionPlan> _sortPlansByTier(List<SubscriptionPlan> plans) {
+    final copy = List<SubscriptionPlan>.from(plans);
+    copy.sort((a, b) => _tierRank(a).compareTo(_tierRank(b)));
+    return copy;
+  }
+
+  /// Effective "current" plan for this screen (Metal before spin, Platinum after).
+  bool _effectiveIsCurrent(SubscriptionPlan plan) {
+    final key = _tierKey(plan);
+    if (!_spinPlatinumUnlocked) return key == 'metal';
+    return key == 'platinum';
+  }
+
+  String _effectiveCtaLabel(SubscriptionPlan plan) {
+    final key = _tierKey(plan);
+    if (!_spinPlatinumUnlocked) {
+      if (key == 'metal') return 'Active Plan';
+      return 'Upgrade to ${plan.name.trim()}';
+    }
+    if (key == 'platinum') return 'Active Plan';
+    return 'Downgrade';
   }
 
   Future<void> _onIapPurchaseUpdate(PurchaseDetails details) async {
@@ -129,7 +187,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   }
 
   Future<void> _onPlanButtonTap(SubscriptionPlan plan) async {
-    if (plan.isCurrent) return;
+    if (_effectiveIsCurrent(plan)) return;
 
     if (Platform.isAndroid) {
       if (!mounted) return;
@@ -209,7 +267,12 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
               return Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 430),
-                  child: BlocBuilder<SubscriptionPlansCubit, SubscriptionPlansState>(
+                  child: BlocListener<SubscriptionPlansCubit, SubscriptionPlansState>(
+                    listenWhen: (prev, curr) => curr is SubscriptionPlansLoaded,
+                    listener: (context, state) {
+                      unawaited(_loadSpinState());
+                    },
+                    child: BlocBuilder<SubscriptionPlansCubit, SubscriptionPlansState>(
                     builder: (context, state) {
                       if (state is SubscriptionPlansLoading ||
                           state is SubscriptionPlansInitial) {
@@ -252,6 +315,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
 
                       if (state is SubscriptionPlansLoaded) {
                         final data = state.data;
+                        final sortedPlans = _sortPlansByTier(data.plans);
                         WidgetsBinding.instance.addPostFrameCallback((_) {
                           if (mounted) _maybeLoadIapProducts(data);
                         });
@@ -306,11 +370,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                               SizedBox(height: R.h(context, 18)),
 
                               /// -------- PLANS --------
-                              ...data.plans.map((plan) {
-                                // Check if this is the current plan
-                                final isCurrentPlan = plan.isCurrent ||
-                                    (data.currentPlanId != null &&
-                                        plan.id == data.currentPlanId);
+                              /// Metal = active before spin; Platinum = active after spin (CTA labels).
+                              ...sortedPlans.map((plan) {
+                                final isCurrentPlan = _effectiveIsCurrent(plan);
 
                                 if (isCurrentPlan) {
                                   return Column(
@@ -326,6 +388,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                                         context,
                                         plan,
                                         isCurrentPlan: true,
+                                        buttonLabel: _effectiveCtaLabel(plan),
                                       ),
                                     ],
                                   );
@@ -335,6 +398,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                                   context,
                                   plan,
                                   isCurrentPlan: false,
+                                  buttonLabel: _effectiveCtaLabel(plan),
                                 );
                               }),
 
@@ -419,6 +483,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                       return const SizedBox.shrink();
                     },
                   ),
+                  ),
                 ),
               );
             },
@@ -432,6 +497,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     BuildContext context,
     SubscriptionPlan plan, {
     required bool isCurrentPlan,
+    required String buttonLabel,
   }) {
     // Map image_slug to asset path
     final imagePath = _getImagePath(plan.imageSlug);
@@ -450,7 +516,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
       days: plan.durationLabel,
       price: plan.priceDisplay,
       features: plan.features,
-      button: plan.buttonLabel,
+      button: buttonLabel,
       colors: colors.isNotEmpty ? colors : [Colors.grey, Colors.grey],
       textColor: textColor,
       isDark: plan.isDark,
